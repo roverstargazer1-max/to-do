@@ -36,6 +36,8 @@ import {
 import { formatLinkError } from "@/lib/auth/format-auth-error";
 import { useHasPassword } from "@/lib/hooks/useHasPassword";
 import { notify } from "@/lib/notify";
+import { tr } from "@/lib/i18n/tr";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 import { SUPPORT_EMAIL } from "@/lib/links";
 import type { UserIdentity } from "@supabase/supabase-js";
 import { cn } from "@/lib/utils";
@@ -53,6 +55,7 @@ export function AccountSection() {
   } = useAuth();
   const searchParams = useSearchParams();
   const { hasPassword, refetchHasPassword } = useHasPassword();
+  const { t } = useTranslation();
 
   const [password, setPassword] = useState("");
   const [passwordSubmitting, setPasswordSubmitting] = useState(false);
@@ -113,16 +116,20 @@ export function AccountSection() {
     try {
       const { error } = await unlinkIdentity(identity);
       if (error) {
-        setProviderError(error.message || "Failed to disconnect provider");
-        notify.error("Failed to disconnect provider");
+        setProviderError(
+          error.message || tr("settings.account.providers.disconnectFailed"),
+        );
+        notify.error(tr("settings.account.providers.disconnectFailed"));
       } else {
-        notify.success(`Disconnected ${label}`);
+        notify.success(
+          tr("settings.account.providers.disconnected", { provider: label }),
+        );
       }
     } catch (err) {
       setProviderError(
         (err as Error).message || "An unexpected error occurred",
       );
-      notify.error("Failed to disconnect provider");
+      notify.error(tr("settings.account.providers.disconnectFailed"));
     } finally {
       setLoadingProvider(null);
     }
@@ -145,8 +152,8 @@ export function AccountSection() {
       if (!error) {
         notify.success(
           hasPassword
-            ? "Password changed successfully"
-            : "Password set successfully",
+            ? tr("settings.account.password.changeSuccess")
+            : tr("settings.account.password.setSuccess"),
         );
         setPassword("");
         setNonce("");
@@ -157,21 +164,21 @@ export function AccountSection() {
         const { error: sendError } = await reauthenticate();
         if (sendError) {
           setPasswordError(
-            sendError.message || "Failed to send verification code",
+            sendError.message || tr("settings.account.password.codeSendFailed"),
           );
         }
       } else if (
         error.code === "reauthentication_not_valid" ||
         error.code === "reauth_nonce_missing"
       ) {
-        setPasswordError(
-          "That code wasn't right. Check your email and try again.",
-        );
+        setPasswordError(tr("settings.account.password.invalidCode"));
       } else {
-        setPasswordError(error.message || "Failed to update password");
+        setPasswordError(
+          error.message || tr("settings.account.password.updateFailed"),
+        );
       }
     } catch {
-      setPasswordError("An unexpected error occurred");
+      setPasswordError(tr("settings.account.password.updateFailed"));
     } finally {
       setPasswordSubmitting(false);
     }
@@ -183,12 +190,14 @@ export function AccountSection() {
     try {
       const { error } = await reauthenticate();
       if (error) {
-        setPasswordError(error.message || "Failed to send verification code");
+        setPasswordError(
+          error.message || tr("settings.account.password.codeSendFailed"),
+        );
       } else {
-        notify.success("Verification code resent");
+        notify.success(tr("settings.account.password.codeResent"));
       }
     } catch {
-      setPasswordError("Failed to send verification code");
+      setPasswordError(tr("settings.account.password.codeSendFailed"));
     } finally {
       setResendingCode(false);
     }
@@ -214,10 +223,10 @@ export function AccountSection() {
         <CardHeader className="pb-3 px-4 pt-5">
           <CardTitle className="flex items-center gap-2 text-base font-medium tracking-tight">
             <Link2 className="h-4 w-4 text-brand" strokeWidth={2.25} />
-            Connected Providers
+            {t("settings.account.providers.title")}
           </CardTitle>
           <CardDescription className="text-xs text-muted-foreground/80 lowercase">
-            Manage the providers connected to your account.
+            {t("settings.account.providers.description")}
           </CardDescription>
         </CardHeader>
         <CardContent className="px-4 pb-3 pt-0">
@@ -229,8 +238,12 @@ export function AccountSection() {
               <div className="flex items-center gap-3">
                 <Mail className="h-5 w-5 text-foreground/70" />
                 <div>
-                  <p className="text-sm font-medium">Email</p>
-                  <p className="text-xs text-muted-foreground">Connected</p>
+                  <p className="text-sm font-medium">
+                    {t("settings.account.providers.email")}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {t("settings.account.providers.connected")}
+                  </p>
                 </div>
               </div>
             </div>
@@ -253,7 +266,9 @@ export function AccountSection() {
                   <div>
                     <p className="text-sm font-medium">{provider.label}</p>
                     <p className="text-xs text-muted-foreground">
-                      {isConnected ? "Connected" : "Not connected"}
+                      {isConnected
+                        ? t("settings.account.providers.connected")
+                        : t("settings.account.providers.notConnected")}
                     </p>
                   </div>
                 </div>
@@ -267,7 +282,9 @@ export function AccountSection() {
                     onClick={() =>
                       identity && handleDisconnect(identity, provider.label)
                     }
-                    aria-label={`Disconnect ${provider.label}`}
+                    aria-label={t("settings.account.providers.disconnectAria", {
+                      provider: provider.label,
+                    })}
                     className={cn(
                       "h-11 sm:h-8 gap-1.5 text-xs font-medium border-border/50",
                       isLastIdentity && "opacity-50 cursor-not-allowed",
@@ -276,12 +293,12 @@ export function AccountSection() {
                     {loadingProvider === provider.id ? (
                       <>
                         <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        Disconnecting...
+                        {t("settings.account.providers.disconnecting")}
                       </>
                     ) : (
                       <>
                         <Unlink className="h-3.5 w-3.5" />
-                        Disconnect
+                        {t("settings.account.providers.disconnect")}
                       </>
                     )}
                   </Button>
@@ -292,18 +309,20 @@ export function AccountSection() {
                     size="sm"
                     disabled={loadingProvider === provider.id}
                     onClick={() => handleConnect(provider.id, provider.label)}
-                    aria-label={`Connect ${provider.label}`}
+                    aria-label={t("settings.account.providers.connectAria", {
+                      provider: provider.label,
+                    })}
                     className="h-11 sm:h-8 gap-1.5 text-xs font-medium border-border/50 hover:bg-secondary/40"
                   >
                     {loadingProvider === provider.id ? (
                       <>
                         <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        Connecting...
+                        {t("settings.account.providers.connecting")}
                       </>
                     ) : (
                       <>
                         <Link2 className="h-3.5 w-3.5 text-brand" />
-                        Connect
+                        {t("settings.account.providers.connect")}
                       </>
                     )}
                   </Button>
@@ -318,19 +337,21 @@ export function AccountSection() {
         <CardHeader className="pb-3 px-4 pt-5">
           <CardTitle className="flex items-center gap-2 text-base font-medium tracking-tight">
             <KeyRound className="h-4 w-4 text-brand" strokeWidth={2.25} />
-            {hasPassword ? "Change Password" : "Set Password"}
+            {hasPassword
+              ? t("settings.account.password.changeTitle")
+              : t("settings.account.password.setTitle")}
           </CardTitle>
           <CardDescription className="text-xs text-muted-foreground/80 lowercase">
             {hasPassword
-              ? "Update your existing account password."
-              : "Set a password to enable email and password sign-in for your account."}
+              ? t("settings.account.password.changeDescription")
+              : t("settings.account.password.setDescription")}
           </CardDescription>
         </CardHeader>
         <CardContent className="px-4 pb-5 pt-0">
           <form onSubmit={handlePasswordSubmit} className="space-y-4">
             <AuthPasswordField
               id="account-password-input"
-              label="New Password"
+              label={t("settings.account.password.newPassword")}
               labelClassName="text-[11px] uppercase tracking-wider text-muted-foreground/60"
               inputClassName="h-11 sm:h-10 bg-background/30 border-border/40 focus:border-brand/50 focus:ring-0 transition-all text-base sm:text-sm"
               value={password}
@@ -344,7 +365,9 @@ export function AccountSection() {
             >
               {passwordTooShort && (
                 <p className="text-xs text-muted-foreground">
-                  Password must be at least {MIN_PASSWORD_LENGTH} characters.
+                  {t("settings.account.password.tooShort", {
+                    min: MIN_PASSWORD_LENGTH,
+                  })}
                 </p>
               )}
               <PasswordBreachWarning breached={breached} />
@@ -356,7 +379,7 @@ export function AccountSection() {
                   htmlFor="account-password-nonce"
                   className="text-[11px] uppercase tracking-wider text-muted-foreground/60"
                 >
-                  Verification code
+                  {t("settings.account.password.verificationCode")}
                 </Label>
                 <Input
                   id="account-password-nonce"
@@ -365,26 +388,27 @@ export function AccountSection() {
                   value={nonce}
                   onChange={(e) => setNonce(e.target.value)}
                   disabled={passwordSubmitting}
-                  placeholder="Enter the code from your email"
+                  placeholder={t("settings.account.password.codePlaceholder")}
                   className="h-11 sm:h-10 bg-background/30 border-border/40 focus-visible:border-brand/50 text-base sm:text-sm"
                 />
                 <p className="text-xs text-muted-foreground">
-                  For your security, we sent a code to your email to confirm
-                  this change.{" "}
+                  {t("settings.account.password.reauthNotice")}{" "}
                   <button
                     type="button"
                     onClick={handleResendCode}
                     disabled={resendingCode}
                     className="underline underline-offset-2 hover:text-foreground"
                   >
-                    {resendingCode ? "Resending…" : "Resend code"}
+                    {resendingCode
+                      ? t("settings.account.password.resending")
+                      : t("settings.account.password.resend")}
                   </button>
                   {" · "}
                   <a
                     href={`mailto:${SUPPORT_EMAIL}`}
                     className="underline underline-offset-2 hover:text-foreground"
                   >
-                    Contact support
+                    {t("settings.account.password.contactSupport")}
                   </a>
                 </p>
               </div>
@@ -410,17 +434,17 @@ export function AccountSection() {
                 <>
                   <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
                   {reauthRequired
-                    ? "Confirming..."
+                    ? t("settings.account.password.confirming")
                     : hasPassword
-                      ? "Updating..."
-                      : "Setting..."}
+                      ? t("settings.account.password.updating")
+                      : t("settings.account.password.setting")}
                 </>
               ) : reauthRequired ? (
-                "Confirm password change"
+                t("settings.account.password.confirmChange")
               ) : hasPassword ? (
-                "Change password"
+                t("settings.account.password.change")
               ) : (
-                "Set password"
+                t("settings.account.password.set")
               )}
             </Button>
           </form>

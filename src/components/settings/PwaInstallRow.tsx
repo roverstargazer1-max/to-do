@@ -4,15 +4,19 @@ import { useState } from "react";
 import { Download, Share } from "lucide-react";
 import { usePwaInstall } from "@/lib/hooks/usePwaInstall";
 import { Button } from "@/components/ui/button";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 
 export function PwaInstallRow() {
   const { isIOS, canInstall, promptInstall, shouldShowRow } = usePwaInstall();
+  const { t } = useTranslation();
   const [showIosInstructions, setShowIosInstructions] = useState(false);
 
   if (!shouldShowRow) return null;
 
   const Icon = isIOS ? Share : Download;
-  const label = isIOS ? "Add to Home Screen" : "Install app";
+  const label = isIOS
+    ? t("settings.pwa.addToHomeScreen")
+    : t("settings.pwa.installApp");
 
   return (
     <div className="p-4 rounded-lg border border-border/50 bg-background">
@@ -29,22 +33,24 @@ export function PwaInstallRow() {
             size="sm"
             onClick={() => setShowIosInstructions((v) => !v)}
           >
-            {showIosInstructions ? "Hide" : "Show me how"}
+            {showIosInstructions
+              ? t("settings.pwa.hide")
+              : t("settings.pwa.showMeHow")}
           </Button>
         ) : canInstall ? (
           <Button variant="outline" size="sm" onClick={promptInstall}>
-            Install
+            {t("settings.pwa.install")}
           </Button>
         ) : null}
       </div>
       {isIOS && showIosInstructions && (
         <p className="text-xs text-muted-foreground mt-3 pt-3 border-t border-border/50">
-          Tap the Share icon, then select &quot;Add to Home Screen&quot;.
+          {t("settings.pwa.iosHint")}
         </p>
       )}
       {!isIOS && !canInstall && (
         <p className="text-xs text-muted-foreground mt-3 pt-3 border-t border-border/50">
-          Use your browser&apos;s menu to install this app.
+          {t("settings.pwa.browserMenuHint")}
         </p>
       )}
     </div>

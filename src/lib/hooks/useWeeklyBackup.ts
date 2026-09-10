@@ -5,6 +5,7 @@ import { notify } from "@/lib/notify";
 import { useAuth } from "@/components/AuthProvider";
 import { mockStore } from "@/lib/mock/mock-store";
 import { useUiStore } from "@/lib/store/uiStore";
+import { tr } from "@/lib/i18n/tr";
 import type { BackupData } from "@/lib/backup/types";
 
 const STORAGE_KEY = "kanso_last_backup_date";
@@ -54,10 +55,10 @@ export function useWeeklyBackup() {
 
       updateLastBackupDate();
 
-      notify.success("Backup downloaded successfully");
+      notify.success(tr("common.backup.downloaded"));
     } catch (error) {
       console.error("Backup failed:", error);
-      notify.error("Failed to create backup");
+      notify.error(tr("common.backup.createFailed"));
     }
   }, [updateLastBackupDate]);
 
@@ -82,18 +83,15 @@ export function useWeeklyBackup() {
           sessionStorage.setItem(SESSION_KEY, "true");
         }
 
-        notify(
-          "It's been a while since your last backup — back up now to prevent loss",
-          {
-            duration: 10000,
-            action: {
-              label: "Back Up Now",
-              onClick: () => {
-                triggerBackup();
-              },
+        notify(tr("common.backup.reminder"), {
+          duration: 10000,
+          action: {
+            label: tr("common.backup.backUpNow"),
+            onClick: () => {
+              triggerBackup();
             },
           },
-        );
+        });
       }, 3000);
 
       return () => clearTimeout(timeoutId);

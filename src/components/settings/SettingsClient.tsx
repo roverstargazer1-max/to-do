@@ -37,6 +37,8 @@ import {
   useResetDemoData,
 } from "@/lib/hooks/useGuestStoreActions";
 import { NotificationSettings } from "@/components/settings/NotificationSettings";
+import { LanguageSetting } from "@/components/settings/LanguageSetting";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 import { PwaInstallRow } from "@/components/settings/PwaInstallRow";
 import { DeleteUserDataDialog } from "@/components/settings/DeleteUserDataDialog";
 import { BackupSyncSettings } from "@/components/settings/BackupSyncSettings";
@@ -98,6 +100,7 @@ interface SettingsClientProps {
 
 export function SettingsClient({ version }: SettingsClientProps) {
   const { theme, setTheme } = useTheme();
+  const { t } = useTranslation();
   const hapticsEnabled = useUiStore((state) => state.hapticsEnabled);
   const setHapticsEnabled = useUiStore((state) => state.setHapticsEnabled);
   const timeFormat = useUiStore((state) => state.timeFormat);
@@ -133,7 +136,7 @@ export function SettingsClient({ version }: SettingsClientProps) {
 
   // user goes null before the redirect to /login lands; avoids a flash.
   if (!user) {
-    return <LoaderOverlay message="Signing out..." />;
+    return <LoaderOverlay message={t("settings.signingOut")} />;
   }
 
   const handleTabChange = (v: string) => {
@@ -158,15 +161,19 @@ export function SettingsClient({ version }: SettingsClientProps) {
   };
 
   const themeOptions = [
-    { value: "light", label: "Light", icon: Sun },
-    { value: "dark", label: "Dark", icon: Moon },
-    { value: "system", label: "System", icon: Monitor },
+    { value: "light", label: t("settings.appearance.themeLight"), icon: Sun },
+    { value: "dark", label: t("settings.appearance.themeDark"), icon: Moon },
+    {
+      value: "system",
+      label: t("settings.appearance.themeSystem"),
+      icon: Monitor,
+    },
   ];
 
   const sectionTabs = [
-    { value: "appearance", label: "Appearance" },
-    { value: "preferences", label: "Preferences" },
-    { value: "account", label: "Account" },
+    { value: "appearance", label: t("settings.tab.appearance") },
+    { value: "preferences", label: t("settings.tab.preferences") },
+    { value: "account", label: t("settings.tab.account") },
   ] as const;
 
   return (
@@ -182,12 +189,12 @@ export function SettingsClient({ version }: SettingsClientProps) {
               className="h-9 w-9 shadow-none transition-seijaku-fast"
             >
               <ArrowLeft className="h-4 w-4" />
-              <span className="sr-only">Back</span>
+              <span className="sr-only">{t("settings.back")}</span>
             </Button>
-            <h1 className="type-h1">Settings</h1>
+            <h1 className="type-h1">{t("settings.title")}</h1>
           </div>
           <p className="text-sm text-muted-foreground mt-1">
-            Manage your account and preferences
+            {t("settings.subtitle")}
           </p>
         </div>
 
@@ -212,9 +219,9 @@ export function SettingsClient({ version }: SettingsClientProps) {
         </div>
 
         <div className="hidden md:block">
-          <h1 className="type-h1 mb-1">Settings</h1>
+          <h1 className="type-h1 mb-1">{t("settings.title")}</h1>
           <p className="text-sm text-muted-foreground">
-            Manage your account and preferences
+            {t("settings.subtitle")}
           </p>
         </div>
 
@@ -248,11 +255,13 @@ export function SettingsClient({ version }: SettingsClientProps) {
             {activeTab === "appearance" && (
               <section className={cn("space-y-4", SECTION_MAX_WIDTH)}>
                 <div>
-                  <h2 className="type-h3">Appearance</h2>
+                  <h2 className="type-h3">{t("settings.appearance.title")}</h2>
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Theme</label>
+                  <label className="text-sm font-medium">
+                    {t("settings.appearance.theme")}
+                  </label>
                   <div className="grid grid-cols-3 gap-3">
                     {themeOptions.map((option) => {
                       const Icon = option.icon;
@@ -295,7 +304,9 @@ export function SettingsClient({ version }: SettingsClientProps) {
               <div className="grid gap-8 xl:grid-cols-2 xl:gap-6">
                 <section className="space-y-4">
                   <div>
-                    <h2 className="type-h3">Preferences</h2>
+                    <h2 className="type-h3">
+                      {t("settings.preferences.title")}
+                    </h2>
                   </div>
 
                   <div className="space-y-3">
@@ -307,10 +318,10 @@ export function SettingsClient({ version }: SettingsClientProps) {
                           </div>
                           <div>
                             <p className="text-sm font-medium">
-                              Haptic Feedback
+                              {t("settings.haptics.label")}
                             </p>
                             <p className="text-xs text-muted-foreground">
-                              Vibrate on interactions
+                              {t("settings.haptics.description")}
                             </p>
                           </div>
                         </div>
@@ -327,9 +338,11 @@ export function SettingsClient({ version }: SettingsClientProps) {
                           <Clock className="h-4 w-4 text-muted-foreground" />
                         </div>
                         <div>
-                          <p className="text-sm font-medium">Time Format</p>
+                          <p className="text-sm font-medium">
+                            {t("settings.timeFormat.label")}
+                          </p>
                           <p className="text-xs text-muted-foreground">
-                            Choose how times are displayed
+                            {t("settings.timeFormat.description")}
                           </p>
                         </div>
                       </div>
@@ -346,23 +359,25 @@ export function SettingsClient({ version }: SettingsClientProps) {
                             value="12h"
                             className="rounded-md text-[13px] font-medium data-[state=active]:bg-brand data-[state=active]:text-brand-foreground transition-seijaku-fast"
                           >
-                            12-hour
+                            {t("settings.timeFormat.12h")}
                           </TabsTrigger>
                           <TabsTrigger
                             value="24h"
                             className="rounded-md text-[13px] font-medium data-[state=active]:bg-brand data-[state=active]:text-brand-foreground transition-seijaku-fast"
                           >
-                            24-hour
+                            {t("settings.timeFormat.24h")}
                           </TabsTrigger>
                           <TabsTrigger
                             value="system"
                             className="rounded-md text-[13px] font-medium data-[state=active]:bg-brand data-[state=active]:text-brand-foreground transition-seijaku-fast"
                           >
-                            System
+                            {t("settings.timeFormat.system")}
                           </TabsTrigger>
                         </TabsList>
                       </Tabs>
                     </div>
+
+                    <LanguageSetting />
 
                     <NotificationSettings />
 
@@ -374,7 +389,7 @@ export function SettingsClient({ version }: SettingsClientProps) {
 
                 <section className="space-y-4">
                   <div>
-                    <h2 className="type-h3">Goals</h2>
+                    <h2 className="type-h3">{t("settings.goals.title")}</h2>
                   </div>
 
                   <div className="space-y-4 p-4 rounded-lg border border-border/50 bg-background">
@@ -383,31 +398,36 @@ export function SettingsClient({ version }: SettingsClientProps) {
                         <Target className="h-4 w-4 text-muted-foreground" />
                       </div>
                       <div>
-                        <p className="text-sm font-medium">Goals</p>
+                        <p className="text-sm font-medium">
+                          {t("settings.goals.label")}
+                        </p>
                         <p className="text-xs text-muted-foreground">
-                          Daily and weekly targets shown as rings on the Stats
-                          page. Leave a field empty to hide its ring.
+                          {t("settings.goals.description")}
                         </p>
                       </div>
                     </div>
 
                     <GoalField
-                      label="Daily focus hours"
+                      label={t("settings.goals.dailyFocusHours")}
+                      placeholder={t("settings.goals.off")}
                       value={goals.dailyFocusHours}
                       onCommit={(v) => setGoals({ dailyFocusHours: v })}
                     />
                     <GoalField
-                      label="Weekly focus hours"
+                      label={t("settings.goals.weeklyFocusHours")}
+                      placeholder={t("settings.goals.off")}
                       value={goals.weeklyFocusHours}
                       onCommit={(v) => setGoals({ weeklyFocusHours: v })}
                     />
                     <GoalField
-                      label="Daily tasks completed"
+                      label={t("settings.goals.dailyTasksCompleted")}
+                      placeholder={t("settings.goals.off")}
                       value={goals.dailyTasksCompleted}
                       onCommit={(v) => setGoals({ dailyTasksCompleted: v })}
                     />
                     <GoalField
-                      label="Weekly tasks completed"
+                      label={t("settings.goals.weeklyTasksCompleted")}
+                      placeholder={t("settings.goals.off")}
                       value={goals.weeklyTasksCompleted}
                       onCommit={(v) => setGoals({ weeklyTasksCompleted: v })}
                     />
@@ -419,15 +439,13 @@ export function SettingsClient({ version }: SettingsClientProps) {
             {isGuestMode && activeTab === "account" && (
               <section className={cn("space-y-4", SECTION_MAX_WIDTH)}>
                 <div>
-                  <h2 className="type-h3">Guest Mode</h2>
+                  <h2 className="type-h3">{t("settings.guest.title")}</h2>
                 </div>
 
                 <div className="space-y-3">
                   <div className="p-4 rounded-lg border border-brand/20 bg-brand/5">
                     <p className="text-xs text-muted-foreground mb-4">
-                      Your data is stored locally in your browser. Sign in to
-                      sync your data across devices and ensure it&apos;s never
-                      lost.
+                      {t("settings.guest.description")}
                     </p>
                     <div className="flex flex-col gap-2">
                       <Button
@@ -438,7 +456,7 @@ export function SettingsClient({ version }: SettingsClientProps) {
                         }}
                       >
                         <User className="h-4 w-4 mr-2" />
-                        Sync to Account
+                        {t("settings.guest.syncToAccount")}
                       </Button>
                       <div className="flex gap-2">
                         <Button
@@ -451,7 +469,7 @@ export function SettingsClient({ version }: SettingsClientProps) {
                           }}
                         >
                           <RotateCcw className="h-4 w-4 mr-2" />
-                          Reset Demo
+                          {t("settings.guest.resetDemo")}
                         </Button>
                         <Button
                           variant="destructive"
@@ -463,7 +481,7 @@ export function SettingsClient({ version }: SettingsClientProps) {
                           }}
                         >
                           <Trash2 className="h-4 w-4" strokeWidth={2.25} />
-                          <span>Clear Data</span>
+                          <span>{t("settings.guest.clearData")}</span>
                         </Button>
                       </div>
                     </div>
@@ -475,7 +493,7 @@ export function SettingsClient({ version }: SettingsClientProps) {
             {activeTab === "account" && (
               <section className={cn("space-y-4", SECTION_MAX_WIDTH)}>
                 <div>
-                  <h2 className="type-h3">Account</h2>
+                  <h2 className="type-h3">{t("settings.account.title")}</h2>
                 </div>
 
                 <div className="space-y-3">
@@ -483,15 +501,15 @@ export function SettingsClient({ version }: SettingsClientProps) {
                     profile.display_name !== user?.email && (
                       <AccountInfoRow
                         icon={User}
-                        label="Name"
+                        label={t("settings.account.name")}
                         value={profile.display_name}
                       />
                     )}
 
                   <AccountInfoRow
                     icon={User}
-                    label="Email"
-                    value={user?.email || "Not signed in"}
+                    label={t("settings.account.email")}
+                    value={user?.email || t("settings.account.notSignedIn")}
                   />
 
                   {!isGuestMode && <AccountSection />}
@@ -509,7 +527,7 @@ export function SettingsClient({ version }: SettingsClientProps) {
                       disabled={isSigningOut}
                     >
                       <Trash2 className="h-4 w-4 mr-2" strokeWidth={2.25} />
-                      Delete Cloud Data
+                      {t("settings.account.deleteCloudData")}
                     </Button>
                   )}
 
@@ -525,12 +543,12 @@ export function SettingsClient({ version }: SettingsClientProps) {
                     {isSigningOut ? (
                       <>
                         <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Signing out...
+                        {t("settings.signingOut")}
                       </>
                     ) : (
                       <>
                         <LogOut className="h-4 w-4 mr-2" />
-                        Sign Out
+                        {t("settings.account.signOut")}
                       </>
                     )}
                   </Button>
@@ -561,7 +579,7 @@ export function SettingsClient({ version }: SettingsClientProps) {
                 </div>
                 <span className="flex items-center gap-1.5 text-[10px] text-muted-foreground group-hover:text-foreground transition-colors tracking-[0.04em] uppercase font-medium">
                   <Info className="h-2.5 w-2.5" />
-                  About
+                  {t("settings.about")}
                 </span>
               </button>
             </div>
@@ -597,7 +615,7 @@ export function SettingsClient({ version }: SettingsClientProps) {
         }}
       />
 
-      {isSigningOut && <LoaderOverlay message="Signing out..." />}
+      {isSigningOut && <LoaderOverlay message={t("settings.signingOut")} />}
     </>
   );
 }
@@ -605,11 +623,12 @@ export function SettingsClient({ version }: SettingsClientProps) {
 interface GoalFieldProps {
   label: string;
   value: GoalsState[keyof GoalsState];
+  placeholder: string;
   onCommit: (value: number | null) => void;
 }
 
 /** Local draft; commits to the store on blur. */
-function GoalField({ label, value, onCommit }: GoalFieldProps) {
+function GoalField({ label, value, placeholder, onCommit }: GoalFieldProps) {
   const [text, setText] = useState(value != null ? String(value) : "");
   const [prevValue, setPrevValue] = useState(value);
 
@@ -639,7 +658,7 @@ function GoalField({ label, value, onCommit }: GoalFieldProps) {
         value={text}
         onChange={(e) => setText(e.target.value)}
         onBlur={commit}
-        placeholder="Off"
+        placeholder={placeholder}
         className="w-24 text-right"
       />
     </div>

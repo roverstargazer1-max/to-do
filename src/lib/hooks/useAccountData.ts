@@ -9,6 +9,7 @@ import {
 } from "@/lib/backup/export-import";
 import { collectCloudBackup } from "@/lib/backup/cloud-data";
 import { notify } from "@/lib/notify";
+import { tr } from "@/lib/i18n/tr";
 
 export function useAccountData() {
   const { user } = useAuth();
@@ -16,7 +17,7 @@ export function useAccountData() {
 
   const exportData = async () => {
     if (!user) {
-      notify.error("You must be logged in to export cloud data");
+      notify.error(tr("common.account.loginRequiredExport"));
       return;
     }
 
@@ -30,15 +31,16 @@ export function useAccountData() {
     };
 
     return notify.promise(promise(), {
-      loading: "Preparing your data export...",
-      success: "Data exported successfully",
-      error: (err) => `Export failed: ${err.message}`,
+      loading: tr("common.account.exportPreparing"),
+      success: tr("common.account.exportSuccess"),
+      error: (err) =>
+        tr("common.account.exportFailed", { message: err.message }),
     });
   };
 
   const importData = async (file: File) => {
     if (!user) {
-      notify.error("You must be logged in to import cloud data");
+      notify.error(tr("common.account.loginRequiredImport"));
       return;
     }
 
@@ -46,7 +48,7 @@ export function useAccountData() {
       const data = await parseBackupZip(file);
 
       if (!data.metadata || !data.tasks) {
-        throw new Error("Invalid backup file format: missing essential data");
+        throw new Error(tr("common.account.invalidBackup"));
       }
 
       // Remap IDs to attach imported rows to current user and preserve relationships without collisions.
@@ -109,9 +111,10 @@ export function useAccountData() {
     };
 
     return notify.promise(promise(), {
-      loading: "Importing your cloud data...",
-      success: "Data imported successfully. Please refresh to see changes.",
-      error: (err) => `Import failed: ${err.message}`,
+      loading: tr("common.account.importing"),
+      success: tr("common.account.importSuccess"),
+      error: (err) =>
+        tr("common.account.importFailed", { message: err.message }),
     });
   };
 
@@ -141,9 +144,10 @@ export function useAccountData() {
     };
 
     return notify.promise(promise(), {
-      loading: "Clearing your cloud data...",
-      success: "Cloud data cleared successfully",
-      error: (err) => `Clear failed: ${err.message}`,
+      loading: tr("common.account.clearing"),
+      success: tr("common.account.clearSuccess"),
+      error: (err) =>
+        tr("common.account.clearFailed", { message: err.message }),
     });
   };
 

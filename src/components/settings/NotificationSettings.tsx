@@ -14,6 +14,7 @@ import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { usePushNotifications } from "@/lib/hooks/usePushNotifications";
 import { useHaptic } from "@/lib/hooks/useHaptic";
+import { useDateFormatter } from "@/lib/i18n/useDateFormatter";
 import { useProfile } from "@/lib/hooks/useProfile";
 import { useAuth } from "@/components/AuthProvider";
 import { notify } from "@/lib/notify";
@@ -21,6 +22,8 @@ import { sendPushNotification } from "@/lib/push-api";
 import { useAndroidBatteryHint } from "@/lib/hooks/useAndroidBatteryHint";
 import { AndroidBatteryHint } from "@/components/settings/AndroidBatteryHint";
 import { ToggleRow } from "@/components/settings/ToggleRow";
+import { useTranslation } from "@/lib/i18n/useTranslation";
+import { tr } from "@/lib/i18n/tr";
 import { isIOS, isStandalone } from "@/lib/utils/platform";
 import {
   Select,
@@ -62,6 +65,8 @@ export function NotificationSettings() {
   const { isGuestMode } = useAuth();
   const { profile, updateProfile, updateSettings } = useProfile();
   const { trigger } = useHaptic();
+  const { localeTag } = useDateFormatter();
+  const { t } = useTranslation();
 
   const [timezones] = useState<string[]>(getInitialTimezones);
   const [timezoneSearch, setTimezoneSearch] = useState("");
@@ -78,7 +83,7 @@ export function NotificationSettings() {
     const now = new Date();
     return timezones.map((tz) => {
       try {
-        const formatter = new Intl.DateTimeFormat("en-US", {
+        const formatter = new Intl.DateTimeFormat(localeTag, {
           timeZone: tz,
           timeZoneName: "shortOffset",
         });
@@ -100,7 +105,7 @@ export function NotificationSettings() {
         };
       }
     });
-  }, [timezones]);
+  }, [timezones, localeTag]);
 
   // Keeps the current selection visible even if search/pagination would cut it.
   const filteredTimezones = useMemo(() => {
@@ -129,23 +134,23 @@ export function NotificationSettings() {
     trigger("toggle");
 
     if (!isSupported) {
-      notify.error("Push notifications are not supported in this browser");
+      notify.error(tr("settings.notifications.toast.unsupported"));
       return;
     }
 
     if (checked) {
       const result = await requestPermission({ forceRefresh: true });
       if (result.permission === "granted" && result.subscription) {
-        notify.success("Notifications enabled");
+        notify.success(tr("settings.notifications.toast.enabled"));
         promptBatteryHintIfDue();
       } else if (result.permission === "denied") {
-        notify.error("Permission denied. Enable in browser settings.");
+        notify.error(tr("settings.notifications.toast.denied"));
       } else {
-        notify.error("Failed to activate notifications on this device.");
+        notify.error(tr("settings.notifications.toast.activateFailed"));
       }
     } else {
       await unsubscribe();
-      notify.success("Notifications disabled");
+      notify.success(tr("settings.notifications.toast.disabled"));
     }
   };
 
@@ -159,14 +164,14 @@ export function NotificationSettings() {
         },
       } as Parameters<typeof updateSettings.mutateAsync>[0]);
     } catch {
-      notify.error("Failed to update settings");
+      notify.error(tr("settings.notifications.toast.updateFailed"));
     }
   };
 
   const handleTestNotification = async () => {
     trigger("toggle");
     if (permission !== "granted") {
-      notify.error("Please enable notifications first");
+      notify.error(tr("settings.notifications.toast.enableFirst"));
       return;
     }
 
@@ -176,34 +181,34 @@ export function NotificationSettings() {
       });
 
       if (!activeSubscription) {
-        notify.error("Failed to refresh notifications on this device");
+        notify.error(tr("settings.notifications.toast.refreshFailed"));
         return;
       }
 
       await sendPushNotification({
         endpoint: activeSubscription.endpoint,
-        title: "Test Notification",
-        body: "This is a server-sent test notification from Kagelin",
+        title: tr("settings.notifications.test.title"),
+        body: tr("settings.notifications.test.body"),
         data: { type: "test" },
       });
-      notify.success("Test notification sent to this device");
+      notify.success(tr("settings.notifications.toast.testSent"));
     } catch {
-      notify.error("Failed to send test notification");
+      notify.error(tr("settings.notifications.toast.testFailed"));
     }
   };
 
   const handleLocalTestNotification = () => {
     trigger("toggle");
     if (permission !== "granted") {
-      notify.error("Please enable notifications first");
+      notify.error(tr("settings.notifications.toast.enableFirst"));
       return;
     }
 
-    showNotification("Local Test Notification", {
-      body: "This notification was triggered locally from the browser.",
+    showNotification(tr("settings.notifications.test.localTitle"), {
+      body: tr("settings.notifications.test.localBody"),
       tag: "kanso-local-test",
     });
-    notify.success("Local notification triggered");
+    notify.success(tr("settings.notifications.toast.localTriggered"));
   };
 
   if (!isSupported) {
@@ -249,13 +254,15 @@ export function NotificationSettings() {
                   <Bell className="h-4 w-4 text-muted-foreground" />
                 </div>
                 <div>
-                  <p className="text-sm font-medium">Push Notifications</p>
+                  <p className="text-sm font-medium">
+                    {t("settings.notifications.push.title")}
+                  </p>
                   <p className="text-xs text-muted-foreground">
                     {isGuestMode
-                      ? "Sign in to enable notifications"
+                      ? t("settings.notifications.push.guestHint")
                       : permission === "granted"
-                        ? "Receive updates and reminders"
-                        : "Enable to receive updates"}
+                        ? t("settings.notifications.push.grantedHint")
+                        : t("settings.notifications.push.enableHint")}
                   </p>
                 </div>
               </div>
@@ -267,13 +274,13 @@ export function NotificationSettings() {
                 }
                 onCheckedChange={handleTogglePush}
                 disabled={isGuestMode || permission === "denied" || isSyncing}
-                aria-label="Push Notifications"
+                aria-label={t("settings.notifications.push.title")}
               />
             </div>
           </TooltipTrigger>
           {isGuestMode && (
             <TooltipContent className="hidden md:block">
-              Available for registered users only
+              {t("settings.notifications.push.guestTooltip")}
             </TooltipContent>
           )}
         </Tooltip>
@@ -289,7 +296,7 @@ export function NotificationSettings() {
                 onClick={handleTestNotification}
               >
                 <Bell className="h-4 w-4 mr-2" />
-                Send Test Notification (Server)
+                {t("settings.notifications.sendTest")}
               </Button>
               <Button
                 variant="ghost"
@@ -297,7 +304,7 @@ export function NotificationSettings() {
                 className="w-full text-[10px] text-muted-foreground hover:text-foreground h-7"
                 onClick={handleLocalTestNotification}
               >
-                Trigger Local Notification (Sanity Check)
+                {t("settings.notifications.triggerLocal")}
               </Button>
             </div>
           )}
@@ -311,7 +318,7 @@ export function NotificationSettings() {
               className="w-full text-[10px] text-muted-foreground hover:text-foreground h-7"
               onClick={handleReopenBatteryHint}
             >
-              Notifications arriving late on Android?
+              {t("settings.notifications.androidLate")}
             </Button>
           ))}
       </div>
@@ -322,13 +329,12 @@ export function NotificationSettings() {
           <div className="flex items-center gap-2 mb-1">
             <Globe className="h-3.5 w-3.5 text-muted-foreground" />
             <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Local Time
+              {t("settings.notifications.localTime.title")}
             </h3>
           </div>
           <div className="flex flex-col gap-2">
             <p className="text-xs text-muted-foreground">
-              Confirm your timezone to ensure morning briefings and task alerts
-              arrive at the right local time.
+              {t("settings.notifications.localTime.description")}
             </p>
             <Select
               value={profile?.timezone || "UTC"}
@@ -338,15 +344,22 @@ export function NotificationSettings() {
                 setTimezoneSearch("");
               }}
             >
-              <SelectTrigger className="w-full" aria-label="Select Timezone">
-                <SelectValue placeholder="Select Timezone" />
+              <SelectTrigger
+                className="w-full"
+                aria-label={t("settings.notifications.timezone.select")}
+              >
+                <SelectValue
+                  placeholder={t("settings.notifications.timezone.select")}
+                />
               </SelectTrigger>
               <SelectContent className="max-h-[300px] w-[--radix-select-trigger-width]">
                 <div className="sticky top-0 z-10 bg-popover px-2 py-2 pt-4 border-b border-border/50">
                   <input
                     type="text"
-                    placeholder="Search timezone..."
-                    aria-label="Search timezone"
+                    placeholder={t(
+                      "settings.notifications.timezone.searchPlaceholder",
+                    )}
+                    aria-label={t("settings.notifications.timezone.search")}
                     value={timezoneSearch}
                     onChange={(e) => setTimezoneSearch(e.target.value)}
                     onKeyDown={(e) => {
@@ -359,7 +372,7 @@ export function NotificationSettings() {
                 <div className="overflow-y-auto max-h-[240px]">
                   {filteredTimezones.length === 0 ? (
                     <div className="px-2 py-6 text-center text-sm text-muted-foreground">
-                      No timezone found
+                      {t("settings.notifications.timezone.empty")}
                     </div>
                   ) : (
                     filteredTimezones.map((tz) => {
@@ -390,39 +403,45 @@ export function NotificationSettings() {
           <div className="flex items-center gap-2 mb-1">
             <Clock className="h-3.5 w-3.5 text-muted-foreground" />
             <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Schedules
+              {t("settings.notifications.schedules.title")}
             </h3>
           </div>
 
           <div className="space-y-2">
             <ToggleRow
               icon={Coffee}
-              title="Morning Briefing"
-              description="Daily summary at 8:00 AM"
+              title={t("settings.notifications.schedules.morningTitle")}
+              description={t(
+                "settings.notifications.schedules.morningDescription",
+              )}
               checked={settings?.morning_briefing ?? true}
               onChange={(c) => updateNotifySetting("morning_briefing", c)}
             />
 
             <ToggleRow
               icon={Moon}
-              title="Evening Plan"
-              description="Review tonight's tasks at 6:00 PM"
+              title={t("settings.notifications.schedules.eveningTitle")}
+              description={t(
+                "settings.notifications.schedules.eveningDescription",
+              )}
               checked={settings?.evening_plan ?? true}
               onChange={(c) => updateNotifySetting("evening_plan", c)}
             />
 
             <ToggleRow
               icon={Calendar}
-              title="Due Date Alerts"
-              description="When a task reaches its deadline"
+              title={t("settings.notifications.schedules.dueTitle")}
+              description={t("settings.notifications.schedules.dueDescription")}
               checked={settings?.due_date_alerts ?? true}
               onChange={(c) => updateNotifySetting("due_date_alerts", c)}
             />
 
             <ToggleRow
               icon={Timer}
-              title="Timer Completion"
-              description="When your focus or break ends"
+              title={t("settings.notifications.schedules.timerTitle")}
+              description={t(
+                "settings.notifications.schedules.timerDescription",
+              )}
               checked={settings?.timer_alerts ?? true}
               onChange={(c) => updateNotifySetting("timer_alerts", c)}
             />

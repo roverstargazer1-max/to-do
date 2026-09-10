@@ -14,6 +14,7 @@ import { Database, Loader2, Calendar, FileUp } from "lucide-react";
 import { useHaptic } from "@/lib/hooks/useHaptic";
 import { useUhabitsImport } from "@/lib/hooks/useUhabitsImport";
 import { useIcsImport } from "@/lib/hooks/useIcsImport";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 
 interface ImportDialogProps {
   open: boolean;
@@ -24,6 +25,7 @@ export function ImportDialog({ open, onOpenChange }: ImportDialogProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const icsInputRef = useRef<HTMLInputElement>(null);
   const { trigger } = useHaptic();
+  const { t } = useTranslation();
 
   const { importUhabits, isImporting: isImportingUhabits } = useUhabitsImport();
   const { importIcs, isImporting: isImportingIcs } = useIcsImport();
@@ -53,10 +55,10 @@ export function ImportDialog({ open, onOpenChange }: ImportDialogProps) {
       <ResponsiveDialogContent className="sm:max-w-[425px]">
         <ResponsiveDialogHeader>
           <ResponsiveDialogTitle className="type-h2">
-            Import Data
+            {t("settings.import.title")}
           </ResponsiveDialogTitle>
           <ResponsiveDialogDescription>
-            Choose a file to migrate your data to Kagelin.
+            {t("settings.import.description")}
           </ResponsiveDialogDescription>
         </ResponsiveDialogHeader>
 
@@ -76,11 +78,11 @@ export function ImportDialog({ open, onOpenChange }: ImportDialogProps) {
                 </div>
                 <div>
                   <p className="text-sm font-medium flex items-center gap-1.5">
-                    Loop Habit Tracker
+                    {t("settings.import.loopHabits")}
                     <BetaBadge />
                   </p>
                   <p className="text-xs text-muted-foreground lowercase">
-                    Import from .db file (Android)
+                    {t("settings.import.loopHabitsDescription")}
                   </p>
                 </div>
               </div>
@@ -89,12 +91,12 @@ export function ImportDialog({ open, onOpenChange }: ImportDialogProps) {
                 size="sm"
                 className="h-8 opacity-0 group-hover:opacity-100 transition-opacity"
                 disabled={isAnyImporting}
-                aria-label="Select Loop Habit Tracker database file"
+                aria-label={t("settings.import.loopHabitsSelectAria")}
               >
                 {isImportingUhabits ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
-                  "Select"
+                  t("settings.import.select")
                 )}
               </Button>
               <input
@@ -102,7 +104,7 @@ export function ImportDialog({ open, onOpenChange }: ImportDialogProps) {
                 type="file"
                 accept=".db"
                 className="hidden"
-                aria-label="Upload Loop Habit Tracker database file"
+                aria-label={t("settings.import.loopHabitsUploadAria")}
                 onChange={handleImportUhabits}
               />
             </div>
@@ -120,9 +122,11 @@ export function ImportDialog({ open, onOpenChange }: ImportDialogProps) {
                   <Calendar className="h-5 w-5" />
                 </div>
                 <div>
-                  <p className="text-sm font-medium">ICS (Calendar)</p>
+                  <p className="text-sm font-medium">
+                    {t("settings.import.ics")}
+                  </p>
                   <p className="text-xs text-muted-foreground lowercase">
-                    Import to Calendar
+                    {t("settings.import.icsDescription")}
                   </p>
                 </div>
               </div>
@@ -131,7 +135,7 @@ export function ImportDialog({ open, onOpenChange }: ImportDialogProps) {
                 size="sm"
                 className="h-8 opacity-0 group-hover:opacity-100 transition-opacity text-blue-500 hover:text-blue-600"
                 disabled={isAnyImporting}
-                aria-label="Select iCalendar ICS file"
+                aria-label={t("settings.import.icsSelectAria")}
               >
                 {isImportingIcs ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -144,7 +148,7 @@ export function ImportDialog({ open, onOpenChange }: ImportDialogProps) {
                 type="file"
                 accept=".ics,text/calendar"
                 className="hidden"
-                aria-label="Upload iCalendar ICS file"
+                aria-label={t("settings.import.icsUploadAria")}
                 onChange={handleImportIcs}
               />
             </div>
@@ -158,7 +162,7 @@ export function ImportDialog({ open, onOpenChange }: ImportDialogProps) {
             className="text-muted-foreground hover:text-foreground"
             disabled={isAnyImporting}
           >
-            Cancel
+            {t("settings.import.cancel")}
           </Button>
         </div>
       </ResponsiveDialogContent>

@@ -1,8 +1,11 @@
 "use client";
 
 import { BatteryWarning, X } from "lucide-react";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 
 export function AndroidBatteryHint({ onDismiss }: { onDismiss: () => void }) {
+  const { t } = useTranslation();
+
   return (
     <div
       role="alert"
@@ -15,25 +18,19 @@ export function AndroidBatteryHint({ onDismiss }: { onDismiss: () => void }) {
         />
         <p className="text-xs text-muted-foreground">
           <span className="font-medium text-foreground">
-            Notifications may arrive late on Android.
+            {t("settings.androidBattery.title")}
           </span>{" "}
-          Chrome&apos;s battery optimization needs to be set to Unrestricted for
-          pushes to reliably wake it on a locked, idle phone — this is
-          Chrome&apos;s setting, not Kagelin&apos;s (an installed Android web
-          app has no process of its own). Go to{" "}
+          {t("settings.androidBattery.body")}{" "}
           <span className="font-medium text-foreground">
-            Settings → Apps → Chrome → Battery → Unrestricted
+            {t("settings.androidBattery.path")}
           </span>
-          . On Samsung, Xiaomi, OnePlus, or Oppo phones this setting is often
-          hidden, renamed, or layered under the manufacturer&apos;s own
-          app-killer — if it&apos;s not where expected, search your phone&apos;s
-          Settings app for &quot;battery optimization&quot;.
+          {t("settings.androidBattery.tail")}
         </p>
       </div>
       <button
         type="button"
         onClick={onDismiss}
-        aria-label="Dismiss"
+        aria-label={t("settings.androidBattery.dismiss")}
         className="shrink-0 text-muted-foreground hover:text-foreground transition-colors"
       >
         <X className="h-3.5 w-3.5" strokeWidth={2.25} />

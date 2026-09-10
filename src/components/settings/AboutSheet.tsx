@@ -23,6 +23,7 @@ import {
 import { GitHubIcon } from "@/components/auth/ProviderIcons";
 import { REPO_URL, PRIVACY_URL, TERMS_URL } from "@/lib/links";
 import { ICON_LED_ROW_CLASS } from "@/components/settings/iconLedRowClass";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 import { cn } from "@/lib/utils";
 
 interface AboutSheetProps {
@@ -88,13 +89,15 @@ export function AboutSheet({
   version,
   onOpenChangelog,
 }: AboutSheetProps) {
+  const { t } = useTranslation();
+
   return (
     <ResponsiveDialog open={open} onOpenChange={onOpenChange}>
       <ResponsiveDialogContent className="sm:max-w-110 border-border/80 shadow-none p-0 overflow-hidden flex flex-col max-h-[85dvh] sm:max-h-[90dvh]">
         <ResponsiveDialogHeader className="p-6 pb-3 border-b border-border/80 shrink-0">
           <ResponsiveDialogTitle className="flex items-center gap-2.5 text-[20px] font-semibold tracking-[-0.02em] text-foreground">
             <Info className="h-4.5 w-4.5 text-muted-foreground" />
-            About Kagelin
+            {t("settings.about.title")}
           </ResponsiveDialogTitle>
           <ResponsiveDialogDescription className="flex items-center gap-2 text-[11px] font-semibold tracking-[0.01em] text-foreground pt-1">
             v{version}
@@ -105,51 +108,51 @@ export function AboutSheet({
         <div className="flex-1 min-h-0 overflow-y-auto scrollbar-hide p-3 space-y-0.5">
           <AboutRow
             icon={Sparkles}
-            label="What's New"
-            detail="Recent changes and releases"
+            label={t("settings.about.whatsNew")}
+            detail={t("settings.about.whatsNewDetail")}
             onClick={onOpenChangelog}
           />
           {/* AGPL-3.0 §13: must offer the source of the exact running version, not HEAD. */}
           <AboutRow
             icon={GitBranch}
-            label={`Source (v${version})`}
-            detail="This exact build on GitHub"
+            label={t("settings.about.sourceVersion", { version })}
+            detail={t("settings.about.sourceVersionDetail")}
             href={`${REPO_URL}/tree/v${version}`}
           />
           <AboutRow
             icon={GitHubIcon}
-            label="Source code"
-            detail="github.com/Achyuth072/kagelin"
+            label={t("settings.about.sourceCode")}
+            detail={REPO_URL.replace(/^https?:\/\//, "")}
             href={REPO_URL}
           />
           <AboutRow
             icon={Bug}
-            label="Report an Issue"
-            detail="File a bug or feature request"
+            label={t("settings.about.reportIssue")}
+            detail={t("settings.about.reportIssueDetail")}
             href={`${REPO_URL}/issues`}
           />
           <AboutRow
             icon={Scale}
-            label="License"
+            label={t("settings.about.license")}
             detail="AGPL-3.0-only"
             href={`${REPO_URL}/blob/v${version}/LICENSE`}
           />
           <AboutRow
             icon={Shield}
-            label="Privacy Policy"
+            label={t("settings.about.privacyPolicy")}
             detail="kagelin.app/privacy"
             href={PRIVACY_URL}
           />
           <AboutRow
             icon={FileText}
-            label="Terms of Service"
+            label={t("settings.about.terms")}
             detail="kagelin.app/terms"
             href={TERMS_URL}
           />
           <AboutRow
             icon={Package}
-            label="Open-source software"
-            detail="Full list of dependencies"
+            label={t("settings.about.oss")}
+            detail={t("settings.about.ossDetail")}
             href={`${REPO_URL}/blob/v${version}/package.json`}
           />
         </div>

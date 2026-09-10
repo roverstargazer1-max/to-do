@@ -5,10 +5,12 @@ import { Switch } from "@/components/ui/switch";
 import { PrivacyPolicyLink } from "@/components/ui/privacy-policy-link";
 import { useTelemetryConsent } from "@/lib/hooks/useTelemetryConsent";
 import { useHaptic } from "@/lib/hooks/useHaptic";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 
 export function PrivacySection() {
   const { consent, setConsent } = useTelemetryConsent();
   const { trigger } = useHaptic();
+  const { t } = useTranslation();
 
   const isEnabled = consent === "granted";
 
@@ -26,20 +28,17 @@ export function PrivacySection() {
           </div>
           <div className="space-y-1">
             <p className="text-sm font-medium leading-none">
-              Share Anonymous Telemetry
+              {t("settings.privacy.title")}
             </p>
             <p className="text-xs text-muted-foreground leading-relaxed">
-              Help improve Kagelin by sharing anonymous usage metrics (feature
-              usage, timer durations, platform). Personal data, task titles, and
-              notes are never collected or transmitted. See our{" "}
-              <PrivacyPolicyLink />.
+              {t("settings.privacy.description")} <PrivacyPolicyLink />.
             </p>
           </div>
         </div>
         <Switch
           checked={isEnabled}
           onCheckedChange={handleToggle}
-          aria-label="Share Anonymous Telemetry"
+          aria-label={t("settings.privacy.title")}
           className="shrink-0 mt-0.5"
         />
       </div>

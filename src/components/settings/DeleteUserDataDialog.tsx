@@ -25,6 +25,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { AlertTriangle, Trash2 } from "lucide-react";
 import { useAuth } from "@/components/AuthProvider";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 
 interface DeleteUserDataDialogProps {
   open: boolean;
@@ -40,6 +41,7 @@ export function DeleteUserDataDialog({
   const isDesktop = useMediaQuery("(min-width: 768px)");
   const { trigger } = useHaptic();
   const { isGuestMode } = useAuth();
+  const { t } = useTranslation();
   const [confirmText, setConfirmText] = useState("");
   const isMatch = confirmText.toLowerCase() === "delete";
 
@@ -65,10 +67,12 @@ export function DeleteUserDataDialog({
     onOpenChange(false);
   };
 
-  const title = isGuestMode ? "Delete All Data" : "Delete Cloud Data";
+  const title = isGuestMode
+    ? t("settings.deleteData.titleGuest")
+    : t("settings.deleteData.titleCloud");
   const description = isGuestMode
-    ? "This action is permanent and cannot be undone. All your local habits, tasks, and settings will be permanently erased."
-    : "This action is permanent and cannot be undone. All your habits, tasks, and cloud settings will be permanently erased from our servers.";
+    ? t("settings.deleteData.descriptionGuest")
+    : t("settings.deleteData.descriptionCloud");
 
   const content = (
     <div className="space-y-4 py-2">
@@ -81,12 +85,16 @@ export function DeleteUserDataDialog({
 
       <div className="space-y-2">
         <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/80 px-1">
-          Type <span className="text-foreground">delete</span> to confirm
+          {t("settings.deleteData.typePrompt")}{" "}
+          <span className="text-foreground">
+            {t("settings.deleteData.typeWord")}
+          </span>{" "}
+          {t("settings.deleteData.typeSuffix")}
         </label>
         <Input
           value={confirmText}
           onChange={(e) => setConfirmText(e.target.value)}
-          placeholder="Type 'delete'..."
+          placeholder={t("settings.deleteData.placeholder")}
           className="h-11 bg-secondary/30 border-border/50 focus:border-destructive focus:ring-0 transition-all font-medium"
           autoFocus={isDesktop}
         />
@@ -111,7 +119,7 @@ export function DeleteUserDataDialog({
                   onOpenChange(false);
                 }}
               >
-                Cancel
+                {t("settings.deleteData.cancel")}
               </Button>
             </AlertDialogCancel>
             <Button
@@ -121,7 +129,7 @@ export function DeleteUserDataDialog({
               className="gap-2 px-6 font-semibold shadow-none disabled:opacity-50"
             >
               <Trash2 className="h-4 w-4" strokeWidth={2.25} />
-              Delete Account Data
+              {t("settings.deleteData.confirm")}
             </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -148,7 +156,7 @@ export function DeleteUserDataDialog({
               className="w-full gap-3 active:scale-95 h-12 text-base font-semibold shadow-none disabled:opacity-50"
             >
               <Trash2 className="h-4 w-4" strokeWidth={2.25} />
-              Permanently Delete Data
+              {t("settings.deleteData.confirmMobile")}
             </Button>
             <DrawerClose asChild>
               <Button
@@ -156,7 +164,7 @@ export function DeleteUserDataDialog({
                 className="w-full h-12 text-muted-foreground"
                 onClick={() => trigger("tick")}
               >
-                Cancel
+                {t("settings.deleteData.cancel")}
               </Button>
             </DrawerClose>
           </DrawerFooter>
