@@ -6,6 +6,7 @@ import { useTimerStore } from "@/lib/store/timerStore";
 import { useActiveTask } from "@/lib/hooks/useActiveTask";
 import { useSubtasks } from "@/lib/hooks/useSubtasks";
 import { useHaptic } from "@/lib/hooks/useHaptic";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 import {
   Popover,
   PopoverTrigger,
@@ -19,6 +20,7 @@ export function FocusSubtaskList() {
   const { data: resolvedActiveTask } = useActiveTask(activeTaskId);
   const { data: subtasks } = useSubtasks(activeTaskId);
   const { trigger } = useHaptic();
+  const { t } = useTranslation();
 
   const [prevTaskId, setPrevTaskId] = useState(activeTaskId);
   const [isExpanded, setIsExpanded] = useState(false);
@@ -56,9 +58,7 @@ export function FocusSubtaskList() {
             )}
             strokeWidth={2.5}
           />
-          <span>
-            {completed}/{total} steps
-          </span>
+          <span>{t("focus.subtask.steps", { completed, total })}</span>
         </button>
       </PopoverTrigger>
       <PopoverContent

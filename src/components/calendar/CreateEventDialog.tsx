@@ -7,7 +7,7 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import { useForm, useWatch, useFormState, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { format, isValid } from "date-fns";
+import { isValid } from "date-fns";
 import {
   Calendar,
   Clock,
@@ -56,6 +56,8 @@ import {
 import { useHaptic } from "@/lib/hooks/useHaptic";
 import { parseEventInput } from "@/lib/utils/nlp-event";
 import { cn } from "@/lib/utils";
+import { useTranslation } from "@/lib/i18n/useTranslation";
+import { useDateFormatter } from "@/lib/i18n/useDateFormatter";
 import { IconCell } from "@/components/ui/IconCell";
 import { useMediaQuery } from "@/lib/hooks/useMediaQuery";
 import { useCalendarStore } from "@/lib/calendar/store";
@@ -73,15 +75,15 @@ const CreateEventSchema = z.object({
 
 type CreateEventFormData = z.infer<typeof CreateEventSchema>;
 
-const PREDEFINED_LOCATIONS = [
-  "Coffee Shop",
-  "Office",
-  "Zoom Meeting",
-  "Google Meet",
-  "Home",
-  "Library",
-  "Gym",
-];
+const PREDEFINED_LOCATION_KEYS = [
+  "calendar.event.location.coffeeShop",
+  "calendar.event.location.office",
+  "calendar.event.location.zoomMeeting",
+  "calendar.event.location.googleMeet",
+  "calendar.event.location.home",
+  "calendar.event.location.library",
+  "calendar.event.location.gym",
+] as const;
 
 interface CreateEventDialogProps {
   open: boolean;
@@ -112,6 +114,7 @@ function RecurringTooltip({
   isRecurring: boolean;
   children: React.ReactNode;
 }) {
+  const { t } = useTranslation();
   return (
     <Tooltip>
       <TooltipTrigger asChild>
@@ -121,7 +124,7 @@ function RecurringTooltip({
       </TooltipTrigger>
       {isRecurring && (
         <TooltipContent side="top">
-          Recurring events can only be edited in the source calendar
+          {t("calendar.event.recurringTooltip")}
         </TooltipContent>
       )}
     </Tooltip>
@@ -135,6 +138,8 @@ export function CreateEventDialog({
   event,
 }: CreateEventDialogProps) {
   const { trigger } = useHaptic();
+  const { t } = useTranslation();
+  const { formatFullDate, formatClock } = useDateFormatter();
   const createEvent = useCreateCalendarEvent();
   const updateEvent = useUpdateCalendarEvent();
   const deleteEvent = useDeleteCalendarEvent();
@@ -172,10 +177,11 @@ export function CreateEventDialog({
     const fromEvents = events
       .map((e) => e.location)
       .filter((loc): loc is string => Boolean(loc && loc.trim() !== ""));
+    const predefined = PREDEFINED_LOCATION_KEYS.map((key) => t(key));
     return Array.from(
-      new Set([...PREDEFINED_LOCATIONS, ...locationHistory, ...fromEvents]),
+      new Set([...predefined, ...locationHistory, ...fromEvents]),
     );
-  }, [events, locationHistory]);
+  }, [events, locationHistory, t]);
 
   const { register, handleSubmit, control, setValue, reset } =
     useForm<CreateEventFormData>({
@@ -322,12 +328,14 @@ export function CreateEventDialog({
           {/* a11y title — hidden visually; the native input is the visual title */}
           <ResponsiveDialogHeader className="sr-only">
             <ResponsiveDialogTitle>
-              {event ? "Edit Event" : "Create Event"}
+              {event
+                ? t("calendar.event.editTitle")
+                : t("calendar.event.createTitle")}
             </ResponsiveDialogTitle>
             <ResponsiveDialogDescription>
               {event
-                ? "Edit this calendar event"
-                : "Add a new event to your calendar"}
+                ? t("calendar.event.editDescription")
+                : t("calendar.event.createDescription")}
             </ResponsiveDialogDescription>
           </ResponsiveDialogHeader>
 
@@ -336,7 +344,7 @@ export function CreateEventDialog({
             <input
               {...register("title")}
               id="event-title"
-              placeholder="Add title"
+              placeholder={t("calendar.event.titlePlaceholder")}
               autoFocus={isFinePointer && !isRecurring}
               disabled={isRecurring}
               className={cn(
@@ -367,7 +375,9 @@ export function CreateEventDialog({
                   strokeWidth={2.25}
                 />
               </IconCell>
-              <span className="text-sm flex-1 text-foreground">All day</span>
+              <span className="text-sm flex-1 text-foreground">
+                {t("calendar.event.allDay")}
+              </span>
               <Switch
                 id="all-day"
                 checked={allDay}
@@ -404,9 +414,9 @@ export function CreateEventDialog({
                     <span className="text-sm text-foreground">
                       {safeStartDate
                         ? allDay
-                          ? format(safeStartDate, "PPP")
-                          : format(safeStartDate, "PPP p")
-                        : "Pick a date"}
+                          ? formatFullDate(safeStartDate)
+                          : `${formatFullDate(safeStartDate)} ${formatClock(safeStartDate, "12h")}`
+                        : t("calendar.event.pickDate")}
                     </span>
                   </button>
                 </PopoverTrigger>
@@ -447,9 +457,9 @@ export function CreateEventDialog({
                     <span className="text-sm text-muted-foreground">
                       {safeEndDate
                         ? allDay
-                          ? format(safeEndDate, "PPP")
-                          : format(safeEndDate, "PPP p")
-                        : "Pick an end time"}
+                          ? formatFullDate(safeEndDate)
+                          : `${formatFullDate(safeEndDate)} ${formatClock(safeEndDate, "12h")}`
+                        : t("calendar.event.pickEndTime")}
                     </span>
                   </button>
                 </PopoverTrigger>
@@ -514,7 +524,7 @@ export function CreateEventDialog({
                               : "text-muted-foreground/60",
                           )}
                         >
-                          {field.value || "Add location"}
+                          {field.value || t("calendar.event.addLocation")}
                         </span>
                         {field.value && (
                           <span
@@ -525,7 +535,7 @@ export function CreateEventDialog({
                               setDraftLocation("");
                             }}
                             tabIndex={-1}
-                            aria-label="Clear location"
+                            aria-label={t("calendar.event.clearLocation")}
                           >
                             <X className="h-3.5 w-3.5" />
                           </span>
@@ -543,7 +553,7 @@ export function CreateEventDialog({
                     >
                       <Command shouldFilter={true}>
                         <CommandInput
-                          placeholder="Search or enter location..."
+                          placeholder={t("calendar.event.locationPlaceholder")}
                           value={draftLocation}
                           onValueChange={setDraftLocation}
                         />
@@ -552,7 +562,9 @@ export function CreateEventDialog({
                           className="overscroll-contain"
                         >
                           <CommandEmpty>
-                            {trimmedSearch ? "" : "No locations found"}
+                            {trimmedSearch
+                              ? ""
+                              : t("calendar.event.noLocations")}
                           </CommandEmpty>
                           {trimmedSearch &&
                             !uniqueLocations.some(
@@ -560,7 +572,9 @@ export function CreateEventDialog({
                                 loc.toLowerCase() ===
                                 trimmedSearch.toLowerCase(),
                             ) && (
-                              <CommandGroup heading="Custom">
+                              <CommandGroup
+                                heading={t("calendar.event.custom")}
+                              >
                                 <CommandItem
                                   value={trimmedSearch}
                                   className="text-foreground data-[selected=true]:bg-brand data-[selected=true]:text-brand-foreground"
@@ -571,11 +585,15 @@ export function CreateEventDialog({
                                   }}
                                 >
                                   <MapPin className="mr-2 h-4 w-4" />
-                                  Use &quot;{trimmedSearch}&quot;
+                                  {t("calendar.event.useLocation", {
+                                    query: trimmedSearch,
+                                  })}
                                 </CommandItem>
                               </CommandGroup>
                             )}
-                          <CommandGroup heading="Suggestions">
+                          <CommandGroup
+                            heading={t("calendar.event.suggestions")}
+                          >
                             {uniqueLocations.map((loc) => (
                               <CommandItem
                                 key={loc}
@@ -625,8 +643,8 @@ export function CreateEventDialog({
                 <textarea
                   {...register("description")}
                   id="event-description"
-                  placeholder="Add notes"
-                  aria-label="Event notes"
+                  placeholder={t("calendar.event.notesPlaceholder")}
+                  aria-label={t("calendar.event.notesLabel")}
                   disabled={isRecurring}
                   style={{ fontSize: "0.875rem" }}
                   className={cn(
@@ -652,7 +670,7 @@ export function CreateEventDialog({
                   className="h-9 w-9 p-0 [&_svg]:size-5! rounded-lg shadow-sm shadow-destructive/10 transition-seijaku-fast"
                   onClick={handleDelete}
                   disabled={isRecurring || deleteEvent.isPending}
-                  aria-label="Delete event"
+                  aria-label={t("calendar.event.delete")}
                 >
                   <Trash2 strokeWidth={2.25} />
                 </Button>
@@ -672,7 +690,11 @@ export function CreateEventDialog({
                   updateEvent.isPending
                 }
                 className="h-9 w-9 p-0 rounded-lg bg-brand hover:bg-brand/90 text-brand-foreground shadow-sm shadow-brand/10 transition-seijaku flex items-center justify-center"
-                aria-label={event ? "Save changes" : "Create event"}
+                aria-label={
+                  event
+                    ? t("calendar.event.saveChanges")
+                    : t("calendar.event.create")
+                }
               >
                 {event ? (
                   <Save className="h-5 w-5 stroke-[2.25px]" />

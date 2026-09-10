@@ -23,6 +23,7 @@ import type {
   RemoteEvent,
 } from "./adapter-interface";
 import { registerAdapter } from "./adapter-interface";
+import { tr } from "@/lib/i18n/tr";
 
 const GOOGLE_CALENDAR_API = "https://www.googleapis.com/calendar/v3";
 
@@ -325,7 +326,7 @@ export class GoogleCalendarAdapter implements SyncAdapter {
       string | undefined;
 
     return {
-      title: (googleEvent.summary as string) || "Untitled Event",
+      title: (googleEvent.summary as string) || tr("common.untitledEvent"),
       description: googleEvent.description as string | undefined,
       location: googleEvent.location as string | undefined,
       start_time: allDay ? `${start.date}T00:00:00Z` : start.dateTime!,

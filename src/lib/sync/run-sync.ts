@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/client";
 import { syncExternalCalendar, pushPendingEvents } from "./orchestrator";
 import { getAdapter, type SyncAdapterConfig } from "./adapter-interface";
 import type { ExternalCalendar } from "@/lib/types/external-calendar";
+import { tr } from "@/lib/i18n/tr";
 import "./register-adapters";
 
 const OAUTH_PROVIDERS = ["google", "outlook"];
@@ -48,13 +49,14 @@ export interface RunSyncSummary {
  */
 export function formatSyncSummary(s: RunSyncSummary): string {
   const parts: string[] = [];
-  if (s.created) parts.push(`${s.created} added`);
-  if (s.updated) parts.push(`${s.updated} updated`);
-  if (s.archived) parts.push(`${s.archived} removed`);
-  if (s.pushed) parts.push(`${s.pushed} pushed`);
+  if (s.created) parts.push(tr("calendar.sync.added", { count: s.created }));
+  if (s.updated) parts.push(tr("calendar.sync.updated", { count: s.updated }));
+  if (s.archived)
+    parts.push(tr("calendar.sync.removed", { count: s.archived }));
+  if (s.pushed) parts.push(tr("calendar.sync.pushed", { count: s.pushed }));
   return parts.length
-    ? `Synced — ${parts.join(", ")}`
-    : "Calendar is up to date";
+    ? tr("calendar.sync.summary", { parts: parts.join(", ") })
+    : tr("calendar.sync.upToDate");
 }
 
 /** Resolve one access token per OAuth provider in the set, deduplicated + parallel. */

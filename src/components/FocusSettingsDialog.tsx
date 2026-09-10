@@ -42,6 +42,8 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useTimer } from "@/components/TimerProvider";
 import { useTimerStore } from "@/lib/store/timerStore";
 import { useBackNavigation } from "@/lib/hooks/useBackNavigation";
+import { useTranslation } from "@/lib/i18n/useTranslation";
+import type { TranslationKey } from "@/lib/i18n/dictionaries/en";
 
 import {
   useForm,
@@ -82,7 +84,18 @@ const TAB_TO_TASK_SWITCH: Record<string, TaskSwitchBehavior> = {
   reset: "resetOnSwitch",
 };
 
+// Schema literals are test-asserted and stay English; the render boundary
+// maps the known values to translated messages (ticket 05 convention).
+const SETTINGS_ERROR_KEYS: Record<string, TranslationKey> = {
+  "Focus duration must be at least 1 minute":
+    "focus.settings.errorFocusDuration",
+  "Short break must be at least 1 minute": "focus.settings.errorShortBreak",
+  "Long break must be at least 5 minutes": "focus.settings.errorLongBreak",
+  "Must be at least 2 sessions": "focus.settings.errorSessions",
+};
+
 function SettingsForm() {
+  const { t } = useTranslation();
   const {
     register,
     control,
@@ -109,12 +122,12 @@ function SettingsForm() {
         <div className="flex-1 min-w-0 space-y-3">
           <div className="flex items-center justify-between">
             <span className="text-sm font-medium text-foreground">
-              Focus Duration
+              {t("focus.settings.focusDuration")}
             </span>
             <div className="flex items-center gap-1.5">
               <input
                 id="focus-duration-input"
-                aria-label="Focus Duration"
+                aria-label={t("focus.settings.focusDuration")}
                 type="number"
                 {...register("focusDuration", { valueAsNumber: true })}
                 className={cn(
@@ -126,7 +139,9 @@ function SettingsForm() {
                   errors.focusDuration ? "focus-duration-error" : undefined
                 }
               />
-              <span className="text-sm text-muted-foreground">min</span>
+              <span className="text-sm text-muted-foreground">
+                {t("focus.settings.min")}
+              </span>
             </div>
           </div>
           <Slider
@@ -144,7 +159,12 @@ function SettingsForm() {
               id="focus-duration-error"
               className="text-xs text-destructive font-medium"
             >
-              {errors.focusDuration.message}
+              {errors.focusDuration.message
+                ? t(
+                    SETTINGS_ERROR_KEYS[errors.focusDuration.message] ??
+                      "focus.settings.errorFocusDuration",
+                  )
+                : null}
             </p>
           )}
         </div>
@@ -160,12 +180,12 @@ function SettingsForm() {
         <div className="flex-1 min-w-0 space-y-3">
           <div className="flex items-center justify-between">
             <span className="text-sm font-medium text-foreground">
-              Short Break
+              {t("focus.settings.shortBreak")}
             </span>
             <div className="flex items-center gap-1.5">
               <input
                 id="short-break-input"
-                aria-label="Short Break"
+                aria-label={t("focus.settings.shortBreak")}
                 type="number"
                 {...register("shortBreakDuration", { valueAsNumber: true })}
                 className={cn(
@@ -177,7 +197,9 @@ function SettingsForm() {
                   errors.shortBreakDuration ? "short-break-error" : undefined
                 }
               />
-              <span className="text-sm text-muted-foreground">min</span>
+              <span className="text-sm text-muted-foreground">
+                {t("focus.settings.min")}
+              </span>
             </div>
           </div>
           <Slider
@@ -195,7 +217,12 @@ function SettingsForm() {
               id="short-break-error"
               className="text-xs text-destructive font-medium"
             >
-              {errors.shortBreakDuration.message}
+              {errors.shortBreakDuration.message
+                ? t(
+                    SETTINGS_ERROR_KEYS[errors.shortBreakDuration.message] ??
+                      "focus.settings.errorShortBreak",
+                  )
+                : null}
             </p>
           )}
         </div>
@@ -208,7 +235,7 @@ function SettingsForm() {
         <div className="flex-1 min-w-0 space-y-3">
           <div className="flex items-center justify-between">
             <span className="text-sm font-medium text-foreground">
-              Long Break
+              {t("focus.settings.longBreak")}
             </span>
             <div className="flex items-center gap-1.5">
               <input
@@ -224,7 +251,9 @@ function SettingsForm() {
                   errors.longBreakDuration ? "long-break-error" : undefined
                 }
               />
-              <span className="text-sm text-muted-foreground">min</span>
+              <span className="text-sm text-muted-foreground">
+                {t("focus.settings.min")}
+              </span>
             </div>
           </div>
           <Slider
@@ -242,7 +271,12 @@ function SettingsForm() {
               id="long-break-error"
               className="text-xs text-destructive font-medium"
             >
-              {errors.longBreakDuration.message}
+              {errors.longBreakDuration.message
+                ? t(
+                    SETTINGS_ERROR_KEYS[errors.longBreakDuration.message] ??
+                      "focus.settings.errorLongBreak",
+                  )
+                : null}
             </p>
           )}
         </div>
@@ -258,7 +292,7 @@ function SettingsForm() {
         <div className="flex-1 min-w-0 space-y-3">
           <div className="flex items-center justify-between">
             <span className="text-sm font-medium text-foreground">
-              Sessions Until Long Break
+              {t("focus.settings.sessionsUntilLongBreak")}
             </span>
             <input
               id="sessions-input"
@@ -291,7 +325,13 @@ function SettingsForm() {
               id="sessions-error"
               className="text-xs text-destructive font-medium"
             >
-              {errors.sessionsBeforeLongBreak.message}
+              {errors.sessionsBeforeLongBreak.message
+                ? t(
+                    SETTINGS_ERROR_KEYS[
+                      errors.sessionsBeforeLongBreak.message
+                    ] ?? "focus.settings.errorSessions",
+                  )
+                : null}
             </p>
           )}
         </div>
@@ -305,10 +345,10 @@ function SettingsForm() {
         </IconCell>
         <div className="flex-1 min-w-0">
           <div className="text-sm font-medium text-foreground">
-            Auto-start Breaks
+            {t("focus.settings.autoStartBreaks")}
           </div>
           <p className="text-xs text-muted-foreground">
-            Automatically start break timer after focus session
+            {t("focus.settings.autoStartBreaksDescription")}
           </p>
         </div>
         <Switch
@@ -326,10 +366,10 @@ function SettingsForm() {
         </IconCell>
         <div className="flex-1 min-w-0">
           <div className="text-sm font-medium text-foreground">
-            Auto-start Focus
+            {t("focus.settings.autoStartFocus")}
           </div>
           <p className="text-xs text-muted-foreground">
-            Automatically start focus timer after break
+            {t("focus.settings.autoStartFocusDescription")}
           </p>
         </div>
         <Switch
@@ -353,10 +393,10 @@ function SettingsForm() {
         <div className="flex-1 min-w-0 space-y-2">
           <div>
             <div className="text-sm font-medium text-foreground">
-              On task switch
+              {t("focus.settings.onTaskSwitch")}
             </div>
             <p className="text-xs text-muted-foreground">
-              What happens when you change tasks during a session
+              {t("focus.settings.onTaskSwitchDescription")}
             </p>
           </div>
           <Tabs
@@ -372,13 +412,13 @@ function SettingsForm() {
           >
             <TabsList className="grid grid-cols-3 w-full bg-secondary/10 p-1 rounded-lg h-9 border border-border/40 shadow-none">
               <TabsTrigger value="keep" className={tabTriggerCls}>
-                Keep
+                {t("focus.settings.keep")}
               </TabsTrigger>
               <TabsTrigger value="pause" className={tabTriggerCls}>
-                Pause
+                {t("focus.settings.pause")}
               </TabsTrigger>
               <TabsTrigger value="reset" className={tabTriggerCls}>
-                Reset
+                {t("focus.settings.reset")}
               </TabsTrigger>
             </TabsList>
           </Tabs>
@@ -393,6 +433,7 @@ function SettingsForm() {
 export function FocusSettingsDialog() {
   const { settings, updateSettings } = useTimer();
   const { trigger, isPhone } = useHaptic();
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const isDesktop = useMediaQuery("(min-width: 768px)");
 
@@ -477,7 +518,7 @@ export function FocusSettingsDialog() {
       whileTap={isPhone ? { scale: 0.95 } : {}}
     >
       <Settings className="h-4 w-4 mr-2" />
-      Adjust Settings
+      {t("focus.settings.adjust")}
     </motion.button>
   );
 
@@ -487,11 +528,11 @@ export function FocusSettingsDialog() {
         <DialogTrigger asChild>{triggerButton}</DialogTrigger>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>Timer Settings</DialogTitle>
+            <DialogTitle>{t("focus.settings.title")}</DialogTitle>
             <DialogDescription>
-              Customize your focus and break durations
+              {t("focus.settings.description")}
               <span id="settings-desc" className="sr-only">
-                Form to update timer durations and transitions
+                {t("focus.settings.formSr")}
               </span>
             </DialogDescription>
           </DialogHeader>
@@ -505,7 +546,7 @@ export function FocusSettingsDialog() {
                   variant="outline"
                   className={resetBtnCls}
                   onClick={handleReset}
-                  aria-label="Reset to saved settings"
+                  aria-label={t("focus.settings.resetAria")}
                 >
                   <RotateCcw strokeWidth={2.25} />
                 </Button>
@@ -513,7 +554,7 @@ export function FocusSettingsDialog() {
                   type="submit"
                   disabled={!isValid}
                   className={saveBtnCls}
-                  aria-label="Save changes"
+                  aria-label={t("focus.settings.saveAria")}
                 >
                   <Save className="h-5 w-5 stroke-[2.25px]" />
                 </Button>
@@ -530,9 +571,9 @@ export function FocusSettingsDialog() {
       <DrawerTrigger asChild>{triggerButton}</DrawerTrigger>
       <DrawerContent className="max-h-[92dvh] flex flex-col">
         <DrawerHeader className="text-left shrink-0">
-          <DrawerTitle>Timer Settings</DrawerTitle>
+          <DrawerTitle>{t("focus.settings.title")}</DrawerTitle>
           <DrawerDescription>
-            Customize your focus and break durations
+            {t("focus.settings.description")}
           </DrawerDescription>
         </DrawerHeader>
         <div className="px-4 overflow-y-auto flex-1 scrollbar-hide">
@@ -545,7 +586,7 @@ export function FocusSettingsDialog() {
             variant="outline"
             className={resetBtnCls}
             onClick={handleReset}
-            aria-label="Reset to saved settings"
+            aria-label={t("focus.settings.resetAria")}
           >
             <RotateCcw strokeWidth={2.25} />
           </Button>
@@ -554,7 +595,7 @@ export function FocusSettingsDialog() {
             onClick={handleSubmit(onFormSubmit)}
             disabled={!isValid}
             className={saveBtnCls}
-            aria-label="Save changes"
+            aria-label={t("focus.settings.saveAria")}
           >
             <Save className="h-5 w-5 stroke-[2.25px]" />
           </Button>

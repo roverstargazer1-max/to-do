@@ -8,6 +8,7 @@ import { useHaptic } from "@/lib/hooks/useHaptic";
 import { useUiStore } from "@/lib/store/uiStore";
 import { useTimerStore } from "@/lib/store/timerStore";
 import { useTimer } from "@/components/TimerProvider";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 
 function formatTime(seconds: number): string {
   const mins = Math.floor(seconds / 60);
@@ -29,6 +30,7 @@ export const FloatingTimer = memo(function FloatingTimer() {
   const pathname = usePathname();
   const router = useRouter();
   const { trigger, isPhone } = useHaptic();
+  const { t } = useTranslation();
 
   const isPipActive = useUiStore((state) => state.isPipActive);
 
@@ -72,10 +74,10 @@ export const FloatingTimer = memo(function FloatingTimer() {
           {/* Mode Badge */}
           <div className="text-[9px] font-medium uppercase tracking-wider text-muted-foreground mb-1 text-center">
             {mode === "focus"
-              ? "Focus"
+              ? t("focus.mode.focus")
               : mode === "shortBreak"
-                ? "Short Break"
-                : "Long Break"}
+                ? t("focus.mode.shortBreak")
+                : t("focus.mode.longBreak")}
           </div>
 
           {/* Timer Display */}
@@ -87,7 +89,9 @@ export const FloatingTimer = memo(function FloatingTimer() {
           <div className="flex items-center justify-center gap-2">
             <button
               onClick={handlePlayPause}
-              aria-label={isRunning ? "Pause timer" : "Start timer"}
+              aria-label={
+                isRunning ? t("focus.timer.pause") : t("focus.timer.start")
+              }
               className="h-10 w-10 rounded-full bg-brand text-brand-foreground flex items-center justify-center hover:shadow-brand/20 active:scale-95 transition-all shadow-md"
             >
               {isRunning ? (
@@ -102,7 +106,7 @@ export const FloatingTimer = memo(function FloatingTimer() {
 
             <button
               onClick={handleMaximize}
-              aria-label="Maximize timer"
+              aria-label={t("focus.timer.maximize")}
               className="h-8 w-8 rounded-full bg-secondary text-secondary-foreground flex items-center justify-center hover:bg-secondary/80 active:scale-95 transition-all"
             >
               <Maximize2 className="h-3.5 w-3.5" />
@@ -110,7 +114,7 @@ export const FloatingTimer = memo(function FloatingTimer() {
 
             <button
               onClick={handleClose}
-              aria-label="Close timer"
+              aria-label={t("focus.timer.close")}
               className="h-8 w-8 rounded-full bg-secondary text-secondary-foreground flex items-center justify-center hover:bg-secondary/80 active:scale-95 transition-all"
             >
               <X className="h-3.5 w-3.5" />
@@ -120,10 +124,12 @@ export const FloatingTimer = memo(function FloatingTimer() {
           {/* Session Counter */}
           <div className="text-[10px] text-muted-foreground mt-2 text-center">
             {mode === "focus"
-              ? `Session ${completedSessions + 1}`
+              ? t("focus.session.n", { current: completedSessions + 1 })
               : mode === "longBreak"
-                ? "Cycle Complete"
-                : `Break after Session ${completedSessions}`}
+                ? t("focus.session.cycleComplete")
+                : t("focus.session.breakAfter", {
+                    current: completedSessions,
+                  })}
           </div>
         </motion.div>
       )}

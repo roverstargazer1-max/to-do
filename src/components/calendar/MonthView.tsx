@@ -18,6 +18,7 @@ import { useIsMobile } from "@/lib/hooks/useIsMobile";
 import { useSwipe } from "@/lib/hooks/useSwipe";
 import { useCalendarStore } from "@/lib/calendar/store";
 import { useTimeFormat } from "@/lib/hooks/useTimeFormat";
+import { useDateFormatter } from "@/lib/i18n/useDateFormatter";
 
 interface MonthViewProps {
   currentDate: Date;
@@ -53,6 +54,7 @@ const MonthDayCell = memo(
   }: MonthDayCellProps) => {
     const isMobile = useIsMobile();
     const { formatTime } = useTimeFormat();
+    const { formatDayOfMonth } = useDateFormatter();
     // Dynamic limit based on available vertical space
     const maxLimit = isMobile ? (isCompact ? 2 : 3) : isCompact ? 3 : 4;
 
@@ -88,7 +90,7 @@ const MonthDayCell = memo(
               !isCurrentMonth && "text-muted-foreground/50",
             )}
           >
-            {format(day, "d")}
+            {formatDayOfMonth(day)}
           </button>
         </div>
 
@@ -158,6 +160,7 @@ const MonthView = memo(
     "data-testid": testId,
   }: MonthViewProps) => {
     const { next, prev } = useCalendarStore();
+    const { weekdayShorts } = useDateFormatter();
     const swipeHandlers = useSwipe({
       onSwipeLeft: () => next(),
       onSwipeRight: () => prev(),
@@ -169,7 +172,12 @@ const MonthView = memo(
     const calendarEnd = endOfWeek(monthEnd);
 
     const days = eachDayOfInterval({ start: calendarStart, end: calendarEnd });
-    const weekDays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    // Month grid header is Sunday-first (calendar convention), while the
+    // seam's weekdayShorts is ISO (Monday-first) — rotate.
+    const weekDays = [
+      ...weekdayShorts().slice(6),
+      ...weekdayShorts().slice(0, 6),
+    ];
 
     // Calculate number of weeks (rows) needed
     const numWeeks = Math.ceil(days.length / 7);

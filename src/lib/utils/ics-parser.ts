@@ -1,5 +1,6 @@
 import ICAL from "ical.js";
 import type { CreateCalendarEventInput } from "@/lib/types/calendar-event";
+import { tr } from "@/lib/i18n/tr";
 
 export interface ParsedICSResult {
   events: CreateCalendarEventInput[];
@@ -38,7 +39,7 @@ export function parseICS(icsContent: string): ParsedICSResult {
         }
 
         const input: CreateCalendarEventInput = {
-          title: event.summary || "Untitled Event",
+          title: event.summary || tr("common.untitledEvent"),
           description: event.description || undefined,
           location: event.location || undefined,
           start_time: start.toJSDate().toISOString(),

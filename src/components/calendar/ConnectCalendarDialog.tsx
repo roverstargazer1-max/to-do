@@ -35,6 +35,7 @@ import {
 } from "@/lib/hooks/useConnectedCalendarProviders";
 import { useQueryClient } from "@tanstack/react-query";
 import { notify } from "@/lib/notify";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 
 interface ConnectCalendarDialogProps {
   onSuccess?: () => void;
@@ -60,6 +61,7 @@ export function ConnectCalendarDialog({
     [isControlled, onOpenChange],
   );
   const [step, setStep] = useState<"select" | "pick_calendars">("select");
+  const { t } = useTranslation();
   const { data: connectedState } = useConnectedCalendarProviders();
   const connectedProviders = connectedState?.providers ?? [];
   const disconnect = useDisconnectCalendarProvider();
@@ -75,40 +77,45 @@ export function ConnectCalendarDialog({
   const [pickerSaving, setPickerSaving] = useState(false);
   const [pickerError, setPickerError] = useState<string | null>(null);
 
-  const openCalendarPicker = useCallback(async (provider: CalendarProvider) => {
-    setSelectedProvider(provider);
-    setStep("pick_calendars");
-    setPickerLoading(true);
-    setPickerError(null);
-    setPickerCalendars([]);
-    try {
-      const [discoverRes, configuredRes] = await Promise.all([
-        fetch(`/api/calendar/discover?provider=${provider}`),
-        fetch(`/api/calendar/calendars`),
-      ]);
-      if (!discoverRes.ok) {
-        const { error } = await discoverRes.json().catch(() => ({ error: "" }));
-        throw new Error(error || "Failed to list calendars");
+  const openCalendarPicker = useCallback(
+    async (provider: CalendarProvider) => {
+      setSelectedProvider(provider);
+      setStep("pick_calendars");
+      setPickerLoading(true);
+      setPickerError(null);
+      setPickerCalendars([]);
+      try {
+        const [discoverRes, configuredRes] = await Promise.all([
+          fetch(`/api/calendar/discover?provider=${provider}`),
+          fetch(`/api/calendar/calendars`),
+        ]);
+        if (!discoverRes.ok) {
+          const { error } = await discoverRes
+            .json()
+            .catch(() => ({ error: "" }));
+          throw new Error(error || t("calendar.connect.listFailed"));
+        }
+        const { calendars } = await discoverRes.json();
+        const { calendars: configured = [] } = configuredRes.ok
+          ? await configuredRes.json()
+          : { calendars: [] };
+        const alreadyAdded = new Set(
+          configured
+            .filter((c: { provider: string }) => c.provider === provider)
+            .map((c: { remote_calendar_id: string }) => c.remote_calendar_id),
+        );
+        setPickerCalendars(calendars);
+        setPickerSelected(alreadyAdded as Set<string>);
+      } catch (e) {
+        setPickerError(
+          e instanceof Error ? e.message : t("calendar.connect.listFailed"),
+        );
+      } finally {
+        setPickerLoading(false);
       }
-      const { calendars } = await discoverRes.json();
-      const { calendars: configured = [] } = configuredRes.ok
-        ? await configuredRes.json()
-        : { calendars: [] };
-      const alreadyAdded = new Set(
-        configured
-          .filter((c: { provider: string }) => c.provider === provider)
-          .map((c: { remote_calendar_id: string }) => c.remote_calendar_id),
-      );
-      setPickerCalendars(calendars);
-      setPickerSelected(alreadyAdded as Set<string>);
-    } catch (e) {
-      setPickerError(
-        e instanceof Error ? e.message : "Failed to list calendars",
-      );
-    } finally {
-      setPickerLoading(false);
-    }
-  }, []);
+    },
+    [t],
+  );
 
   const togglePick = (id: string) => {
     setPickerSelected((prev) => {
@@ -137,14 +144,18 @@ export function ConnectCalendarDialog({
       });
       if (!res.ok) {
         const { error } = await res.json().catch(() => ({ error: "" }));
-        throw new Error(error || "Failed to save");
+        throw new Error(error || t("calendar.connect.saveFailed"));
       }
       queryClient.invalidateQueries({ queryKey: ["calendar-events"] });
-      notify.success("Calendars saved — run Sync to pull events");
+      notify.success(t("calendar.connect.savedToast"));
       setOpen(false);
       onSuccess?.();
     } catch (e) {
-      notify.error(e instanceof Error ? e.message : "Failed to save calendars");
+      notify.error(
+        e instanceof Error
+          ? e.message
+          : t("calendar.connect.saveCalendarsFailed"),
+      );
     } finally {
       setPickerSaving(false);
     }
@@ -157,14 +168,18 @@ export function ConnectCalendarDialog({
     if (!connected || CALDAV_PROVIDERS.includes(connected as CalendarProvider))
       return;
 
-    notify.success(`${capitalize(connected)} Calendar connected`);
+    notify.success(
+      t("calendar.connect.connectedToast", {
+        provider: capitalize(connected),
+      }),
+    );
     queryClient.invalidateQueries({
       queryKey: ["calendar-connected-providers"],
     });
     window.history.replaceState({}, "", "/calendar");
     setOpen(true);
     openCalendarPicker(connected as CalendarProvider);
-  }, [openCalendarPicker, queryClient, setOpen]);
+  }, [openCalendarPicker, queryClient, setOpen, t]);
 
   const resetDialog = () => {
     setStep("select");
@@ -198,7 +213,9 @@ export function ConnectCalendarDialog({
             className={cn("gap-2", "w-10 px-0 md:w-auto md:px-4")}
           >
             <CalendarSync className="w-4 h-4" />
-            <span className="hidden md:inline">Connect Calendar</span>
+            <span className="hidden md:inline">
+              {t("calendar.connect.trigger")}
+            </span>
           </Button>
         </Trigger>
       ) : null}
@@ -206,20 +223,22 @@ export function ConnectCalendarDialog({
       <ResponsiveDialogContent className="sm:max-w-lg p-0 overflow-hidden rounded-t-[20px] sm:rounded-xl">
         <ResponsiveDialogHeader className="px-4 pt-6 sm:px-6 text-left">
           <ResponsiveDialogTitle className="text-xl font-semibold tracking-tight capitalize">
-            {step === "select" && "Connect Calendar"}
-            {step === "pick_calendars" && `${selectedProvider} Calendars`}
+            {step === "select" && t("calendar.connect.title")}
+            {step === "pick_calendars" &&
+              t("calendar.connect.providerCalendars", {
+                provider: selectedProvider ?? "",
+              })}
           </ResponsiveDialogTitle>
           <ResponsiveDialogDescription className="text-sm text-muted-foreground/80">
-            {step === "select" && "Sync your events from external providers."}
-            {step === "pick_calendars" &&
-              "Choose which calendars to sync with Kagelin."}
+            {step === "select" && t("calendar.connect.selectDescription")}
+            {step === "pick_calendars" && t("calendar.connect.pickDescription")}
           </ResponsiveDialogDescription>
         </ResponsiveDialogHeader>
 
         {step === "select" && connectedProviders.length > 0 && (
           <div className="px-4 pt-4 sm:px-6 space-y-2">
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-              Connected
+              {t("calendar.connect.connected")}
             </p>
             {connectedProviders.map((p) => (
               <div
@@ -238,21 +257,29 @@ export function ConnectCalendarDialog({
                     variant="ghost"
                     size="sm"
                     className="h-7 gap-1.5 px-2 text-xs text-muted-foreground hover:text-foreground"
-                    title={`Choose ${p} calendars`}
+                    title={t("calendar.connect.chooseCalendars", {
+                      provider: p,
+                    })}
                     onClick={() => openCalendarPicker(p as CalendarProvider)}
                   >
                     <Calendars className="w-3.5 h-3.5" strokeWidth={2.25} />
-                    Calendars
+                    {t("calendar.connect.calendars")}
                   </Button>
                   <Button
                     variant="ghost"
                     size="icon"
                     className="h-7 w-7 text-muted-foreground hover:text-destructive hover:bg-destructive-surface-hover"
-                    title={`Disconnect ${p}`}
-                    aria-label={`Disconnect ${p}`}
+                    title={t("calendar.connect.disconnect", { provider: p })}
+                    aria-label={t("calendar.connect.disconnect", {
+                      provider: p,
+                    })}
                     onClick={async () => {
                       await disconnect(p);
-                      notify.success(`${capitalize(p)} disconnected`);
+                      notify.success(
+                        t("calendar.connect.disconnected", {
+                          provider: capitalize(p),
+                        }),
+                      );
                     }}
                   >
                     <Trash2 className="w-3.5 h-3.5" strokeWidth={2.25} />
@@ -309,13 +336,13 @@ export function ConnectCalendarDialog({
             {pickerLoading ? (
               <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
                 <Loader2 className="w-4 h-4 animate-spin" />
-                Loading calendars…
+                {t("calendar.connect.loading")}
               </div>
             ) : pickerError ? (
               <p className="text-sm text-destructive py-4">{pickerError}</p>
             ) : pickerCalendars.length === 0 ? (
               <p className="text-sm text-muted-foreground py-4">
-                No calendars found for this account.
+                {t("calendar.connect.noneFound")}
               </p>
             ) : (
               <div className="space-y-1 max-h-[320px] overflow-y-auto">
@@ -349,7 +376,7 @@ export function ConnectCalendarDialog({
                 size="icon"
                 className="h-9 w-9"
                 onClick={() => setStep("select")}
-                aria-label="Back"
+                aria-label={t("calendar.connect.back")}
               >
                 <ArrowLeft className="h-4 w-4" strokeWidth={2.25} />
               </Button>
@@ -364,10 +391,10 @@ export function ConnectCalendarDialog({
                 {pickerSaving ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                    Saving…
+                    {t("calendar.connect.saving")}
                   </>
                 ) : (
-                  `Save ${pickerSelected.size || ""} calendar${pickerSelected.size === 1 ? "" : "s"}`.trim()
+                  t("calendar.connect.save", { count: pickerSelected.size })
                 )}
               </Button>
             </div>

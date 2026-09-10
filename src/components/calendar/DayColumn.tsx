@@ -1,7 +1,8 @@
 "use client";
 
-import { format, isSameDay } from "date-fns";
+import { isSameDay } from "date-fns";
 import { useTimeFormat } from "@/lib/hooks/useTimeFormat";
+import { useDateFormatter } from "@/lib/i18n/useDateFormatter";
 import { cn } from "@/lib/utils";
 import {
   HOUR_HEIGHT,
@@ -30,6 +31,7 @@ export function DayColumn({
   onEventClick,
 }: DayColumnProps) {
   const { formatTime } = useTimeFormat();
+  const { formatWeekday, formatDayOfMonth } = useDateFormatter();
   const isToday = isSameDay(column.date, new Date());
 
   return (
@@ -52,7 +54,7 @@ export function DayColumn({
               : "text-muted-foreground/70 font-medium",
           )}
         >
-          {format(column.date, "EEE")}
+          {formatWeekday(column.date, "short")}
         </div>
         <button
           onClick={(e) => {
@@ -65,7 +67,7 @@ export function DayColumn({
             isToday && "bg-brand text-white shadow-sm hover:bg-brand/90",
           )}
         >
-          {format(column.date, "d")}
+          {formatDayOfMonth(column.date)}
         </button>
       </div>
 

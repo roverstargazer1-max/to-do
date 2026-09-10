@@ -4,6 +4,7 @@ import { TriangleAlert, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useConnectedCalendarProviders } from "@/lib/hooks/useConnectedCalendarProviders";
 import { capitalize } from "@/lib/utils";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 
 /**
  * Persistent "reconnect needed" banner (#57).
@@ -16,6 +17,7 @@ import { capitalize } from "@/lib/utils";
  */
 export function CalendarReconnectBanner() {
   const { data } = useConnectedCalendarProviders();
+  const { t } = useTranslation();
   const needsReconnect = data?.needsReconnect ?? [];
 
   if (needsReconnect.length === 0) return null;
@@ -36,8 +38,10 @@ export function CalendarReconnectBanner() {
                 strokeWidth={2.25}
               />
               <p className="text-sm text-amber-800 dark:text-amber-200 truncate">
-                <span className="font-medium">{name} Calendar</span> needs
-                reconnecting — sync is paused until you sign in again.
+                <span className="font-medium">
+                  {name} {t("calendar.reconnect.calendarWord")}
+                </span>{" "}
+                {t("calendar.reconnect.message")}
               </p>
             </div>
             <Button
@@ -49,7 +53,7 @@ export function CalendarReconnectBanner() {
               }}
             >
               <RefreshCw className="h-3.5 w-3.5" strokeWidth={2.25} />
-              Reconnect
+              {t("calendar.reconnect.action")}
             </Button>
           </div>
         );

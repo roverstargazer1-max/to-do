@@ -5,6 +5,7 @@ import { notify } from "@/lib/notify";
 import { useTimerStore } from "@/lib/store/timerStore";
 import { useTimerActions } from "@/components/TimerProvider";
 import { useHaptic } from "@/lib/hooks/useHaptic";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 import { cn } from "@/lib/utils";
 
 const ACTIVE_CLASSES =
@@ -26,14 +27,15 @@ export function CancelSessionButton() {
   });
   const { cancel } = useTimerActions();
   const { trigger } = useHaptic();
+  const { t } = useTranslation();
 
   const handleClick = useCallback(() => {
     trigger("tick");
     cancel();
-    notify("Session cancelled", {
+    notify(t("focus.timer.cancelledToast"), {
       duration: 1500,
     });
-  }, [cancel, trigger]);
+  }, [cancel, trigger, t]);
 
   const isSessionActive = isRunning || remainingSeconds < totalSeconds;
 
@@ -49,7 +51,7 @@ export function CancelSessionButton() {
         )}
         type="button"
       >
-        Cancel session
+        {t("focus.timer.cancel")}
       </button>
     </div>
   );

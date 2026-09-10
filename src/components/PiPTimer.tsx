@@ -3,6 +3,7 @@
 import React, { memo, useEffect } from "react";
 import { useTimerStore } from "@/lib/store/timerStore";
 import { useTimer } from "@/components/TimerProvider";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 import { Play, Pause, X } from "lucide-react";
 
 function formatTime(seconds: number): string {
@@ -26,6 +27,7 @@ export const PiPTimer = memo(function PiPTimer({ onClose }: PiPTimerProps) {
   // otherwise a resync-on-visibility elsewhere reapplies the stale pre-pause
   // row and the timer appears to auto-start (#70).
   const { start, pause } = useTimer();
+  const { t } = useTranslation();
 
   const handlePlayPause = () => {
     if (isRunning) {
@@ -47,10 +49,10 @@ export const PiPTimer = memo(function PiPTimer({ onClose }: PiPTimerProps) {
       {/* Mode Badge */}
       <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground mb-2">
         {mode === "focus"
-          ? "Focus"
+          ? t("focus.mode.focus")
           : mode === "shortBreak"
-            ? "Short Break"
-            : "Long Break"}
+            ? t("focus.mode.shortBreak")
+            : t("focus.mode.longBreak")}
       </div>
 
       {/* Timer Display */}
@@ -62,7 +64,9 @@ export const PiPTimer = memo(function PiPTimer({ onClose }: PiPTimerProps) {
       <div className="flex items-center gap-2">
         <button
           onClick={handlePlayPause}
-          aria-label={isRunning ? "Pause timer" : "Start timer"}
+          aria-label={
+            isRunning ? t("focus.timer.pause") : t("focus.timer.start")
+          }
           className="h-12 w-12 rounded-full bg-primary text-primary-foreground flex items-center justify-center hover:opacity-90 active:scale-95 transition-all"
         >
           {isRunning ? (
@@ -75,7 +79,7 @@ export const PiPTimer = memo(function PiPTimer({ onClose }: PiPTimerProps) {
         {onClose && (
           <button
             onClick={onClose}
-            aria-label="Close Picture-in-Picture"
+            aria-label={t("focus.pip.close")}
             className="h-10 w-10 rounded-full bg-secondary text-secondary-foreground flex items-center justify-center hover:bg-secondary/80 active:scale-95 transition-all"
           >
             <X className="h-4 w-4" />
@@ -86,10 +90,10 @@ export const PiPTimer = memo(function PiPTimer({ onClose }: PiPTimerProps) {
       {/* Session Counter */}
       <div className="text-xs text-muted-foreground mt-3">
         {mode === "focus"
-          ? `Session ${completedSessions + 1}`
+          ? t("focus.session.n", { current: completedSessions + 1 })
           : mode === "longBreak"
-            ? "Cycle Complete"
-            : `Break after Session ${completedSessions}`}
+            ? t("focus.session.cycleComplete")
+            : t("focus.session.breakAfter", { current: completedSessions })}
       </div>
     </div>
   );

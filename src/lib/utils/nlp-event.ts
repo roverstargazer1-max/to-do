@@ -1,4 +1,5 @@
 import * as chrono from "chrono-node";
+import { tr } from "@/lib/i18n/tr";
 
 export interface ParsedEventInput {
   title: string;
@@ -44,7 +45,9 @@ export function parseEventInput(
   title = title.replace(/^(at|on|for|in|from)\s+/i, "").trim();
 
   if (!title) {
-    title = "Untitled Event";
+    // Generated default, not stored user data — resolved at creation time so a
+    // zh-CN user gets a Chinese label (spec: stored data is never re-translated).
+    title = tr("common.untitledEvent");
   }
 
   const allDay =

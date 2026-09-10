@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { Maximize2, Minimize2 } from "lucide-react";
 import { useFullscreen } from "@/lib/hooks/useFullscreen";
 import { useHaptic } from "@/lib/hooks/useHaptic";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 import { cn } from "@/lib/utils";
 import { buttonVariants } from "@/components/ui/button";
 
@@ -12,6 +13,7 @@ import { buttonVariants } from "@/components/ui/button";
 export function FullscreenToggle() {
   const { isFullscreen, enterFullscreen, exitFullscreen } = useFullscreen();
   const { trigger } = useHaptic();
+  const { t } = useTranslation();
 
   const handleClick = () => {
     trigger("toggle");
@@ -30,7 +32,9 @@ export function FullscreenToggle() {
         buttonVariants({ variant: "ghost", size: "icon" }),
         "absolute top-4 right-4 h-14 w-14 rounded-full active:scale-95 transition-seijaku cursor-pointer",
       )}
-      aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
+      aria-label={
+        isFullscreen ? t("focus.fullscreen.exit") : t("focus.fullscreen.enter")
+      }
     >
       {isFullscreen ? (
         <Minimize2 className="h-6 w-6" strokeWidth={2.25} />

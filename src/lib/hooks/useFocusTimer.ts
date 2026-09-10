@@ -10,6 +10,7 @@ import { useFocusSounds } from "@/lib/hooks/useFocusSounds";
 import { usePathname } from "next/navigation";
 import { usePushNotifications } from "@/lib/hooks/usePushNotifications";
 import { notify } from "@/lib/notify";
+import { tr } from "@/lib/i18n/tr";
 import { useHaptic } from "@/lib/hooks/useHaptic";
 import { useTimerStore } from "@/lib/store/timerStore";
 import { useTimerSync } from "@/lib/hooks/useTimerSync";
@@ -139,15 +140,15 @@ export function useFocusTimer() {
 
       const title =
         prevState.mode === "focus"
-          ? "Focus session completed"
-          : "Break completed";
+          ? tr("focus.timer.sessionCompleted")
+          : tr("focus.timer.breakCompleted");
 
       const description =
         nextState.isRunning && nextState.mode !== prevState.mode
-          ? `Automatically started ${
-              nextState.mode === "shortBreak" ? "short break" : "focus"
-            }`
-          : "The timer is ready for your next session.";
+          ? nextState.mode === "shortBreak"
+            ? tr("focus.timer.autoStartedShortBreak")
+            : tr("focus.timer.autoStartedFocus")
+          : tr("focus.timer.ready");
 
       if (!options?.skipToast && !document.hidden) {
         const isPipActive = useUiStore.getState().isPipActive;
@@ -167,12 +168,14 @@ export function useFocusTimer() {
 
         if (document.hidden || (!isOnFocusPage && !isPipActive)) {
           showNotification(
-            prevState.mode === "focus" ? "Focus Complete" : "Break Complete",
+            prevState.mode === "focus"
+              ? tr("focus.notify.focusTitle")
+              : tr("focus.notify.breakTitle"),
             {
               body:
                 prevState.mode === "focus"
-                  ? "Your focus session is complete. Take a break!"
-                  : "Your break is over. Time to focus!",
+                  ? tr("focus.notify.focusBody")
+                  : tr("focus.notify.breakBody"),
               // Replace existing push notifications rather than stacking.
               tag: "timer_end",
               renotify: true,

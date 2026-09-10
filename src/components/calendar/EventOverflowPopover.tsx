@@ -1,7 +1,6 @@
 "use client";
 
 import { memo } from "react";
-import { format } from "date-fns";
 import { MapPin } from "lucide-react";
 import type { CalendarEvent } from "@/lib/calendar/types";
 import {
@@ -12,6 +11,8 @@ import {
 import { useHaptic } from "@/lib/hooks/useHaptic";
 import { useIsMobile } from "@/lib/hooks/useIsMobile";
 import { useTimeFormat } from "@/lib/hooks/useTimeFormat";
+import { useDateFormatter } from "@/lib/i18n/useDateFormatter";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 import { cn } from "@/lib/utils";
 
 interface EventOverflowPopoverProps {
@@ -24,6 +25,8 @@ export const EventOverflowPopover = memo(
   ({ remainingEvents, day, onEventClick }: EventOverflowPopoverProps) => {
     const { trigger } = useHaptic();
     const { formatTime } = useTimeFormat();
+    const { formatWeekdayMonthDay } = useDateFormatter();
+    const { t } = useTranslation();
     const isMobile = useIsMobile();
 
     if (remainingEvents.length === 0) return null;
@@ -39,7 +42,7 @@ export const EventOverflowPopover = memo(
             className="text-[10px] md:text-xs text-muted-foreground px-1 md:px-2 hover:text-foreground transition-colors text-left whitespace-nowrap"
           >
             +{remainingEvents.length}
-            {isMobile ? "" : " more"}
+            {isMobile ? "" : t("calendar.view.more")}
           </button>
         </PopoverTrigger>
         <PopoverContent
@@ -52,7 +55,7 @@ export const EventOverflowPopover = memo(
         >
           <div className="space-y-3">
             <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-widest border-b border-border/20 pb-2">
-              {format(day, "EEE, MMM d")}
+              {formatWeekdayMonthDay(day)}
             </h4>
             <div className="space-y-1.5 max-h-[300px] overflow-y-auto pr-1 scrollbar-hide">
               {remainingEvents.map((event) => {

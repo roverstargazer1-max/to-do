@@ -5,6 +5,7 @@ import { Link2 } from "lucide-react";
 import { useTimerStore } from "@/lib/store/timerStore";
 import { useUiStore } from "@/lib/store/uiStore";
 import { useAuth } from "@/components/AuthProvider";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 import { cn } from "@/lib/utils";
 
 /**
@@ -24,6 +25,7 @@ import { cn } from "@/lib/utils";
 function SyncIndicatorInner() {
   const isSynced = useUiStore((state) => state.isSynced);
   const { isGuestMode } = useAuth();
+  const { t } = useTranslation();
   const { isRunning, remainingSeconds } = useTimerStore((state) => state.state);
   const totalSeconds = useTimerStore((state) => {
     const settings = state.settings;
@@ -45,11 +47,7 @@ function SyncIndicatorInner() {
   return (
     <div
       role="status"
-      aria-label={
-        isSynced
-          ? "Session syncing across devices"
-          : "Offline — session not syncing"
-      }
+      aria-label={isSynced ? t("focus.sync.synced") : t("focus.sync.offline")}
       className="flex items-center gap-1.5"
     >
       <Link2
@@ -63,7 +61,7 @@ function SyncIndicatorInner() {
       />
       {isSynced && (
         <span className="hidden sm:inline text-[13px] text-muted-foreground/70">
-          Syncing
+          {t("focus.sync.syncing")}
         </span>
       )}
     </div>

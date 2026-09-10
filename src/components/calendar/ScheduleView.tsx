@@ -5,6 +5,8 @@ import { useMemo, memo } from "react";
 import { cn } from "@/lib/utils";
 import type { CalendarEvent } from "@/lib/calendar/types";
 import { useTimeFormat } from "@/lib/hooks/useTimeFormat";
+import { useTranslation } from "@/lib/i18n/useTranslation";
+import { useDateFormatter } from "@/lib/i18n/useDateFormatter";
 
 interface ScheduleViewProps {
   events: CalendarEvent[];
@@ -16,6 +18,9 @@ interface ScheduleViewProps {
 const ScheduleView = memo(
   ({ events, startDate, daysToShow = 30, className }: ScheduleViewProps) => {
     const { formatTime } = useTimeFormat();
+    const { t } = useTranslation();
+    const { formatDayOfMonth, formatWeekday, formatMonthYear } =
+      useDateFormatter();
     const startOfToday = startOfDay(startDate);
 
     // Memoize date range generation
@@ -70,7 +75,7 @@ const ScheduleView = memo(
                         isToday && "text-white bg-brand shadow-sm",
                       )}
                     >
-                      {format(date, "d")}
+                      {formatDayOfMonth(date)}
                     </div>
                     <div className="flex flex-col">
                       <div
@@ -79,10 +84,10 @@ const ScheduleView = memo(
                           isToday && "text-brand",
                         )}
                       >
-                        {format(date, "EEEE")}
+                        {formatWeekday(date, "long")}
                       </div>
                       <div className="text-xs text-muted-foreground">
-                        {format(date, "MMMM yyyy")}
+                        {formatMonthYear(date, "long")}
                       </div>
                     </div>
                   </div>
@@ -108,7 +113,7 @@ const ScheduleView = memo(
                         {/* Time */}
                         <div className="shrink-0 w-20 text-sm text-muted-foreground">
                           {event.allDay ? (
-                            "All day"
+                            t("calendar.event.allDay")
                           ) : (
                             <>
                               <div>{formatTime(event.start)}</div>
@@ -131,7 +136,7 @@ const ScheduleView = memo(
                     ))
                   ) : (
                     <div className="text-center py-4 text-muted-foreground text-sm">
-                      No events
+                      {t("calendar.view.noEvents")}
                     </div>
                   )}
                 </div>

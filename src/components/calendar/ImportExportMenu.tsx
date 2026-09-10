@@ -22,6 +22,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { ConnectCalendarDialog } from "./ConnectCalendarDialog";
 import { useHaptic } from "@/lib/hooks/useHaptic";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 import { useCreateCalendarEvent } from "@/lib/hooks/useCalendarEventMutations";
 import { parseICSFile } from "@/lib/utils/ics-parser";
 import { downloadICS } from "@/lib/utils/ics-generator";
@@ -34,6 +35,7 @@ interface ImportExportMenuProps {
 
 export function ImportExportMenu({ events }: ImportExportMenuProps) {
   const { trigger } = useHaptic();
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const createEvent = useCreateCalendarEvent();
@@ -44,17 +46,22 @@ export function ImportExportMenu({ events }: ImportExportMenuProps) {
   const handleSync = async () => {
     trigger("toggle");
     setIsSyncing(true);
-    const toastId = notify.loading("Syncing calendar…");
+    const toastId = notify.loading(t("calendar.sync.loading"));
     try {
       const summary = await runCalendarSync();
       if (summary.configured === 0) {
-        notify.info("No calendars configured yet. Connect a calendar first.", {
+        notify.info(t("calendar.sync.notConfigured"), {
           id: toastId,
         });
       } else if (summary.errors.length) {
-        notify.error(`Sync completed with errors: ${summary.errors[0]}`, {
-          id: toastId,
-        });
+        notify.error(
+          t("calendar.sync.completedWithErrors", {
+            error: summary.errors[0],
+          }),
+          {
+            id: toastId,
+          },
+        );
       } else {
         notify.success(formatSyncSummary(summary), { id: toastId });
         trigger("success");
@@ -62,7 +69,7 @@ export function ImportExportMenu({ events }: ImportExportMenuProps) {
       // Refetch so pulled/pushed changes appear without a manual reload
       queryClient.invalidateQueries({ queryKey: ["calendar-events"] });
     } catch {
-      notify.error("Sync failed", { id: toastId });
+      notify.error(t("calendar.sync.failed"), { id: toastId });
     } finally {
       setIsSyncing(false);
     }
@@ -72,11 +79,11 @@ export function ImportExportMenu({ events }: ImportExportMenuProps) {
     trigger("thud");
     try {
       downloadICS(events);
-      notify.success("Calendar exported to .ics");
+      notify.success(t("calendar.menu.exportedToast"));
       trigger("success");
     } catch (err) {
       console.error("Export failed:", err);
-      notify.error("Failed to export calendar");
+      notify.error(t("calendar.menu.exportFailed"));
       trigger("thud");
     }
   };
@@ -93,19 +100,21 @@ export function ImportExportMenu({ events }: ImportExportMenuProps) {
     setIsImporting(true);
     trigger("toggle");
 
-    const loadingToastId = notify.loading(`Importing ${file.name}...`);
+    const loadingToastId = notify.loading(
+      t("calendar.ics.importing", { file: file.name }),
+    );
 
     try {
       const { events: parsedEvents, errors } = await parseICSFile(file);
 
       if (parsedEvents.length === 0 && errors.length > 0) {
-        notify.error("Failed to parse ICS file", { id: loadingToastId });
+        notify.error(t("calendar.ics.parseFailed"), { id: loadingToastId });
         trigger("thud");
         return;
       }
 
       if (parsedEvents.length === 0) {
-        notify.error("No valid events found in file", { id: loadingToastId });
+        notify.error(t("calendar.ics.noValidEvents"), { id: loadingToastId });
         trigger("thud");
         return;
       }
@@ -121,17 +130,17 @@ export function ImportExportMenu({ events }: ImportExportMenuProps) {
         }
       }
 
-      notify.success(`Successfully imported ${importedCount} events`, {
+      notify.success(t("calendar.ics.imported", { count: importedCount }), {
         id: loadingToastId,
       });
       trigger("success");
 
       if (errors.length > 0) {
-        notify.warning(`${errors.length} events had parsing warnings.`);
+        notify.warning(t("calendar.ics.warnings", { count: errors.length }));
       }
     } catch (err) {
       console.error("Failed to import ICS:", err);
-      notify.error("Critical error during import", { id: loadingToastId });
+      notify.error(t("calendar.ics.criticalError"), { id: loadingToastId });
       trigger("thud");
     } finally {
       setIsImporting(false);
@@ -150,7 +159,7 @@ export function ImportExportMenu({ events }: ImportExportMenuProps) {
         accept=".ics,text/calendar"
         onChange={handleFileChange}
         className="hidden"
-        aria-label="Import ICS file"
+        aria-label={t("calendar.menu.importAria")}
       />
 
       <DropdownMenu>
@@ -166,7 +175,7 @@ export function ImportExportMenu({ events }: ImportExportMenuProps) {
             ) : (
               <MoreVertical className="h-4 w-4 text-muted-foreground" />
             )}
-            <span className="sr-only">Calendar options</span>
+            <span className="sr-only">{t("calendar.menu.srLabel")}</span>
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent
@@ -175,7 +184,7 @@ export function ImportExportMenu({ events }: ImportExportMenuProps) {
         >
           {/* Calendar Management & Sync */}
           <DropdownMenuLabel className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-            Sync & Settings
+            {t("calendar.menu.syncSettings")}
           </DropdownMenuLabel>
 
           <div className="md:hidden">
@@ -187,7 +196,11 @@ export function ImportExportMenu({ events }: ImportExportMenuProps) {
               <RefreshCw
                 className={`h-4 w-4 text-brand${isSyncing ? " animate-spin" : ""}`}
               />
-              <span>{isSyncing ? "Syncing…" : "Sync Now"}</span>
+              <span>
+                {isSyncing
+                  ? t("calendar.menu.syncing")
+                  : t("calendar.menu.syncNow")}
+              </span>
             </DropdownMenuItem>
           </div>
 
@@ -196,13 +209,13 @@ export function ImportExportMenu({ events }: ImportExportMenuProps) {
             className="cursor-pointer gap-2 py-2"
           >
             <CalendarSync className="h-4 w-4 text-brand" />
-            <span>Manage Calendars</span>
+            <span>{t("calendar.menu.manage")}</span>
           </DropdownMenuItem>
 
           <DropdownMenuSeparator />
 
           <DropdownMenuLabel className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-            Calendar Data
+            {t("calendar.menu.data")}
           </DropdownMenuLabel>
           <DropdownMenuSeparator />
           <DropdownMenuItem
@@ -211,7 +224,7 @@ export function ImportExportMenu({ events }: ImportExportMenuProps) {
             className="cursor-pointer gap-2 py-2"
           >
             <FileUp className="h-4 w-4 text-brand" />
-            <span>Import .ics file</span>
+            <span>{t("calendar.menu.importIcs")}</span>
           </DropdownMenuItem>
           <DropdownMenuItem
             onClick={handleExport}
@@ -219,7 +232,7 @@ export function ImportExportMenu({ events }: ImportExportMenuProps) {
             className="cursor-pointer gap-2 py-2"
           >
             <FileDown className="h-4 w-4 text-brand" />
-            <span>Export to .ics</span>
+            <span>{t("calendar.menu.exportIcs")}</span>
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>

@@ -32,6 +32,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/components/AuthProvider";
 import { mockStore } from "@/lib/mock/mock-store";
 import { useProjects } from "@/lib/hooks/useProjects";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 
 function getEndOfToday(): Date {
   const d = new Date();
@@ -43,6 +44,7 @@ export function FocusTaskPicker() {
   const [open, setOpen] = useState(false);
   const isDesktop = useMediaQuery("(min-width: 768px)");
   const { trigger } = useHaptic();
+  const { t } = useTranslation();
   const { isGuestMode } = useAuth();
   const supabase = createClient();
   const { data: projectsData } = useProjects();
@@ -151,16 +153,18 @@ export function FocusTaskPicker() {
 
       setActiveTaskId(task.id);
       setOpen(false);
-      notify("Now focusing on " + task.content);
+      notify(t("focus.taskPicker.nowFocusing", { task: task.content }));
     },
-    [taskSwitchBehavior, pause, cancel, setActiveTaskId, trigger],
+    [taskSwitchBehavior, pause, cancel, setActiveTaskId, trigger, t],
   );
 
   useBackNavigation(open && !isDesktop, () => setOpen(false));
 
   const chipLabel = resolvedActiveTask
-    ? `Change focus task: ${resolvedActiveTask?.content || ""}`
-    : "Select focus task";
+    ? t("focus.taskPicker.change", {
+        task: resolvedActiveTask?.content || "",
+      })
+    : t("focus.taskPicker.select");
 
   const renderTaskList = () => {
     if (pickerLoading) {
@@ -178,9 +182,11 @@ export function FocusTaskPicker() {
     if (total === 0) {
       return (
         <div className="py-8 text-center">
-          <p className="text-[13px] text-muted-foreground">Nothing due today</p>
+          <p className="text-[13px] text-muted-foreground">
+            {t("focus.taskPicker.emptyTitle")}
+          </p>
           <p className="text-[13px] text-muted-foreground mt-1">
-            Tasks scheduled for today will appear here.
+            {t("focus.taskPicker.emptyDescription")}
           </p>
         </div>
       );
@@ -256,8 +262,8 @@ export function FocusTaskPicker() {
 
     return (
       <div className="py-1">
-        {renderSection("overdue", groupedTasks.overdue)}
-        {renderSection("today", groupedTasks.today)}
+        {renderSection(t("focus.taskPicker.overdue"), groupedTasks.overdue)}
+        {renderSection(t("focus.taskPicker.today"), groupedTasks.today)}
       </div>
     );
   };
@@ -283,7 +289,7 @@ export function FocusTaskPicker() {
           />
           {resolvedActiveTaskLoading ? (
             <span className="text-[13px] text-muted-foreground/60">
-              Loading...
+              {t("focus.taskPicker.loading")}
             </span>
           ) : resolvedActiveTask ? (
             <span className="text-body text-foreground truncate text-[15px]">
@@ -291,7 +297,7 @@ export function FocusTaskPicker() {
             </span>
           ) : (
             <span className="text-[13px] text-muted-foreground/60">
-              Add task
+              {t("focus.taskPicker.addTask")}
             </span>
           )}
         </motion.button>
@@ -301,7 +307,7 @@ export function FocusTaskPicker() {
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogContent className="max-w-sm flex flex-col max-h-[60vh]">
             <DialogHeader>
-              <DialogTitle>Focus on</DialogTitle>
+              <DialogTitle>{t("focus.taskPicker.title")}</DialogTitle>
             </DialogHeader>
             <div className="overflow-y-auto flex-1 scrollbar-hide">
               {renderTaskList()}
@@ -312,7 +318,7 @@ export function FocusTaskPicker() {
         <Drawer open={open} onOpenChange={setOpen} repositionInputs={false}>
           <DrawerContent className="max-h-[55dvh]">
             <DrawerHeader>
-              <DrawerTitle>Focus on</DrawerTitle>
+              <DrawerTitle>{t("focus.taskPicker.title")}</DrawerTitle>
             </DrawerHeader>
             <div className="overflow-y-auto flex-1 scrollbar-hide pb-safe">
               {renderTaskList()}

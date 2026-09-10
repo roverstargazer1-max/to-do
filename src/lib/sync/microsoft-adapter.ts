@@ -22,6 +22,7 @@ import type {
   RemoteEvent,
 } from "./adapter-interface";
 import { registerAdapter } from "./adapter-interface";
+import { tr } from "@/lib/i18n/tr";
 
 const MS_GRAPH_API = "https://graph.microsoft.com/v1.0";
 
@@ -267,7 +268,7 @@ class MicrosoftGraphAdapter implements SyncAdapter {
     const allDay = (msEvent.isAllDay as boolean) || false;
 
     return {
-      title: (msEvent.subject as string) || "Untitled Event",
+      title: (msEvent.subject as string) || tr("common.untitledEvent"),
       description: msEvent.bodyPreview as string | undefined,
       location: (msEvent.location as Record<string, string>)?.displayName,
       start_time: start.dateTime + "Z", // MS Graph uses UTC
