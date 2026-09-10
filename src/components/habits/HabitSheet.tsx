@@ -24,6 +24,7 @@ import { HabitView } from "./HabitView";
 import { HabitInsightsPanel } from "./HabitInsightsPanel";
 import { SheetTabToggle, type SheetTab } from "@/components/ui/SheetTabToggle";
 import { cn } from "@/lib/utils";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 
 interface HabitSheetProps {
   open: boolean;
@@ -106,6 +107,7 @@ export function HabitSheet({
   // resolves (percentage/flex sizing against its auto-height box doesn't).
   const isDrawer = useMediaQuery("(max-width: 640px)");
   const { trigger: triggerHaptic } = useHaptic();
+  const { t } = useTranslation();
 
   // Sync form with initialHabit on open
   useEffect(() => {
@@ -207,12 +209,14 @@ export function HabitSheet({
         >
           <ResponsiveDialogHeader className="sr-only">
             <ResponsiveDialogTitle>
-              {initialHabit ? "Edit Habit" : "New Habit"}
+              {initialHabit
+                ? t("habits.sheet.editTitle")
+                : t("habits.sheet.newTitle")}
             </ResponsiveDialogTitle>
             <ResponsiveDialogDescription>
               {initialHabit
-                ? "Update your habit details and tracking frequency."
-                : "Create a new habit to start tracking your daily progress."}
+                ? t("habits.sheet.editDescription")
+                : t("habits.sheet.newDescription")}
             </ResponsiveDialogDescription>
           </ResponsiveDialogHeader>
 
@@ -314,8 +318,10 @@ export function HabitSheet({
         isOpen={showDeleteDialog}
         onClose={() => setShowDeleteDialog(false)}
         onConfirm={handleConfirmDelete}
-        title="Delete Habit"
-        description={`Are you sure you want to delete "${initialHabit?.name}"? This will also delete all completion history.`}
+        title={t("habits.delete.title")}
+        description={t("habits.delete.description", {
+          name: initialHabit?.name ?? "",
+        })}
       />
     </ResponsiveDialog>
   );

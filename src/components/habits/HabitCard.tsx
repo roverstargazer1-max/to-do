@@ -17,6 +17,7 @@ import {
   hasFrequencyTarget,
 } from "@/lib/utils/habit-frequency-progress";
 import { CircularProgress } from "@/components/ui/circular-progress";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 
 interface HabitCardProps {
   habit: HabitWithEntries;
@@ -41,6 +42,7 @@ export function HabitCard({
   onEdit,
   onViewInsights,
 }: HabitCardProps) {
+  const { t } = useTranslation();
   const isMobile = useIsMobile();
   const markComplete = useMarkHabitComplete();
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -147,7 +149,7 @@ export function HabitCard({
                     onViewInsights();
                   }}
                   className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0 bg-secondary border border-border hover:bg-secondary/80 text-muted-foreground hover:text-foreground transition-seijaku-fast"
-                  aria-label="View insights"
+                  aria-label={t("habits.card.viewInsights")}
                 >
                   <BarChart2 className="w-4 h-4" strokeWidth={2.25} />
                 </button>
@@ -171,7 +173,9 @@ export function HabitCard({
                     : undefined
                 }
                 aria-label={
-                  isCompletedToday ? "Mark incomplete" : "Mark complete"
+                  isCompletedToday
+                    ? t("habits.card.markIncomplete")
+                    : t("habits.card.markComplete")
                 }
               >
                 {isCompletedToday ? (
@@ -199,7 +203,7 @@ export function HabitCard({
                     size={18}
                     strokeWidth={2.5}
                     color={habit.color}
-                    label={frequencyProgressLabel(frequencyProgress)}
+                    label={frequencyProgressLabel(t, frequencyProgress)}
                   />
                   <span className="font-semibold text-foreground/90">
                     {frequencyProgress.completed}/{frequencyProgress.target}
@@ -214,7 +218,7 @@ export function HabitCard({
               <span className="font-semibold text-foreground/90">
                 {currentStreak}
               </span>{" "}
-              streak
+              {t("habits.card.streakSuffix")}
             </span>
             <span className="text-foreground/25" aria-hidden="true">
               ·
@@ -223,7 +227,7 @@ export function HabitCard({
               <span className="font-semibold text-foreground/90">
                 {totalCompletions}
               </span>{" "}
-              total
+              {t("habits.card.totalSuffix")}
             </span>
           </div>
         </div>

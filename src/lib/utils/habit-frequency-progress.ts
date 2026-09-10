@@ -7,12 +7,16 @@ import {
 } from "date-fns";
 import type { Habit, HabitEntry } from "@/lib/types/habit";
 import { dayValue } from "@/lib/utils/habit-score";
+import type { TranslationKey } from "@/lib/i18n/dictionaries/en";
+import type { TranslationParams } from "@/lib/i18n/types";
 
 export interface FrequencyProgress {
   completed: number;
   target: number;
   period: "day" | "week" | "month";
 }
+
+type Translate = (key: TranslationKey, params?: TranslationParams) => string;
 
 /**
  * Whether a Habit carries a *non-trivial* Frequency target worth surfacing as a
@@ -75,13 +79,27 @@ export function getFrequencyProgress(
   return { completed, target, period };
 }
 
-const PERIOD_LABELS: Record<FrequencyProgress["period"], string> = {
-  day: "today",
-  week: "this week",
-  month: "this month",
+const PROGRESS_WINDOW_KEYS: Record<
+  FrequencyProgress["period"],
+  TranslationKey
+> = {
+  day: "habits.frequency.today",
+  week: "habits.frequency.thisWeek",
+  month: "habits.frequency.thisMonth",
 };
 
-/** Plain-language window for the sr-only ring description, e.g. "2 of 3 this week". */
-export function frequencyProgressLabel(progress: FrequencyProgress): string {
-  return `${progress.completed} of ${progress.target} ${PERIOD_LABELS[progress.period]}`;
+/**
+ * Locale-aware sr-only ring description, e.g. "2 of 3 this week". Receives the
+ * active `t` so the label follows the UI language without this util reaching
+ * into React or the store.
+ */
+export function frequencyProgressLabel(
+  t: Translate,
+  progress: FrequencyProgress,
+): string {
+  return t("habits.frequency.progressLabel", {
+    completed: progress.completed,
+    target: progress.target,
+    window: t(PROGRESS_WINDOW_KEYS[progress.period]),
+  });
 }

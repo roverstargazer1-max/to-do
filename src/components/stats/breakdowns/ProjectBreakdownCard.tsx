@@ -10,6 +10,7 @@ import {
 import type { ProjectBreakdownCount } from "@/lib/hooks/useStats";
 import type { Project } from "@/lib/types/task";
 import { cn } from "@/lib/utils";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 
 const TOP_N = 8;
 const MUTED_COLOR = "hsl(var(--muted-foreground))";
@@ -25,14 +26,16 @@ export function ProjectBreakdownCard({
   projects,
   className,
 }: ProjectBreakdownCardProps) {
+  const { t } = useTranslation();
   const projectById = new Map(projects.map((p) => [p.id, p]));
 
   const resolved = data
     .map((d) => ({
       key: d.projectId ?? "__none__",
       label: d.projectId
-        ? (projectById.get(d.projectId)?.name ?? "Unknown project")
-        : "No project",
+        ? (projectById.get(d.projectId)?.name ??
+          t("stats.breakdown.unknownProject"))
+        : t("stats.breakdown.noProject"),
       color: d.projectId
         ? (projectById.get(d.projectId)?.color ?? MUTED_COLOR)
         : MUTED_COLOR,
@@ -50,7 +53,7 @@ export function ProjectBreakdownCard({
       ...top,
       {
         key: "__other__",
-        label: "Other",
+        label: t("stats.breakdown.other"),
         color: MUTED_COLOR,
         count: otherCount,
       },
@@ -70,13 +73,13 @@ export function ProjectBreakdownCard({
     <Card className={cn("p-6 border-border/50", className)}>
       <div className="space-y-4">
         <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-          By Project
+          {t("stats.byProject.title")}
         </h3>
         {items.length === 0 ? (
           <EmptyState
             icon={FolderKanban}
-            title="No completed tasks"
-            description="Complete a task to see this breakdown."
+            title={t("stats.breakdown.emptyTitle")}
+            description={t("stats.breakdown.emptyDescription")}
             className="py-8 gap-3"
           />
         ) : (

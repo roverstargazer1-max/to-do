@@ -14,11 +14,13 @@ import { Button } from "@/components/ui/button";
 import { BetaBadge } from "@/components/ui/beta-badge";
 import { useHaptic } from "@/lib/hooks/useHaptic";
 import { useUhabitsImport } from "@/lib/hooks/useUhabitsImport";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 
 export function HabitOptionsMenu() {
   const { trigger } = useHaptic();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { importUhabits, isImporting } = useUhabitsImport();
+  const { t } = useTranslation();
 
   const handleImportClick = () => {
     trigger("toggle");
@@ -40,7 +42,7 @@ export function HabitOptionsMenu() {
         accept=".db"
         className="hidden"
         onChange={handleFileChange}
-        aria-label="Import UHabits file"
+        aria-label={t("habits.options.importFile")}
       />
 
       <DropdownMenu>
@@ -56,7 +58,7 @@ export function HabitOptionsMenu() {
             ) : (
               <MoreVertical className="h-4 w-4 text-muted-foreground" />
             )}
-            <span className="sr-only">Habit options</span>
+            <span className="sr-only">{t("habits.options.srLabel")}</span>
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent
@@ -64,7 +66,7 @@ export function HabitOptionsMenu() {
           className="w-56 shadow-lg border-border/40"
         >
           <DropdownMenuLabel className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-            Habit Data
+            {t("habits.options.data")}
           </DropdownMenuLabel>
           <DropdownMenuSeparator />
 
@@ -74,7 +76,7 @@ export function HabitOptionsMenu() {
             className="cursor-pointer gap-2 py-2"
           >
             <Database className="h-4 w-4 text-brand" />
-            <span>Loop Habit Tracker</span>
+            <span>{t("habits.options.loop")}</span>
             <BetaBadge className="ml-auto" />
           </DropdownMenuItem>
         </DropdownMenuContent>

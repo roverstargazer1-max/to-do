@@ -12,6 +12,8 @@ import { PriorityBreakdownCard } from "@/components/stats/breakdowns/PriorityBre
 import { useStats } from "@/lib/hooks/useStats";
 import { useProjects } from "@/lib/hooks/useProjects";
 import { useUiStore } from "@/lib/store/uiStore";
+import { useTranslation } from "@/lib/i18n/useTranslation";
+import type { TranslationKey } from "@/lib/i18n/dictionaries/en";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { StatsPeriod } from "@/lib/types/stats";
 
@@ -60,17 +62,18 @@ const ProjectionsCard = dynamic(
   },
 );
 
-const PERIOD_LABELS: Record<StatsPeriod, string> = {
-  "7d": "Last 7 days",
-  "30d": "Last 30 days",
-  "90d": "Last 90 days",
-  "1y": "Last year",
-  all: "All time",
+const PERIOD_LABEL_KEYS: Record<StatsPeriod, TranslationKey> = {
+  "7d": "stats.period.last7days",
+  "30d": "stats.period.last30days",
+  "90d": "stats.period.last90days",
+  "1y": "stats.period.lastYear",
+  all: "stats.period.allTime",
 };
 
 export function StatsClient() {
   const statsPeriod = useUiStore((s) => s.statsPeriod);
   const setStatsPeriod = useUiStore((s) => s.setStatsPeriod);
+  const { t } = useTranslation();
 
   const { data: stats, isLoading, isFetching } = useStats(statsPeriod);
   const { data: projects } = useProjects();
@@ -106,9 +109,9 @@ export function StatsClient() {
       <div className="space-y-6 md:space-y-8">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <h1 className="type-h1 text-2xl md:text-3xl">Statistics</h1>
+            <h1 className="type-h1 text-2xl md:text-3xl">{t("stats.title")}</h1>
             <p className="text-xs md:text-sm text-muted-foreground mt-1">
-              Track your productivity and progress
+              {t("stats.subtitle")}
             </p>
           </div>
           <StatsExportMenu stats={stats} period={statsPeriod} />
@@ -122,35 +125,35 @@ export function StatsClient() {
 
         <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3 md:gap-4">
           <MetricCard
-            title="Total Focus"
+            title={t("stats.metric.totalFocus")}
             value={`${stats?.totalFocusHours || 0}h`}
             icon={Clock}
             trend={hasComparison ? stats?.trends?.focus : undefined}
           />
           <MetricCard
-            title="Sessions"
+            title={t("stats.metric.sessions")}
             value={stats?.totalSessions?.toString() || "0"}
             icon={Zap}
           />
           <MetricCard
-            title="Tasks"
+            title={t("stats.metric.tasks")}
             value={stats?.tasksCompleted?.toString() || "0"}
             icon={CheckCircle2}
             trend={hasComparison ? stats?.trends?.tasks : undefined}
           />
           <MetricCard
-            title="Streak"
+            title={t("stats.metric.streak")}
             value={`${stats?.currentStreak || 0}d`}
             icon={Flame}
           />
           <MetricCard
-            title="Rate"
+            title={t("stats.metric.rate")}
             value={`${stats?.completionRate || 0}%`}
             icon={Target}
             trend={hasComparison ? stats?.trends?.rate : undefined}
           />
           <MetricCard
-            title="Habits"
+            title={t("stats.metric.habits")}
             value={stats?.habitReps?.toString() || "0"}
             icon={Repeat}
             trend={hasComparison ? stats?.trends?.habitReps : undefined}
@@ -164,7 +167,7 @@ export function StatsClient() {
         <div>
           <FocusTrendChart
             data={focusTrendData}
-            periodLabel={PERIOD_LABELS[statsPeriod]}
+            periodLabel={t(PERIOD_LABEL_KEYS[statsPeriod])}
           />
         </div>
 

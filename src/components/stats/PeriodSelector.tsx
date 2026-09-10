@@ -5,6 +5,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { usePrefersReducedMotion } from "@/lib/hooks/usePrefersReducedMotion";
 import { STATS_PERIOD_OPTIONS, type StatsPeriod } from "@/lib/types/stats";
 import { cn } from "@/lib/utils";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 
 interface PeriodSelectorProps {
   value: StatsPeriod;
@@ -20,6 +21,7 @@ export function PeriodSelector({
   className,
 }: PeriodSelectorProps) {
   const reduced = usePrefersReducedMotion();
+  const { t } = useTranslation();
 
   return (
     <ToggleGroup
@@ -43,11 +45,11 @@ export function PeriodSelector({
             "data-[state=on]:border-brand/20 data-[state=on]:bg-brand data-[state=on]:text-brand-foreground data-[state=on]:shadow-none",
           )}
         >
-          {opt.label}
+          {opt.value === "all" ? t("stats.period.allShort") : opt.label}
           {opt.value === "all" && isAllLoading && (
             <Loader2
               className={cn("h-3 w-3", !reduced && "animate-spin")}
-              aria-label="Loading all-time data"
+              aria-label={t("stats.period.loadingAll")}
             />
           )}
         </ToggleGroupItem>

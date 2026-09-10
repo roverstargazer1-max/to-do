@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { format, parseISO } from "date-fns";
+import { parseISO } from "date-fns";
 import {
   AreaChart,
   Area,
@@ -15,6 +15,8 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { computeScores } from "@/lib/utils/habit-score";
 import type { Habit, HabitEntry } from "@/lib/types/habit";
 import { LineChart as LineChartIcon } from "lucide-react";
+import { useTranslation } from "@/lib/i18n/useTranslation";
+import { useDateFormatter } from "@/lib/i18n/useDateFormatter";
 
 type Period = "week" | "month" | "year";
 
@@ -36,6 +38,8 @@ interface HabitScoreChartProps {
 
 export function HabitScoreChart({ habit, entries }: HabitScoreChartProps) {
   const [period, setPeriod] = useState<Period>("month");
+  const { t } = useTranslation();
+  const { formatMonthDay } = useDateFormatter();
 
   // Compute the full daily series once; switching periods only reslices the tail.
   const fullSeries = useMemo(
@@ -52,8 +56,8 @@ export function HabitScoreChart({ habit, entries }: HabitScoreChartProps) {
     return (
       <EmptyState
         icon={LineChartIcon}
-        title="No score data"
-        description="Log this habit to see your score trend."
+        title={t("habits.scoreChart.emptyTitle")}
+        description={t("habits.scoreChart.emptyDescription")}
         className="py-8 gap-3"
       />
     );
@@ -64,13 +68,13 @@ export function HabitScoreChart({ habit, entries }: HabitScoreChartProps) {
       <Tabs value={period} onValueChange={(next) => setPeriod(next as Period)}>
         <TabsList className="inline-flex bg-secondary/10 p-1 rounded-lg h-11 border border-border/40 shadow-none">
           <TabsTrigger value="week" className={PERIOD_TRIGGER_CLASS}>
-            Week
+            {t("habits.scoreChart.week")}
           </TabsTrigger>
           <TabsTrigger value="month" className={PERIOD_TRIGGER_CLASS}>
-            Month
+            {t("habits.scoreChart.month")}
           </TabsTrigger>
           <TabsTrigger value="year" className={PERIOD_TRIGGER_CLASS}>
-            Year
+            {t("habits.scoreChart.year")}
           </TabsTrigger>
         </TabsList>
       </Tabs>
@@ -88,7 +92,7 @@ export function HabitScoreChart({ habit, entries }: HabitScoreChartProps) {
               tickLine={false}
               axisLine={false}
               minTickGap={24}
-              tickFormatter={(d: string) => format(parseISO(d), "MMM d")}
+              tickFormatter={(d: string) => formatMonthDay(parseISO(d))}
             />
             <YAxis
               domain={[0, 100]}
@@ -107,7 +111,7 @@ export function HabitScoreChart({ habit, entries }: HabitScoreChartProps) {
                 fontSize: "12px",
               }}
               labelStyle={{ color: "hsl(var(--foreground))" }}
-              formatter={(value) => [`${value}%`, "Score"]}
+              formatter={(value) => [`${value}%`, t("habits.insights.score")]}
             />
             <Area
               type="monotone"

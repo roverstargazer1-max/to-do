@@ -12,8 +12,8 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import type { Habit, HabitEntry } from "@/lib/types/habit";
 import { dayValue } from "@/lib/utils/habit-score";
 import { BarChart3 } from "lucide-react";
-
-const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+import { useTranslation } from "@/lib/i18n/useTranslation";
+import { useDateFormatter } from "@/lib/i18n/useDateFormatter";
 
 interface HabitFrequencyGridProps {
   habit: Habit;
@@ -24,6 +24,10 @@ export function HabitFrequencyGrid({
   habit,
   entries,
 }: HabitFrequencyGridProps) {
+  const { t } = useTranslation();
+  const { formatMonthShort, weekdayShorts } = useDateFormatter();
+  const weekdays = useMemo(() => weekdayShorts(), [weekdayShorts]);
+
   const { matrix, months, maxCount } = useMemo(() => {
     if (entries.length === 0)
       return { matrix: [], months: [] as string[], maxCount: 0 };
@@ -34,7 +38,7 @@ export function HabitFrequencyGrid({
       end: startOfMonth(today),
     });
 
-    const months = monthStarts.map((m) => format(m, "MMM"));
+    const months = monthStarts.map((m) => formatMonthShort(m));
 
     // "yyyy-MM" → column index, computed once so the per-entry loop is O(1).
     const monthIndexByKey = new Map<string, number>();
@@ -69,14 +73,14 @@ export function HabitFrequencyGrid({
     }
 
     return { matrix, months, maxCount };
-  }, [entries, habit]);
+  }, [entries, habit, formatMonthShort]);
 
   if (entries.length === 0) {
     return (
       <EmptyState
         icon={BarChart3}
-        title="No frequency data"
-        description="Log this habit to see frequency patterns."
+        title={t("habits.frequencyGrid.emptyTitle")}
+        description={t("habits.frequencyGrid.emptyDescription")}
         className="py-8 gap-3"
       />
     );
@@ -105,7 +109,7 @@ export function HabitFrequencyGrid({
         {matrix.map((row, wd) => (
           <FrequencyRow
             key={wd}
-            weekday={WEEKDAYS[wd]}
+            weekday={weekdays[wd]}
             counts={row}
             maxCount={maxCount}
             color={habit.color}

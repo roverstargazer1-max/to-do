@@ -10,6 +10,7 @@ import {
 } from "@/lib/utils/habit-streak";
 import type { Habit, HabitEntry } from "@/lib/types/habit";
 import { Trophy, Flame, Target, CheckCircle2 } from "lucide-react";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 
 interface HabitOverviewCardsProps {
   habit: Habit;
@@ -20,6 +21,7 @@ export function HabitOverviewCards({
   habit,
   entries,
 }: HabitOverviewCardsProps) {
+  const { t } = useTranslation();
   // Day-counting metrics (Streak / Best Streak / Total Completions) are shown
   // for Boolean Habits only — for a measurable at_most habit they would read as
   // an unbroken streak across every unlogged day. See CONTEXT.md.
@@ -40,7 +42,7 @@ export function HabitOverviewCards({
   return (
     <div className="grid grid-cols-2 gap-3">
       <MetricCard
-        title="Score"
+        title={t("habits.overview.score")}
         value={`${score}%`}
         icon={Target}
         size="compact"
@@ -48,19 +50,21 @@ export function HabitOverviewCards({
       {showDayCounts && (
         <>
           <MetricCard
-            title="Current Streak"
-            value={`${currentStreak} days`}
+            title={t("habits.overview.currentStreak")}
+            value={t("habits.overview.daysUnit", {
+              count: currentStreak,
+            })}
             icon={Flame}
             size="compact"
           />
           <MetricCard
-            title="Best Streak"
-            value={`${bestStreak} days`}
+            title={t("habits.overview.bestStreak")}
+            value={t("habits.overview.daysUnit", { count: bestStreak })}
             icon={Trophy}
             size="compact"
           />
           <MetricCard
-            title="Total Completions"
+            title={t("habits.overview.totalCompletions")}
             value={totalCompletions}
             icon={CheckCircle2}
             size="compact"

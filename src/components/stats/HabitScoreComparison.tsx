@@ -11,6 +11,7 @@ import {
 import { useHabits } from "@/lib/hooks/useHabits";
 import { currentScore } from "@/lib/utils/habit-score";
 import { cn } from "@/lib/utils";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 
 const TOP_N = 8;
 
@@ -20,6 +21,7 @@ interface HabitScoreComparisonProps {
 
 export function HabitScoreComparison({ className }: HabitScoreComparisonProps) {
   const { data: habits, isLoading } = useHabits();
+  const { t } = useTranslation();
 
   const rows = (habits ?? [])
     .map((h) => ({
@@ -44,10 +46,10 @@ export function HabitScoreComparison({ className }: HabitScoreComparisonProps) {
       <div className="space-y-4">
         <div>
           <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-            Habit Score Comparison
+            {t("stats.habitComparison.title")}
           </h3>
           <p className="text-sm text-muted-foreground mt-1">
-            Current Score — not affected by the period selector
+            {t("stats.habitComparison.subtitle")}
           </p>
         </div>
         {isLoading ? (
@@ -55,8 +57,8 @@ export function HabitScoreComparison({ className }: HabitScoreComparisonProps) {
         ) : items.length === 0 ? (
           <EmptyState
             icon={Trophy}
-            title="No habits yet"
-            description="Create a habit to see its Score here."
+            title={t("stats.habitComparison.emptyTitle")}
+            description={t("stats.habitComparison.emptyDescription")}
             className="py-8 gap-3"
           />
         ) : (

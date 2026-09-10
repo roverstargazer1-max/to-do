@@ -9,6 +9,7 @@ import {
 } from "@/components/stats/StatsBarList";
 import type { PriorityBreakdownCount } from "@/lib/hooks/useStats";
 import { cn } from "@/lib/utils";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 
 const PRIORITY_LABELS: Record<1 | 2 | 3 | 4, string> = {
   1: "P1",
@@ -34,6 +35,7 @@ export function PriorityBreakdownCard({
   data,
   className,
 }: PriorityBreakdownCardProps) {
+  const { t } = useTranslation();
   const total = data.reduce((sum, d) => sum + d.count, 0);
   const max = data.reduce((m, d) => Math.max(m, d.count), 0);
 
@@ -49,13 +51,13 @@ export function PriorityBreakdownCard({
     <Card className={cn("p-6 border-border/50", className)}>
       <div className="space-y-4">
         <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-          By Priority
+          {t("stats.byPriority.title")}
         </h3>
         {total === 0 ? (
           <EmptyState
             icon={Flag}
-            title="No completed tasks"
-            description="Complete a task to see this breakdown."
+            title={t("stats.breakdown.emptyTitle")}
+            description={t("stats.breakdown.emptyDescription")}
             className="py-8 gap-3"
           />
         ) : (

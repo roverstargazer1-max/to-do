@@ -37,6 +37,8 @@ import {
   Zap,
 } from "lucide-react";
 import { useHorizontalScroll } from "@/lib/hooks/useHorizontalScroll";
+import { useTranslation } from "@/lib/i18n/useTranslation";
+import type { TranslationKey } from "@/lib/i18n/dictionaries/en";
 
 const HABIT_ICONS = [
   { name: "Flame", icon: Flame },
@@ -86,11 +88,14 @@ interface HabitIconPickerProps {
 const IconButton = memo(
   ({
     item,
+    label,
     isSelected,
     onSelect,
     variant,
   }: {
     item: (typeof HABIT_ICONS)[0];
+    /** Locale-aware display name; the stored value stays the English name. */
+    label: string;
     isSelected: boolean;
     onSelect: (name: string) => void;
     variant: "grid" | "compact" | "hero";
@@ -99,8 +104,8 @@ const IconButton = memo(
     return (
       <button
         type="button"
-        title={item.name}
-        aria-label={item.name}
+        title={label}
+        aria-label={label}
         role="radio"
         aria-checked={isSelected}
         onClick={() => onSelect(item.name)}
@@ -128,7 +133,11 @@ export function HabitIconPicker({
   variant = "grid",
 }: HabitIconPickerProps) {
   const { trigger } = useHaptic();
+  const { t } = useTranslation();
   const scrollRef = useHorizontalScroll();
+
+  const iconLabel = (name: string) =>
+    t(`habits.icons.${name}` as TranslationKey);
 
   const handleSelect = React.useCallback(
     (name: string) => {
@@ -142,18 +151,21 @@ export function HabitIconPicker({
     <div className="grid gap-3 w-full overflow-hidden">
       <div className="space-y-1.5 overflow-hidden">
         {variant !== "compact" && (
-          <Label className="text-xs text-muted-foreground/60">Icon</Label>
+          <Label className="text-xs text-muted-foreground/60">
+            {t("habits.form.iconLabel")}
+          </Label>
         )}
         <div
           ref={scrollRef}
           className="flex flex-nowrap gap-2.5 overflow-x-auto scrollbar-hide py-1 px-2 -mx-2"
           role="radiogroup"
-          aria-label="Habit icon selection"
+          aria-label={t("habits.form.iconGroup")}
         >
           {HABIT_ICONS.map((item) => (
             <IconButton
               key={item.name}
               item={item}
+              label={iconLabel(item.name)}
               isSelected={value === item.name}
               variant={variant}
               onSelect={handleSelect}

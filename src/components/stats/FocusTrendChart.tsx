@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { format, parseISO } from "date-fns";
+import { parseISO } from "date-fns";
 import { Card } from "@/components/ui/card";
 import {
   ComposedChart,
@@ -16,6 +16,8 @@ import { computeTickInterval } from "@/lib/utils/chart-ticks";
 import { useIsMobile } from "@/lib/hooks/useIsMobile";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { LineChart as LineChartIcon } from "lucide-react";
+import { useTranslation } from "@/lib/i18n/useTranslation";
+import { useDateFormatter } from "@/lib/i18n/useDateFormatter";
 
 interface FocusTrendChartProps {
   data: Array<{
@@ -29,19 +31,25 @@ interface FocusTrendChartProps {
 
 export function FocusTrendChart({
   data,
-  periodLabel = "Last 7 days (ends today)",
+  periodLabel,
   className,
 }: FocusTrendChartProps) {
   const hasData = data.some((d) => d.hours > 0 || d.tasksCompleted > 0);
   const isMobile = useIsMobile();
+  const { t } = useTranslation();
+  const { formatMonthDay } = useDateFormatter();
 
   // Avoid an unreadable tick per day once the range grows (e.g. 1y/All).
   // Mobile has roughly half the plot width, so target half as many labels.
   const tickInterval = computeTickInterval(data.length, isMobile ? 4 : 8);
 
   const chartData = useMemo(
-    () => data.map((d) => ({ ...d, label: format(parseISO(d.date), "MMM d") })),
-    [data],
+    () =>
+      data.map((d) => ({
+        ...d,
+        label: formatMonthDay(parseISO(d.date)),
+      })),
+    [data, formatMonthDay],
   );
 
   return (
@@ -50,19 +58,21 @@ export function FocusTrendChart({
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-2">
           <div>
             <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-              Trend
+              {t("stats.trend.title")}
             </h3>
-            <p className="text-sm text-muted-foreground mt-1">{periodLabel}</p>
+            <p className="text-sm text-muted-foreground mt-1">
+              {periodLabel ?? t("stats.trend.defaultPeriod")}
+            </p>
           </div>
           {hasData && (
             <div className="flex items-center gap-4 text-xs text-muted-foreground">
               <span className="flex items-center gap-1.5">
                 <span className="w-2 h-2 rounded-full bg-brand" />
-                Focus hours
+                {t("stats.trend.focusHours")}
               </span>
               <span className="flex items-center gap-1.5">
                 <span className="w-2 h-2 rounded-full bg-muted-foreground/60" />
-                Tasks completed
+                {t("stats.trend.tasksCompleted")}
               </span>
             </div>
           )}
@@ -71,8 +81,8 @@ export function FocusTrendChart({
         {!hasData ? (
           <EmptyState
             icon={LineChartIcon}
-            title="No activity yet"
-            description="Complete a focus session or task to see your trend here."
+            title={t("stats.trend.emptyTitle")}
+            description={t("stats.trend.emptyDescription")}
             className="py-8 gap-3"
           />
         ) : (
@@ -120,7 +130,9 @@ export function FocusTrendChart({
                   labelStyle={{ color: "hsl(var(--foreground))" }}
                   formatter={(value, name) => [
                     value,
-                    name === "hours" ? "Focus hours" : "Tasks completed",
+                    name === "hours"
+                      ? t("stats.trend.focusHours")
+                      : t("stats.trend.tasksCompleted"),
                   ]}
                 />
                 <Line

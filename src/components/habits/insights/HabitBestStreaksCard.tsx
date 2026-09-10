@@ -5,6 +5,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { usePrefersReducedMotion } from "@/lib/hooks/usePrefersReducedMotion";
 import type { Habit, HabitEntry } from "@/lib/types/habit";
 import { Flame } from "lucide-react";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 
 interface HabitBestStreaksCardProps {
   habit: Habit;
@@ -16,14 +17,15 @@ export function HabitBestStreaksCard({
   entries,
 }: HabitBestStreaksCardProps) {
   const reduced = usePrefersReducedMotion();
+  const { t } = useTranslation();
   const streaks = getBestStreaks(habit, entries, 5);
 
   if (streaks.length === 0) {
     return (
       <EmptyState
         icon={Flame}
-        title="No streaks yet"
-        description="Build a streak to see it here."
+        title={t("habits.bestStreaks.emptyTitle")}
+        description={t("habits.bestStreaks.emptyDescription")}
         className="py-8 gap-3"
       />
     );
@@ -36,7 +38,7 @@ export function HabitBestStreaksCard({
       {streaks.map((run, i) => (
         <div key={i} className="flex items-center gap-3">
           <div className="w-16 text-right text-sm tabular-nums text-muted-foreground">
-            {run} days
+            {t("habits.overview.daysUnit", { count: run })}
           </div>
           <div className="flex-1 h-6 rounded-md bg-secondary/50 overflow-hidden">
             <div

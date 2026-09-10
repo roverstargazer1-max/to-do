@@ -1,4 +1,6 @@
 import { format, subDays } from "date-fns";
+import { formatWeekdayNarrow } from "@/lib/i18n/date-format";
+import type { Locale } from "@/lib/i18n/types";
 import type { HabitEntry } from "@/lib/types/habit";
 
 export interface RollingDay {
@@ -17,12 +19,14 @@ export interface RollingDay {
 /**
  * Build the rolling 7-day window ending at `today` (today last), with a
  * per-day descriptor for the compact strip. Days before `startDate` are
- * flagged inert; absent entries read as value 0.
+ * flagged inert; absent entries read as value 0. `language` (optional,
+ * default English) drives the narrow weekday letters.
  */
 export function getRolling7Days(
   entries: HabitEntry[],
   today: Date,
   startDate: string | null,
+  language?: Locale,
 ): RollingDay[] {
   const valueByDate = new Map(entries.map((e) => [e.date, e.value]));
   // A null start_date (legacy / imported / direct-insert rows) means no
@@ -35,7 +39,7 @@ export function getRolling7Days(
     const dateStr = format(date, "yyyy-MM-dd");
     return {
       date: dateStr,
-      weekdayLabel: format(date, "EEEEE"),
+      weekdayLabel: formatWeekdayNarrow(date, language),
       value: valueByDate.get(dateStr) ?? 0,
       isToday: dateStr === todayStr,
       isBeforeStart: startDay !== null && dateStr < startDay,

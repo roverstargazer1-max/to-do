@@ -11,6 +11,8 @@ import { useIsMobile } from "@/lib/hooks/useIsMobile";
 import { useHorizontalScroll } from "@/lib/hooks/useHorizontalScroll";
 import { cn } from "@/lib/utils";
 import { Tooltip as ReactTooltip } from "react-tooltip";
+import { useTranslation } from "@/lib/i18n/useTranslation";
+import { useDateFormatter } from "@/lib/i18n/useDateFormatter";
 
 interface ActivityHeatmapProps {
   className?: string;
@@ -19,6 +21,15 @@ interface ActivityHeatmapProps {
 export function ActivityHeatmap({ className }: ActivityHeatmapProps) {
   const { data, isLoading, maxValue, activeDays } = useHeatmapData();
   const { resolvedTheme } = useTheme();
+  const { t } = useTranslation();
+  const { monthShorts, weekdayShorts } = useDateFormatter();
+  // react-activity-calendar's weekday axis is Sunday-first; the seam's
+  // weekdayShorts is ISO (Monday-first), so rotate.
+  const weekdayLabels = useMemo(
+    () => [...weekdayShorts().slice(6), ...weekdayShorts().slice(0, 6)],
+    [weekdayShorts],
+  );
+  const monthLabels = useMemo(() => monthShorts(), [monthShorts]);
 
   const isMobile = useIsMobile();
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -110,7 +121,11 @@ export function ActivityHeatmap({ className }: ActivityHeatmapProps) {
   const renderTooltip = (activity: Activity) => {
     const point = data.find((d) => d.date === activity.date);
     if (!point) return activity.date;
-    return `${activity.date}: ${point.focus}h focus • ${point.tasks} tasks`;
+    return t("stats.activity.tooltip", {
+      date: activity.date,
+      focus: point.focus,
+      tasks: point.tasks,
+    });
   };
 
   if (isLoading) {
@@ -132,10 +147,10 @@ export function ActivityHeatmap({ className }: ActivityHeatmapProps) {
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
             <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-              Activity Heatmap
+              {t("stats.activity.title")}
             </h3>
             <p className="text-sm text-muted-foreground mt-1">
-              {activeDays} active days in the past year
+              {t("stats.activity.activeDays", { count: activeDays })}
             </p>
           </div>
         </div>
@@ -158,24 +173,11 @@ export function ActivityHeatmap({ className }: ActivityHeatmapProps) {
                 showMonthLabels={true}
                 showTotalCount={false}
                 labels={{
-                  months: [
-                    "Jan",
-                    "Feb",
-                    "Mar",
-                    "Apr",
-                    "May",
-                    "Jun",
-                    "Jul",
-                    "Aug",
-                    "Sep",
-                    "Oct",
-                    "Nov",
-                    "Dec",
-                  ],
-                  weekdays: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
+                  months: monthLabels,
+                  weekdays: weekdayLabels,
                   legend: {
-                    less: "Less",
-                    more: "More",
+                    less: t("stats.activity.less"),
+                    more: t("stats.activity.more"),
                   },
                 }}
                 renderBlock={(block, activity) => (

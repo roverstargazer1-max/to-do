@@ -3,6 +3,7 @@
 import { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Card } from "@/components/ui/card";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 
 interface MetricCardProps {
   title: string;
@@ -25,6 +26,7 @@ export function MetricCard({
   size = "default",
   className,
 }: MetricCardProps) {
+  const { t } = useTranslation();
   const compact = size === "compact";
 
   return (
@@ -56,7 +58,12 @@ export function MetricCard({
           {trend && (
             <div
               role="img"
-              aria-label={`${trend.isPositive ? "Increased" : "Decreased"} by ${Math.abs(trend.value)}% compared to last period`}
+              aria-label={t("stats.metric.trendAria", {
+                direction: trend.isPositive
+                  ? t("stats.metric.increased")
+                  : t("stats.metric.decreased"),
+                value: Math.abs(trend.value),
+              })}
               className={cn(
                 "text-[11px] md:text-xs font-bold flex items-center gap-1 w-fit px-2 py-0.5 rounded-md mt-1.5 border transition-all",
                 trend.value === 0

@@ -13,6 +13,7 @@ import {
   getStreaksAtRisk,
 } from "@/lib/utils/projections";
 import { cn } from "@/lib/utils";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 
 interface ProjectionsCardProps {
   className?: string;
@@ -27,6 +28,7 @@ interface ProjectionsCardProps {
 export function ProjectionsCard({ className }: ProjectionsCardProps) {
   const { data: habits, isLoading: habitsLoading } = useHabits();
   const { data: stats, isLoading: statsLoading } = useStats("30d");
+  const { t } = useTranslation();
   const isLoading = habitsLoading || statsLoading;
 
   const dailyTrend = stats?.dailyTrend ?? [];
@@ -41,10 +43,10 @@ export function ProjectionsCard({ className }: ProjectionsCardProps) {
       <div className="space-y-5">
         <div>
           <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-            Projections
+            {t("stats.projections.title")}
           </h3>
           <p className="text-sm text-muted-foreground mt-1">
-            Estimates from your recent pace — not a guarantee
+            {t("stats.projections.subtitle")}
           </p>
         </div>
 
@@ -53,8 +55,8 @@ export function ProjectionsCard({ className }: ProjectionsCardProps) {
         ) : !hasProjection && streaksAtRisk.length === 0 ? (
           <EmptyState
             icon={TrendingUp}
-            title="Not enough data yet"
-            description="Log a few days of activity to see a pace-based projection."
+            title={t("stats.projections.emptyTitle")}
+            description={t("stats.projections.emptyDescription")}
             className="py-8 gap-3"
           />
         ) : (
@@ -62,18 +64,22 @@ export function ProjectionsCard({ className }: ProjectionsCardProps) {
             {hasProjection && (
               <div className="grid grid-cols-1 gap-x-10 gap-y-6 sm:grid-cols-2">
                 <ProjectionMetric
-                  label="Tasks this month"
+                  label={t("stats.projections.tasksThisMonth")}
                   projected={`~${Math.round(tasks.projected)}`}
                   soFar={tasks.soFar}
                   projectedValue={tasks.projected}
-                  caption={`${tasks.soFar} completed so far`}
+                  caption={t("stats.projections.tasksCaption", {
+                    count: tasks.soFar,
+                  })}
                 />
                 <ProjectionMetric
-                  label="Focus this month"
+                  label={t("stats.projections.focusThisMonth")}
                   projected={`~${Math.round(focusHours.projected * 10) / 10}h`}
                   soFar={focusHours.soFar}
                   projectedValue={focusHours.projected}
-                  caption={`${Math.round(focusHours.soFar * 10) / 10}h logged so far`}
+                  caption={t("stats.projections.focusCaption", {
+                    hours: Math.round(focusHours.soFar * 10) / 10,
+                  })}
                 />
               </div>
             )}
@@ -81,7 +87,7 @@ export function ProjectionsCard({ className }: ProjectionsCardProps) {
             {streaksAtRisk.length > 0 && (
               <div className="space-y-2">
                 <h4 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  Streaks at risk
+                  {t("stats.projections.streaksAtRisk")}
                 </h4>
                 <ul className="space-y-1.5">
                   {streaksAtRisk.map((risk) => (
@@ -95,7 +101,9 @@ export function ProjectionsCard({ className }: ProjectionsCardProps) {
                       />
                       <span className="truncate">{risk.name}</span>
                       <span className="text-muted-foreground shrink-0">
-                        {risk.currentStreak}d streak — log today to keep it
+                        {t("stats.projections.streakRisk", {
+                          count: risk.currentStreak,
+                        })}
                       </span>
                     </li>
                   ))}

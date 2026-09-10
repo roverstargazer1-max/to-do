@@ -1,5 +1,6 @@
 import { render } from "@testing-library/react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
+import { format, subDays } from "date-fns";
 import { HabitCompactRow } from "@/components/habits/HabitCompactRow";
 import type { HabitWithEntries } from "@/lib/types/habit";
 import * as useHabitMutationsModule from "@/lib/hooks/useHabitMutations";
@@ -23,9 +24,10 @@ describe("HabitCompactRow rolling-7 strip", () => {
     vi.mocked(useCoarsePointerModule.useCoarsePointer).mockReturnValue(false);
 
     const today = new Date();
-    const yesterday = new Date(today);
-    yesterday.setDate(yesterday.getDate() - 1);
-    yesterdayStr = yesterday.toISOString().split("T")[0];
+    const yesterday = subDays(today, 1);
+    // Match the component's local-timezone date keying (date-fns format),
+    // not toISOString()'s UTC date, so the strip cutoffs line up at any hour.
+    yesterdayStr = format(yesterday, "yyyy-MM-dd");
 
     mockHabit = {
       id: "habit-test",

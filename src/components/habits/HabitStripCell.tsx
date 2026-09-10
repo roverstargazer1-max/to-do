@@ -1,10 +1,12 @@
 "use client";
 
 import { Check } from "lucide-react";
-import { format, parseISO } from "date-fns";
+import { parseISO } from "date-fns";
 import { cn } from "@/lib/utils";
 import { getContrastingColor } from "@/lib/utils/color";
 import type { RollingDay } from "@/lib/utils/habit-rolling";
+import { useTranslation } from "@/lib/i18n/useTranslation";
+import { useDateFormatter } from "@/lib/i18n/useDateFormatter";
 
 interface HabitStripCellProps {
   day: RollingDay;
@@ -25,8 +27,14 @@ export function HabitStripCell({
   coarse,
   onToggle,
 }: HabitStripCellProps) {
+  const { t } = useTranslation();
+  const { formatWeekday, formatMonthDay } = useDateFormatter();
   const { date, weekdayLabel, value, isToday, isBeforeStart } = day;
   const complete = value === 1;
+  const dateLabel = (() => {
+    const d = parseISO(date);
+    return `${formatWeekday(d, "long")} ${formatMonthDay(d)}`;
+  })();
 
   // Mobile: each cell fills its grid column, capped at the desktop size and
   // kept square via aspect-ratio, so all 7 days fit without scrolling even on
@@ -53,7 +61,7 @@ export function HabitStripCell({
             onToggle(date);
           }}
           aria-pressed={complete}
-          aria-label={`${format(parseISO(date), "EEEE MMM d")}, ${complete ? "completed" : "not completed"} — toggle`}
+          aria-label={`${dateLabel}, ${complete ? t("habits.stripCell.completed") : t("habits.stripCell.notCompleted")} ${t("habits.stripCell.toggleSuffix")}`}
           className={cn(
             "group flex items-center justify-center rounded-md transition-seijaku-fast",
             cellSizing,

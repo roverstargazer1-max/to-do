@@ -14,6 +14,8 @@ import {
 } from "@/lib/import/uhabitsErrors";
 import type { Habit, HabitEntry } from "@/lib/types/habit";
 import { notify } from "@/lib/notify";
+import { tr } from "@/lib/i18n/tr";
+import type { TranslationKey } from "@/lib/i18n/dictionaries/en";
 import { useHaptic } from "@/lib/hooks/useHaptic";
 import { habitMutations } from "@/lib/mutations/habit";
 import { useQueryClient } from "@tanstack/react-query";
@@ -32,11 +34,13 @@ export function useUhabitsImport() {
 
     setIsImporting(true);
     trigger("toggle");
-    const loadingToastId = notify.loading(`Parsing ${file.name}...`);
+    const loadingToastId = notify.loading(
+      tr("habits.import.parsing", { file: file.name }),
+    );
 
-    const reportImportFailure = (err: unknown, message: string) => {
+    const reportImportFailure = (err: unknown, messageKey: TranslationKey) => {
       Sentry.captureException(err);
-      notify.error(message, { id: loadingToastId });
+      notify.error(tr(messageKey), { id: loadingToastId });
       trigger("thud");
       return false;
     };
@@ -52,7 +56,7 @@ export function useUhabitsImport() {
       }
 
       if (habits.length === 0) {
-        notify.error("No compatible habits found in the database", {
+        notify.error(tr("habits.import.noCompatible"), {
           id: loadingToastId,
         });
         return;
@@ -98,16 +102,18 @@ export function useUhabitsImport() {
       }
 
       if (habitsToImport.length === 0) {
-        notify.info(
-          `All ${habits.length} habits already exist — nothing imported`,
-          { id: loadingToastId },
-        );
+        notify.info(tr("habits.import.allExist", { count: habits.length }), {
+          id: loadingToastId,
+        });
         return true;
       }
 
-      notify.loading(`Importing ${habitsToImport.length} habits...`, {
-        id: loadingToastId,
-      });
+      notify.loading(
+        tr("habits.import.importing", { count: habitsToImport.length }),
+        {
+          id: loadingToastId,
+        },
+      );
 
       // tempId (from parseUhabitsFile) -> actualId (DB / mock store)
       const habitIdMap = new Map<string, string>();
@@ -123,7 +129,10 @@ export function useUhabitsImport() {
 
       if (entries.length > 0) {
         notify.loading(
-          `Importing ${habits.length} habits and ${entries.length} history entries...`,
+          tr("habits.import.importingEntries", {
+            habits: habits.length,
+            entries: entries.length,
+          }),
           { id: loadingToastId },
         );
 
@@ -153,9 +162,15 @@ export function useUhabitsImport() {
       await queryClient.invalidateQueries({ queryKey: ["habits"] });
 
       const skippedMsg =
-        skippedCount > 0 ? ` (${skippedCount} already existed, skipped)` : "";
+        skippedCount > 0
+          ? tr("habits.import.skippedSuffix", { count: skippedCount })
+          : "";
       notify.success(
-        `Imported ${habitsToImport.length} habits with ${entries.length} history entries${skippedMsg}`,
+        tr("habits.import.success", {
+          habits: habitsToImport.length,
+          entries: entries.length,
+          skipped: skippedMsg,
+        }),
         { id: loadingToastId },
       );
       trigger("success");

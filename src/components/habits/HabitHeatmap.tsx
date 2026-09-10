@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useMemo } from "react";
 import {
   ActivityCalendar,
   type Activity,
@@ -9,6 +9,8 @@ import {
 import "react-activity-calendar/tooltips.css";
 import { useTheme } from "next-themes";
 import { subMonths, format } from "date-fns";
+import { useTranslation } from "@/lib/i18n/useTranslation";
+import { useDateFormatter } from "@/lib/i18n/useDateFormatter";
 
 interface HabitHeatmapProps {
   entries: Array<{ date: string; value: number }>;
@@ -45,6 +47,15 @@ export function HabitHeatmap({
   startDate,
 }: HabitHeatmapProps) {
   const { resolvedTheme } = useTheme();
+  const { t } = useTranslation();
+  const { monthShorts, weekdayShorts } = useDateFormatter();
+  // react-activity-calendar's weekday axis is Sunday-first; the seam's
+  // weekdayShorts is ISO (Monday-first), so rotate.
+  const weekdayLabels = useMemo(
+    () => [...weekdayShorts().slice(6), ...weekdayShorts().slice(0, 6)],
+    [weekdayShorts],
+  );
+  const monthLabels = useMemo(() => monthShorts(), [monthShorts]);
 
   const today = new Date().toISOString().split("T")[0];
   const dataMap = new Map(entries.map((e) => [e.date, e.value]));
@@ -87,25 +98,12 @@ export function HabitHeatmap({
         showMonthLabels={false}
         showTotalCount={false}
         labels={{
-          months: [
-            "Jan",
-            "Feb",
-            "Mar",
-            "Apr",
-            "May",
-            "Jun",
-            "Jul",
-            "Aug",
-            "Sep",
-            "Oct",
-            "Nov",
-            "Dec",
-          ],
-          weekdays: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
-          totalCount: "{{count}} completions in {{year}}",
+          months: monthLabels,
+          weekdays: weekdayLabels,
+          totalCount: t("habits.heatmap.totalCount"),
           legend: {
-            less: "Less",
-            more: "More",
+            less: t("habits.heatmap.less"),
+            more: t("habits.heatmap.more"),
           },
         }}
       />

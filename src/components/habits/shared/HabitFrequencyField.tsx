@@ -4,6 +4,8 @@ import { Repeat, Minus, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { IconCell } from "@/components/ui/IconCell";
 import { useHaptic } from "@/lib/hooks/useHaptic";
+import { useTranslation } from "@/lib/i18n/useTranslation";
+import type { TranslationKey } from "@/lib/i18n/dictionaries/en";
 
 export type FrequencyPeriod = "day" | "week" | "month";
 
@@ -17,10 +19,10 @@ interface HabitFrequencyFieldProps {
 const MIN_COUNT = 1;
 const MAX_COUNT = 30;
 
-const PERIOD_LABELS: Record<FrequencyPeriod, string> = {
-  day: "Day",
-  week: "Week",
-  month: "Month",
+const PERIOD_LABEL_KEYS: Record<FrequencyPeriod, TranslationKey> = {
+  day: "habits.frequency.day",
+  week: "habits.frequency.week",
+  month: "habits.frequency.month",
 };
 
 /**
@@ -36,6 +38,7 @@ export function HabitFrequencyField({
   onPeriodChange,
 }: HabitFrequencyFieldProps) {
   const { trigger } = useHaptic();
+  const { t } = useTranslation();
 
   const setCount = (next: number) => {
     const clamped = Math.max(MIN_COUNT, Math.min(MAX_COUNT, next));
@@ -70,7 +73,7 @@ export function HabitFrequencyField({
             type="button"
             onClick={() => setCount(count - 1)}
             disabled={count <= MIN_COUNT}
-            aria-label="Fewer times"
+            aria-label={t("habits.frequency.fewer")}
             className="h-8 w-8 flex items-center justify-center rounded-l-lg text-muted-foreground transition-seijaku-fast hover:text-foreground hover:bg-secondary/40 disabled:opacity-40 disabled:pointer-events-none"
           >
             <Minus className="h-4 w-4" strokeWidth={2.25} />
@@ -82,7 +85,7 @@ export function HabitFrequencyField({
             type="button"
             onClick={() => setCount(count + 1)}
             disabled={count >= MAX_COUNT}
-            aria-label="More times"
+            aria-label={t("habits.frequency.more")}
             className="h-8 w-8 flex items-center justify-center rounded-r-lg text-muted-foreground transition-seijaku-fast hover:text-foreground hover:bg-secondary/40 disabled:opacity-40 disabled:pointer-events-none"
           >
             <Plus className="h-4 w-4" strokeWidth={2.25} />
@@ -90,7 +93,7 @@ export function HabitFrequencyField({
         </div>
 
         <span className="text-[13px] text-muted-foreground shrink-0">
-          {count === 1 ? "time per" : "times per"}
+          {t("habits.frequency.timePer", { count })}
         </span>
 
         {/* Period segmented toggle — matches SheetTabToggle */}
@@ -108,7 +111,7 @@ export function HabitFrequencyField({
                   : "text-muted-foreground hover:text-foreground hover:bg-secondary/40",
               )}
             >
-              {PERIOD_LABELS[p]}
+              {t(PERIOD_LABEL_KEYS[p])}
             </button>
           ))}
         </div>

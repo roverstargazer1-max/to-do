@@ -7,6 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { CircularProgress } from "@/components/ui/circular-progress";
 import { useUiStore } from "@/lib/store/uiStore";
 import { useGoalProgress } from "@/lib/hooks/useGoalProgress";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 import { cn } from "@/lib/utils";
 
 interface GoalsCardProps {
@@ -24,12 +25,13 @@ interface GoalRing {
 export function GoalsCard({ className }: GoalsCardProps) {
   const goals = useUiStore((s) => s.goals);
   const { data: progress, isLoading } = useGoalProgress();
+  const { t } = useTranslation();
 
   const rings: GoalRing[] = [];
   if (goals.dailyFocusHours != null) {
     rings.push({
       key: "daily-focus",
-      label: "Daily Focus",
+      label: t("stats.goals.dailyFocus"),
       value: progress?.focusHoursToday ?? 0,
       target: goals.dailyFocusHours,
       unit: "h",
@@ -38,7 +40,7 @@ export function GoalsCard({ className }: GoalsCardProps) {
   if (goals.weeklyFocusHours != null) {
     rings.push({
       key: "weekly-focus",
-      label: "Weekly Focus",
+      label: t("stats.goals.weeklyFocus"),
       value: progress?.focusHoursThisWeek ?? 0,
       target: goals.weeklyFocusHours,
       unit: "h",
@@ -47,7 +49,7 @@ export function GoalsCard({ className }: GoalsCardProps) {
   if (goals.dailyTasksCompleted != null) {
     rings.push({
       key: "daily-tasks",
-      label: "Daily Tasks",
+      label: t("stats.goals.dailyTasks"),
       value: progress?.tasksCompletedToday ?? 0,
       target: goals.dailyTasksCompleted,
       unit: "",
@@ -56,7 +58,7 @@ export function GoalsCard({ className }: GoalsCardProps) {
   if (goals.weeklyTasksCompleted != null) {
     rings.push({
       key: "weekly-tasks",
-      label: "Weekly Tasks",
+      label: t("stats.goals.weeklyTasks"),
       value: progress?.tasksCompletedThisWeek ?? 0,
       target: goals.weeklyTasksCompleted,
       unit: "",
@@ -78,7 +80,7 @@ export function GoalsCard({ className }: GoalsCardProps) {
         )}
       >
         <Target className="h-4 w-4 shrink-0" strokeWidth={2.25} />
-        <span>Set a daily or weekly goal to track progress here</span>
+        <span>{t("stats.goals.setupPrompt")}</span>
       </button>
     );
   }
@@ -88,10 +90,10 @@ export function GoalsCard({ className }: GoalsCardProps) {
       <div className="space-y-4">
         <div>
           <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-            Goals
+            {t("stats.goals.title")}
           </h3>
           <p className="text-sm text-muted-foreground mt-1">
-            Daily and weekly targets — not affected by the period selector
+            {t("stats.goals.subtitle")}
           </p>
         </div>
 
@@ -114,7 +116,12 @@ export function GoalsCard({ className }: GoalsCardProps) {
                     max={ring.target}
                     size={72}
                     strokeWidth={6}
-                    label={`${displayValue} of ${ring.target}${ring.unit} — ${ring.label}`}
+                    label={t("stats.goals.ringLabel", {
+                      value: displayValue,
+                      target: ring.target,
+                      unit: ring.unit,
+                      label: ring.label,
+                    })}
                   >
                     <span className="text-sm font-bold text-foreground tabular-nums">
                       {displayValue}/{ring.target}

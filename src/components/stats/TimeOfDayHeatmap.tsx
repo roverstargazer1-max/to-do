@@ -5,8 +5,13 @@ import { Clock } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { cn } from "@/lib/utils";
+import { useTranslation } from "@/lib/i18n/useTranslation";
+import { useDateFormatter } from "@/lib/i18n/useDateFormatter";
+import type { TranslationKey } from "@/lib/i18n/dictionaries/en";
+import type { TranslationParams } from "@/lib/i18n/types";
 
-const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+type Translate = (key: TranslationKey, params?: TranslationParams) => string;
+
 const HOUR_LABELS: Record<number, string> = {
   0: "12a",
   6: "6a",
@@ -21,6 +26,10 @@ interface TimeOfDayHeatmapProps {
 }
 
 export function TimeOfDayHeatmap({ matrix, className }: TimeOfDayHeatmapProps) {
+  const { t } = useTranslation();
+  const { weekdayShorts } = useDateFormatter();
+  const weekdays = useMemo(() => weekdayShorts(), [weekdayShorts]);
+
   const { maxMinutes, hasData } = useMemo(() => {
     let max = 0;
     let any = false;
@@ -38,18 +47,18 @@ export function TimeOfDayHeatmap({ matrix, className }: TimeOfDayHeatmapProps) {
       <div className="space-y-4">
         <div>
           <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-            Focus by Time of Day
+            {t("stats.timeOfDay.title")}
           </h3>
           <p className="text-sm text-muted-foreground mt-1">
-            When you focus most, by hour and weekday
+            {t("stats.timeOfDay.subtitle")}
           </p>
         </div>
 
         {!hasData ? (
           <EmptyState
             icon={Clock}
-            title="No focus sessions yet"
-            description="Complete a focus session to see your patterns here."
+            title={t("stats.timeOfDay.emptyTitle")}
+            description={t("stats.timeOfDay.emptyDescription")}
             className="py-8 gap-3"
           />
         ) : (
@@ -73,9 +82,10 @@ export function TimeOfDayHeatmap({ matrix, className }: TimeOfDayHeatmapProps) {
               {matrix.map((row, weekday) => (
                 <TimeOfDayRow
                   key={weekday}
-                  weekday={WEEKDAYS[weekday]}
+                  weekday={weekdays[weekday]}
                   minutesByHour={row}
                   maxMinutes={maxMinutes}
+                  t={t}
                 />
               ))}
             </div>
@@ -90,10 +100,12 @@ function TimeOfDayRow({
   weekday,
   minutesByHour,
   maxMinutes,
+  t,
 }: {
   weekday: string;
   minutesByHour: number[];
   maxMinutes: number;
+  t: Translate;
 }) {
   return (
     <>
@@ -105,7 +117,11 @@ function TimeOfDayRow({
         const size =
           minutes === 0 ? 6 : Math.max(6, Math.round(6 + ratio * 12));
         const opacity = minutes === 0 ? 0.15 : 0.2 + ratio * 0.8;
-        const label = `${weekday} ${String(hour).padStart(2, "0")}:00 — ${minutes}m`;
+        const label = t("stats.timeOfDay.cellLabel", {
+          weekday,
+          hour: String(hour).padStart(2, "0"),
+          minutes,
+        });
 
         return (
           <div

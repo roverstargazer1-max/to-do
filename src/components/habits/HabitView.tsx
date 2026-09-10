@@ -22,6 +22,7 @@ import {
 import { ColorPicker } from "@/components/shared/ColorPicker";
 import { TaskDatePicker } from "../tasks/shared/TaskDatePicker";
 import { useMediaQuery } from "@/lib/hooks/useMediaQuery";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 
 interface HabitViewBaseProps {
   name: string;
@@ -84,6 +85,7 @@ export function HabitView(props: HabitViewProps) {
 
   const { trigger } = useHaptic();
   const isFinePointer = useMediaQuery("(pointer: fine)");
+  const { t } = useTranslation();
 
   const nameId = mode === "create" ? "habit-name" : "habit-name-edit";
   const nameErrorId =
@@ -97,8 +99,8 @@ export function HabitView(props: HabitViewProps) {
       <div className="px-5 pt-5 pb-4 border-b border-border/40 shrink-0">
         <input
           id={nameId}
-          placeholder="Habit name"
-          aria-label="Habit name"
+          placeholder={t("habits.form.namePlaceholder")}
+          aria-label={t("habits.form.nameLabel")}
           value={name}
           onChange={(e) => setName(e.target.value)}
           onKeyDown={onKeyDown}
@@ -133,7 +135,7 @@ export function HabitView(props: HabitViewProps) {
             <ColorPicker
               value={color}
               onChange={setColor}
-              ariaLabel="Habit color"
+              ariaLabel={t("habits.form.colorLabel")}
             />
           </div>
         </div>
@@ -161,8 +163,8 @@ export function HabitView(props: HabitViewProps) {
             </IconCell>
             <textarea
               id={descriptionId}
-              placeholder="Add details (optional)"
-              aria-label="Habit details"
+              placeholder={t("habits.form.detailsPlaceholder")}
+              aria-label={t("habits.form.detailsLabel")}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={2}
@@ -184,7 +186,7 @@ export function HabitView(props: HabitViewProps) {
           onOpenChange={setDatePickerOpen}
           variant="icon"
           icon={CalendarIcon}
-          title="Start Date"
+          title={t("habits.form.startDate")}
           showTime={true}
           allowPastDates={true}
           side="top"
@@ -205,7 +207,7 @@ export function HabitView(props: HabitViewProps) {
               props.onDelete();
             }}
             disabled={isPending}
-            aria-label="Delete habit"
+            aria-label={t("habits.form.deleteHabit")}
           >
             <Trash2 strokeWidth={2.25} />
           </Button>
@@ -223,11 +225,11 @@ export function HabitView(props: HabitViewProps) {
           aria-label={
             mode === "create"
               ? isPending
-                ? "Creating habit"
-                : "Start habit"
+                ? t("habits.form.creatingHabit")
+                : t("habits.form.startHabit")
               : isPending
-                ? "Saving"
-                : "Save changes"
+                ? t("habits.form.saving")
+                : t("habits.form.saveChanges")
           }
         >
           {mode === "create" ? (

@@ -20,6 +20,7 @@ import type { HabitWithEntries } from "@/lib/hooks/useHabits";
 import { DragHandle } from "@/components/tasks/DragHandle";
 import { HabitStripCell } from "./HabitStripCell";
 import { CircularProgress } from "@/components/ui/circular-progress";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 
 interface HabitCompactRowProps {
   habit: HabitWithEntries;
@@ -51,6 +52,7 @@ export function HabitCompactRow({
 }: HabitCompactRowProps) {
   const markComplete = useMarkHabitComplete();
   const coarse = useCoarsePointer();
+  const { t, language } = useTranslation();
 
   // `today` is fixed for the row's lifetime; a date rollover is picked up on
   // the next list re-render rather than every render of every row.
@@ -60,8 +62,8 @@ export function HabitCompactRow({
     [habit, today],
   );
   const days = useMemo(
-    () => getRolling7Days(habit.entries, today, habit.start_date),
-    [habit.entries, today, habit.start_date],
+    () => getRolling7Days(habit.entries, today, habit.start_date, language),
+    [habit.entries, today, habit.start_date, language],
   );
 
   // Frequency progress ring — Boolean Habits with a non-trivial target only,
@@ -123,14 +125,14 @@ export function HabitCompactRow({
               size={18}
               strokeWidth={2.5}
               color={habit.color}
-              label={frequencyProgressLabel(frequencyProgress)}
+              label={frequencyProgressLabel(t, frequencyProgress)}
               className="mr-0.5"
             />
           )}
           {/* Quiet metadata, matched to HabitCard's strip (no caps label). */}
           <span className="text-[13px] font-medium tabular-nums text-foreground/55">
             <span className="font-semibold text-foreground/90">{streak}</span>{" "}
-            streak
+            {t("habits.card.streakSuffix")}
           </span>
           {onViewInsights && (
             <button
@@ -139,7 +141,7 @@ export function HabitCompactRow({
                 onViewInsights();
               }}
               className="ml-1 flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-seijaku-fast hover:bg-secondary/60 hover:text-foreground"
-              aria-label="View insights"
+              aria-label={t("habits.card.viewInsights")}
             >
               <BarChart2 className="h-3.5 w-3.5" strokeWidth={2.25} />
             </button>

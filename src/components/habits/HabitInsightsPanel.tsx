@@ -25,6 +25,7 @@ import {
   triggerDownload,
 } from "@/lib/utils/stats-export";
 import type { Habit } from "@/lib/types/habit";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 
 interface HabitInsightsPanelProps {
   habit: Habit;
@@ -36,6 +37,7 @@ export function HabitInsightsPanel({
   const { data, isLoading } = useHabit(habitProp.id);
   const { trigger } = useHaptic();
   const [isExporting, setIsExporting] = useState(false);
+  const { t } = useTranslation();
 
   if (isLoading) {
     return (
@@ -66,11 +68,11 @@ export function HabitInsightsPanel({
         csv,
         "text/csv",
       );
-      notify.success("Habit history exported as CSV");
+      notify.success(t("habits.insights.exportedToast"));
       trigger("success");
     } catch (err) {
       console.error("Habit history export failed:", err);
-      notify.error("Failed to export habit history");
+      notify.error(t("habits.insights.exportFailed"));
       trigger("thud");
     } finally {
       setIsExporting(false);
@@ -89,8 +91,8 @@ export function HabitInsightsPanel({
     return (
       <EmptyState
         icon={BarChart3}
-        title="No data yet"
-        description="Log this habit to see insights."
+        title={t("habits.insights.emptyTitle")}
+        description={t("habits.insights.emptyDescription")}
         className="px-4 py-12 md:px-6 gap-3"
       />
     );
@@ -100,11 +102,11 @@ export function HabitInsightsPanel({
     <div className="px-4 pt-4 pb-4 md:px-6 space-y-4 contain-layout">
       <HabitOverviewCards habit={habit} entries={entries} />
 
-      <InsightSection title="Score">
+      <InsightSection title={t("habits.insights.score")}>
         <HabitScoreChart habit={habit} entries={entries} />
       </InsightSection>
 
-      <InsightSection title="History">
+      <InsightSection title={t("habits.insights.history")}>
         <div className="flex justify-end">
           <Button
             variant="ghost"
@@ -121,7 +123,7 @@ export function HabitInsightsPanel({
             ) : (
               <Download className="h-3.5 w-3.5" strokeWidth={2.25} />
             )}
-            Export history
+            {t("habits.insights.exportHistory")}
           </Button>
         </div>
         <div className="w-full overflow-x-auto pb-1 scrollbar-hide min-w-0">
@@ -135,12 +137,12 @@ export function HabitInsightsPanel({
 
       {/* Best Streaks is a day-counting metric — Boolean Habits only (CONTEXT.md). */}
       {habit.habit_type !== "measurable" && (
-        <InsightSection title="Best Streaks">
+        <InsightSection title={t("habits.insights.bestStreaks")}>
           <HabitBestStreaksCard habit={habit} entries={entries} />
         </InsightSection>
       )}
 
-      <InsightSection title="Frequency">
+      <InsightSection title={t("habits.insights.frequency")}>
         {frequencyProgress && (
           <div className="flex items-center gap-4 pb-1">
             <CircularProgress
@@ -149,14 +151,14 @@ export function HabitInsightsPanel({
               size={64}
               strokeWidth={6}
               color={habit.color}
-              label={frequencyProgressLabel(frequencyProgress)}
+              label={frequencyProgressLabel(t, frequencyProgress)}
             >
               <span className="text-sm font-bold text-foreground tabular-nums">
                 {frequencyProgress.completed}/{frequencyProgress.target}
               </span>
             </CircularProgress>
             <p className="text-sm text-muted-foreground">
-              {frequencyProgressLabel(frequencyProgress)}
+              {frequencyProgressLabel(t, frequencyProgress)}
             </p>
           </div>
         )}

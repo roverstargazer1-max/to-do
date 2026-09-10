@@ -5,14 +5,16 @@
  * errors so the UI can surface an actionable message.
  */
 
-export const WASM_ERROR_MESSAGE =
-  "Failed to load the SQLite engine. This is a browser or network configuration issue, not a problem with your .db file. Refresh the page and try again.";
+import type { TranslationKey } from "@/lib/i18n/dictionaries/en";
 
-export const SCHEMA_ERROR_MESSAGE =
-  "Failed to import Loop Habit Tracker data. Ensure it is a valid .db file.";
+// These are dictionary keys, not display strings — the hook layer resolves
+// them with tr() so the import toasts follow the active UI language. The
+// exported names keep their *_MESSAGE suffix for continuity.
+export const WASM_ERROR_MESSAGE: TranslationKey = "habits.import.wasmError";
 
-export const SAVE_ERROR_MESSAGE =
-  "Your file was read correctly, but saving the imported data failed. Please try again.";
+export const SCHEMA_ERROR_MESSAGE: TranslationKey = "habits.import.schemaError";
+
+export const SAVE_ERROR_MESSAGE: TranslationKey = "habits.import.saveError";
 
 /**
  * Patterns that indicate a WASM loading failure rather than a db schema error.
@@ -40,7 +42,7 @@ const WASM_ERROR_PATTERNS = [
  * Returns `WASM_ERROR_MESSAGE` when the error is a WASM loading failure,
  * `SCHEMA_ERROR_MESSAGE` for any other error (wrong schema, corrupt file, etc.).
  */
-export function classifyUhabitsError(err: unknown): string {
+export function classifyUhabitsError(err: unknown): TranslationKey {
   if (!(err instanceof Error)) return SCHEMA_ERROR_MESSAGE;
 
   const msg = err.message.toLowerCase();
