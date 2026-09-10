@@ -1,5 +1,1 @@
-blank_issues_enabled: false
-contact_links:
-  - name: Questions & discussion
-    url: https://github.com/Achyuth072/kagelin/discussions
-    about: For questions and general discussion, not bug reports or feature requests.
+blank_issues_enabled: true

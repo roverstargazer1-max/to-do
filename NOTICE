@@ -1,0 +1,32 @@
+This repository is a modified copy of Kagelin.
+
+  Upstream project:  https://github.com/Achyuth072/kagelin
+  Upstream licence:  GNU Affero General Public License v3.0 only (AGPL-3.0-only)
+
+Modified, re-branded and republished under the same licence at
+
+  https://github.com/roverstargazer1-max/to-do
+
+with changes made from 2026-09-10 onwards.
+
+Nothing in this repository relicences the upstream work. The AGPL-3.0 text in
+LICENSE is kept verbatim, and no upstream licence or attribution notice has been
+removed or altered.
+
+---------------------------------------------------------------------------
+AGPL-3.0 obligations this repository is designed to satisfy
+---------------------------------------------------------------------------
+
+Section 5 (conveying modified source versions)
+  A modified version must carry prominent notices stating that it was changed
+  and the date of change. This file is that notice.
+
+Section 13 (use with a computer network)
+  If the program is run as a network service, users interacting with it
+  remotely must be offered the Corresponding Source. The running app exposes
+  this through Settings -> About, which links to the tagged source of the exact
+  running version (REPO_URL + "/tree/v" + package version). That is why the
+  release tags are pushed to this repository along with `main` — without them
+  the Section 13 link would not resolve.
+
+If you deploy this, keep both the LICENSE file and this NOTICE.

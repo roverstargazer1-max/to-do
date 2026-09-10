@@ -1,6 +1,6 @@
 <p align="center">
   <a href="https://kagelin.app">
-    <img src="https://raw.githubusercontent.com/Achyuth072/kagelin/main/public/kagelin-icon.png" width="80" alt="Kagelin" />
+    <img src="public/kagelin-icon.png" width="80" alt="Kagelin" />
   </a>
 </p>
 
@@ -10,15 +10,7 @@
 
 ## Work quietly. Own everything
 
-[![License: AGPL-3.0](https://img.shields.io/github/license/Achyuth072/kagelin?style=flat&labelColor=24292e)](LICENSE)
-[![CI](https://img.shields.io/github/actions/workflow/status/Achyuth072/kagelin/ci.yml?branch=main&style=flat&label=CI&logo=github&logoColor=white&labelColor=24292e)](../../actions/workflows/ci.yml)
-[![Deployed on Vercel](https://img.shields.io/github/deployments/Achyuth072/kagelin/production?style=flat&label=deployment&logo=vercel&logoColor=white&labelColor=24292e)](https://kagelin.app)
-
-[![Stable](https://img.shields.io/github/v/release/Achyuth072/kagelin?style=flat&label=Stable&labelColor=06599d&color=043b69)](../../releases)
-[![Preview](https://img.shields.io/github/package-json/v/Achyuth072/kagelin/dev?style=flat&label=Preview&labelColor=2c2c47&color=1c1c39)](../../releases)
-
-[![Sponsor](https://img.shields.io/github/sponsors/Achyuth072?style=flat&logo=githubsponsors&labelColor=24292e)](https://github.com/sponsors/Achyuth072)
-[![Ko-fi](https://img.shields.io/badge/Ko--fi-support-FF5E5B?style=flat&logo=kofi&logoColor=white&labelColor=24292e)](https://ko-fi.com/oneakira)
+[![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
 
 ## Use it
 
@@ -134,7 +126,7 @@ Most productivity apps want your email before you've written a single task, and 
 **Prerequisites**: Node.js 20+, a Supabase project with the schema from `supabase/schema.sql` and relevant migrations from `supabase/migrations`.
 
 ```bash
-git clone https://github.com/Achyuth072/kagelin.git
+git clone https://github.com/roverstargazer1-max/to-do.git
 npm install
 cp .env.example .env.local   # add all relevant keys
 npm run dev
