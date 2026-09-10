@@ -2,6 +2,8 @@
 
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { detectInitialLanguage } from "@/lib/i18n/detect";
+import type { Locale } from "@/lib/i18n/types";
 import { GroupOption, SortOption, TaskViewMode } from "@/lib/types/sorting";
 import { StatsPeriod } from "@/lib/types/stats";
 
@@ -18,6 +20,8 @@ interface UiState {
   // Sidebar State
   isProjectsOpen: boolean;
   toggleProjectsOpen: () => void;
+  isWorkspacesOpen: boolean;
+  toggleWorkspacesOpen: () => void;
 
   // Task List State
   sortBy: SortOption;
@@ -41,6 +45,11 @@ interface UiState {
   // Global Settings
   timeFormat: "12h" | "24h" | "system";
   setTimeFormat: (format: "12h" | "24h" | "system") => void;
+  // UI language (en | zh-CN), local-only persistence (i18n spec D-05).
+  // Optional only so pre-i18n full-state mocks in existing tests stay
+  // type-valid (zero test edits per spec); the real store always sets it.
+  language?: Locale;
+  setLanguage?: (language: Locale) => void;
   hapticsEnabled: boolean;
   setHapticsEnabled: (enabled: boolean) => void;
   notificationsEnabled: boolean;
@@ -116,6 +125,9 @@ export const useUiStore = create<UiState>()(
       isProjectsOpen: true,
       toggleProjectsOpen: () =>
         set((state) => ({ isProjectsOpen: !state.isProjectsOpen })),
+      isWorkspacesOpen: true,
+      toggleWorkspacesOpen: () =>
+        set((state) => ({ isWorkspacesOpen: !state.isWorkspacesOpen })),
 
       // Task List defaults
       sortBy: "date",
@@ -139,6 +151,11 @@ export const useUiStore = create<UiState>()(
       // Global Settings defaults
       timeFormat: "system",
       setTimeFormat: (format) => set({ timeFormat: format }),
+      // UI language: system detection at store creation, SSR-guarded
+      // (i18n spec D-02/D-11). Persisted via partialize's rest — a stored
+      // choice rehydrates over this default; no version bump needed.
+      language: detectInitialLanguage(),
+      setLanguage: (language) => set({ language }),
       hapticsEnabled: true,
       setHapticsEnabled: (enabled) => set({ hapticsEnabled: enabled }),
       notificationsEnabled: false,
