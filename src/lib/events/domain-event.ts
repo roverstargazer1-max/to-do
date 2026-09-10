@@ -99,9 +99,31 @@ export type NodeDomainEvent =
   NodeAddedEvent | NodeMovedEvent | NodeRemovedEvent;
 
 /**
+ * Edge events — facts about the arrangement's connections (ADR 0021).
+ * Drawing a connection is `edge.added`, cutting one is `edge.removed`;
+ * both carry the edge id (the node ids are already facts of their own
+ * family). Edges are a visual layer with no runtime, so these are the
+ * only two facts they can produce.
+ */
+interface EdgeEventEntityRef extends WorkspaceEventEntityRef {
+  readonly edgeId: string;
+}
+
+export interface EdgeAddedEvent extends EdgeEventEntityRef {
+  readonly type: "edge.added";
+}
+
+export interface EdgeRemovedEvent extends EdgeEventEntityRef {
+  readonly type: "edge.removed";
+}
+
+export type EdgeDomainEvent = EdgeAddedEvent | EdgeRemovedEvent;
+
+/**
  * The full bus vocabulary. Task events from the first command tranche;
- * workspace and node events from the workspace command tranches; later
- * tranches (habit, project, calendar-event) widen this union further.
+ * workspace, node and edge events from the workspace command tranches;
+ * later tranches (habit, project, calendar-event) widen this union
+ * further.
  */
 export type DomainEvent =
-  TaskDomainEvent | WorkspaceDomainEvent | NodeDomainEvent;
+  TaskDomainEvent | WorkspaceDomainEvent | NodeDomainEvent | EdgeDomainEvent;

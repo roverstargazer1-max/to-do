@@ -11,6 +11,7 @@ import { notify } from "@/lib/notify";
 import { useTranslation } from "@/lib/i18n/useTranslation";
 import { useDateFormatter } from "@/lib/i18n/useDateFormatter";
 import { nodeCommands } from "@/lib/commands/node";
+import { NodeCard } from "./NodeCard";
 import { NodeOrphanBody } from "./NodeOrphanBody";
 import type { WorkspaceNodeComponentProps } from "./node-registry";
 
@@ -65,7 +66,7 @@ export function EventNode({ data }: WorkspaceNodeComponentProps) {
       disabled={removing}
       data-testid={`event-node-remove-${testKey}`}
       aria-label={t("workspace.node.removeEventAria")}
-      className="nodrag absolute -top-2 -right-2 h-5 w-5 grid place-content-center rounded-md border border-border bg-background text-muted-foreground hover:text-foreground hover:border-foreground/40 transition-colors duration-200 ease-seijaku"
+      className="nodrag grid h-4 w-4 place-content-center rounded-[3px] text-muted-foreground transition-colors duration-200 ease-seijaku hover:bg-muted hover:text-foreground disabled:opacity-50"
     >
       <X className="h-3 w-3" strokeWidth={2.25} />
     </button>
@@ -81,39 +82,37 @@ export function EventNode({ data }: WorkspaceNodeComponentProps) {
   };
 
   return (
-    <div
-      data-testid={`event-node-${testKey}`}
-      className="relative w-full bg-background"
-    >
+    <div data-testid={`event-node-${testKey}`} className="relative w-full">
       <span data-testid={`event-node-state-${testKey}`} className="sr-only">
         {stateLabel}
       </span>
-      {removeButton}
 
-      {isLoading ? (
-        <div className="flex items-center gap-2.5 px-3 py-3 w-52">
-          <Skeleton className="h-4 w-4 rounded-[3px]" />
-          <Skeleton className="h-4 flex-1" />
-        </div>
-      ) : event ? (
-        <div className="flex items-start gap-2.5 px-3 py-2.5">
-          <Calendar
-            className="h-4 w-4 mt-0.5 shrink-0"
-            strokeWidth={2.25}
-            style={{ color: event.color }}
-          />
-          <div className="flex flex-col gap-0.5 min-w-0 flex-1">
-            <p className="text-sm font-medium leading-snug break-words text-foreground">
-              {event.title}
-            </p>
-            <p className="text-[11px] text-muted-foreground/80 font-medium uppercase tracking-wider tabular-nums">
-              {whenLabel(event.start_time, event.all_day)}
-            </p>
+      <NodeCard kind={t("workspace.node.kindEvent")} action={removeButton}>
+        {isLoading ? (
+          <div className="flex items-center gap-2.5 px-3 py-2.5">
+            <Skeleton className="h-4 w-4 rounded-[3px]" />
+            <Skeleton className="h-4 flex-1" />
           </div>
-        </div>
-      ) : (
-        <NodeOrphanBody lostLabel={t("workspace.canvas.addEvent")} />
-      )}
+        ) : event ? (
+          <div className="flex items-start gap-2.5 px-3 py-2.5">
+            <Calendar
+              className="h-4 w-4 mt-0.5 shrink-0"
+              strokeWidth={2.25}
+              style={{ color: event.color }}
+            />
+            <div className="flex flex-col gap-0.5 min-w-0 flex-1">
+              <p className="text-sm font-medium leading-snug break-words text-foreground">
+                {event.title}
+              </p>
+              <p className="text-[11px] text-muted-foreground/80 font-medium uppercase tracking-wider tabular-nums">
+                {whenLabel(event.start_time, event.all_day)}
+              </p>
+            </div>
+          </div>
+        ) : (
+          <NodeOrphanBody lostLabel={t("workspace.canvas.addEvent")} />
+        )}
+      </NodeCard>
     </div>
   );
 }

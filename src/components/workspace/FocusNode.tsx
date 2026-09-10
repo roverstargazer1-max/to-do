@@ -10,6 +10,7 @@ import type { TimerMode } from "@/lib/types/timer";
 import { notify } from "@/lib/notify";
 import { useTranslation } from "@/lib/i18n/useTranslation";
 import { nodeCommands } from "@/lib/commands/node";
+import { NodeCard } from "./NodeCard";
 import type { WorkspaceNodeComponentProps } from "./node-registry";
 
 function formatTime(seconds: number): string {
@@ -83,7 +84,7 @@ export function FocusNode({ data }: WorkspaceNodeComponentProps) {
       disabled={removing}
       data-testid="focus-node-remove"
       aria-label={t("workspace.node.removeFocusAria")}
-      className="nodrag absolute -top-2 -right-2 h-5 w-5 grid place-content-center rounded-md border border-border bg-background text-muted-foreground hover:text-foreground hover:border-foreground/40 transition-colors duration-200 ease-seijaku"
+      className="nodrag grid h-4 w-4 place-content-center rounded-[3px] text-muted-foreground transition-colors duration-200 ease-seijaku hover:bg-muted hover:text-foreground disabled:opacity-50"
     >
       <X className="h-3 w-3" strokeWidth={2.25} />
     </button>
@@ -93,64 +94,65 @@ export function FocusNode({ data }: WorkspaceNodeComponentProps) {
     "nodrag h-7 w-7 grid place-content-center rounded-md border border-border bg-background text-foreground/80 hover:text-foreground hover:border-foreground/40 active:scale-95 transition-[colors,transform] duration-200 ease-seijaku";
 
   return (
-    <div data-testid="focus-node" className="relative w-full bg-background">
+    <div data-testid="focus-node" className="relative w-full">
       <span data-testid="focus-node-timer" className="sr-only">
         {isRunning ? "running" : "paused"}
       </span>
-      {removeButton}
 
-      <div className="flex flex-col items-center gap-1.5 px-3 py-3">
-        <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-          {t(MODE_LABEL_KEYS[mode])}
-        </p>
-        <p
-          data-testid="focus-node-countdown"
-          className="text-2xl font-light font-mono tracking-tight tabular-nums text-foreground"
-        >
-          {formatTime(remainingSeconds)}
-        </p>
-
-        <div className="flex items-center gap-2 pt-0.5">
-          {isRunning ? (
-            <button
-              type="button"
-              onClick={pause}
-              data-testid="focus-node-pause"
-              aria-label={t("workspace.focusNode.pauseAria")}
-              className={controlButton}
-            >
-              <Pause className="h-3.5 w-3.5" strokeWidth={2.25} />
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={() => void start()}
-              data-testid="focus-node-start"
-              aria-label={t("workspace.focusNode.startAria")}
-              className={controlButton}
-            >
-              <Play className="h-3.5 w-3.5 ml-0.5" strokeWidth={2.25} />
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={stop}
-            data-testid="focus-node-stop"
-            aria-label={t("workspace.focusNode.stopAria")}
-            className={`${controlButton} text-muted-foreground hover:text-foreground`}
-          >
-            <Square className="h-3 w-3" strokeWidth={2.25} />
-          </button>
-        </div>
-
-        {mode === "focus" && (
-          <p className="text-[10px] text-muted-foreground/80 font-medium">
-            {t("workspace.focusNode.session", {
-              number: completedSessions + 1,
-            })}
+      <NodeCard kind={t("workspace.node.kindFocus")} action={removeButton}>
+        <div className="flex flex-col items-center gap-1.5 px-3 py-3">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            {t(MODE_LABEL_KEYS[mode])}
           </p>
-        )}
-      </div>
+          <p
+            data-testid="focus-node-countdown"
+            className="text-2xl font-light font-mono tracking-tight tabular-nums text-foreground"
+          >
+            {formatTime(remainingSeconds)}
+          </p>
+
+          <div className="flex items-center gap-2 pt-0.5">
+            {isRunning ? (
+              <button
+                type="button"
+                onClick={pause}
+                data-testid="focus-node-pause"
+                aria-label={t("workspace.focusNode.pauseAria")}
+                className={controlButton}
+              >
+                <Pause className="h-3.5 w-3.5" strokeWidth={2.25} />
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => void start()}
+                data-testid="focus-node-start"
+                aria-label={t("workspace.focusNode.startAria")}
+                className={controlButton}
+              >
+                <Play className="h-3.5 w-3.5 ml-0.5" strokeWidth={2.25} />
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={stop}
+              data-testid="focus-node-stop"
+              aria-label={t("workspace.focusNode.stopAria")}
+              className={`${controlButton} text-muted-foreground hover:text-foreground`}
+            >
+              <Square className="h-3 w-3" strokeWidth={2.25} />
+            </button>
+          </div>
+
+          {mode === "focus" && (
+            <p className="text-[10px] text-muted-foreground/80 font-medium">
+              {t("workspace.focusNode.session", {
+                number: completedSessions + 1,
+              })}
+            </p>
+          )}
+        </div>
+      </NodeCard>
     </div>
   );
 }

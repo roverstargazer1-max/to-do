@@ -1,97 +1,277 @@
 /*
- * Workspace canvas skin (ink & matte) — React Flow base style is imported
- * by the canvas component; everything the default demo look ships (heavy
- * shadows, blue accents, rounded cards) is re-skinned here: 1px borders,
- * no shadows, house easing (seijaku) on node interactions, muted dots.
+ * Workspace canvas skin — ink & matte (ADR 0018), extended by the
+ * arrangement layer (ADR 0021: edges are a visual layer, not a runtime).
+ *
+ * React Flow's own stylesheet is imported by the canvas component just
+ * before this file; everything its demo look ships (blue accents, card
+ * shadows, chunky handles) is re-skinned here.
+ *
+ * Three surfaces, one step apart, so a node reads as a *card* on a sheet
+ * rather than as text printed on the page — first reported as "colourless
+ * borderless nodes", then as "cards look transparent". A near-miss fill is
+ * exactly what reads as transparency, so the card is *white* and separation
+ * is carried three ways: the surface step, the 1px ink hairline, and a soft
+ * matte shadow that lifts the card off the sheet (the floating-card
+ * treatment, deliberately two-layer and shadowless of any colour).
+ *
+ *   canvas  →  --canvas        (stepped-back sheet, dotted)
+ *   card    →  --canvas-node   (white node surface, lifted)
+ *   chrome  →  --border        (the 1px ink hairline: card, edge, handle)
+ *
+ * Every fill keeps a literal fallback: `hsl(var(--x, …))` degrades to the
+ * intended surface instead of to *transparent* if a stale stylesheet serves
+ * the rules without the tokens — an invalid custom property makes the whole
+ * declaration collapse, which is precisely the bug being guarded against.
  */
 
 .react-flow {
-  --xy-background-color: var(--background);
-  --xy-node-background-color-default: var(--background);
-  --xy-node-border-default: 1px solid var(--border);
-  --xy-node-color-default: var(--foreground);
+  --xy-background-color: hsl(var(--canvas));
+  /* The node wrapper is a positioning box only — NodeCard draws the
+     surface, so the selection ring can follow the card's own radius. */
+  --xy-node-background-color-default: transparent;
+  --xy-node-border-default: none;
+  --xy-node-color-default: hsl(var(--foreground));
   --xy-node-border-radius-default: var(--radius);
   --xy-node-boxshadow-default: none;
   --xy-node-boxshadow-selected-default: none;
   --xy-node-boxshadow-hovered-default: none;
-  --xy-edge-stroke-default: var(--border);
-  --xy-edge-strokeselected-default: var(--foreground);
-  --xy-controls-button-background-color-default: var(--background);
-  --xy-controls-button-background-color-hover-default: var(--muted);
-  --xy-controls-button-color-default: var(--foreground);
-  --xy-controls-button-color-hover-default: var(--foreground);
-  --xy-controls-button-border-default: 1px solid var(--border);
+  /* Edges: hairline ink at rest, full ink when the user is on them. */
+  --xy-edge-stroke-default: hsl(var(--border));
+  --xy-edge-stroke-selected-default: hsl(var(--foreground));
+  --xy-edge-stroke-width-default: 1.5;
+  --xy-connectionline-stroke-default: hsl(var(--foreground));
+  --xy-connectionline-stroke-width-default: 1.5;
+  /* Handles: a punched hole in the card, not a bead glued to it. */
+  --xy-handle-background-color-default: hsl(var(--canvas-node, 0 0% 100%));
+  --xy-handle-border-color-default: hsl(var(--border));
+  /* The lift, as tokens rather than four copies of the same numbers: a tight
+     contact shadow plus a wide, low ambient one. Black in both themes — a
+     shadow coloured from --foreground would glow in dark mode. */
+  --ws-card-shadow:
+    0 1px 2px hsl(0 0% 0% / 0.05), 0 8px 20px -6px hsl(0 0% 0% / 0.1);
+  --ws-card-shadow-hover:
+    0 1px 2px hsl(0 0% 0% / 0.06), 0 12px 26px -8px hsl(0 0% 0% / 0.15);
+  --ws-card-shadow-drag:
+    0 2px 4px hsl(0 0% 0% / 0.07), 0 18px 34px -10px hsl(0 0% 0% / 0.2);
+  --xy-controls-button-background-color-default: hsl(var(--background));
+  --xy-controls-button-background-color-hover-default: hsl(var(--muted));
+  --xy-controls-button-color-default: hsl(var(--foreground));
+  --xy-controls-button-color-hover-default: hsl(var(--foreground));
+  --xy-controls-button-border-default: 1px solid hsl(var(--border));
   --xy-attribution-background-color-default: transparent;
 }
 
-/* Edges: hairline ink, no default bezier shadow tricks. */
-.react-flow__edge-path {
-  stroke-width: 1;
+/* ── Node card ────────────────────────────────────────────────────────── */
+
+.react-flow__node {
+  border: none;
+  background: transparent;
+  border-radius: 0;
+  box-shadow: none;
+  cursor: grab;
 }
 
-/* Nodes: matte cards, ink hairline, no shadows anywhere. */
-.react-flow__node {
-  border: 1px solid var(--border);
+.react-flow__node.dragging {
+  cursor: grabbing;
+}
+
+.ws-node-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  /* No overflow clipping: a port sits centered on the card's edge, so half
+     of it lives outside the border box by design. */
+  background: hsl(var(--canvas-node, 0 0% 100%));
+  border: 1px solid hsl(var(--border));
   border-radius: var(--radius);
-  background: var(--background);
-  box-shadow: none;
+  box-shadow: var(--ws-card-shadow);
   transition:
     border-color 200ms var(--ease-seijaku, ease),
-    transform 200ms var(--ease-seijaku, ease);
+    box-shadow 200ms var(--ease-seijaku, ease);
 }
 
-.react-flow__node:hover,
-.react-flow__node.selected {
-  border-color: var(--foreground);
+.dark .ws-node-card {
+  --ws-card-shadow:
+    0 1px 2px hsl(0 0% 0% / 0.45), 0 8px 20px -6px hsl(0 0% 0% / 0.5);
+  --ws-card-shadow-hover:
+    0 1px 2px hsl(0 0% 0% / 0.5), 0 12px 26px -8px hsl(0 0% 0% / 0.6);
+  --ws-card-shadow-drag:
+    0 2px 4px hsl(0 0% 0% / 0.5), 0 18px 34px -10px hsl(0 0% 0% / 0.65);
+}
+
+.react-flow__node:hover .ws-node-card {
+  border-color: hsl(var(--foreground) / 0.45);
+  box-shadow: var(--ws-card-shadow-hover);
+}
+
+/* The card lifts as it is picked up, and settles back on drop. */
+.react-flow__node.dragging .ws-node-card {
+  box-shadow: var(--ws-card-shadow-drag);
+}
+
+.react-flow__node.selected .ws-node-card,
+.ws-node-card:focus-within {
+  border-color: hsl(var(--foreground));
+  box-shadow:
+    var(--ws-card-shadow-hover),
+    0 0 0 3px hsl(var(--foreground) / 0.06);
+}
+
+/* The micro-header: kind dot · uppercase kind label · actions. Mirrors the
+   KRNL0 node head (mono, letter-spaced, hairline-separated) in this house's
+   monochrome ink rather than KRNL0's accent palette. */
+.ws-node-card__head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 22px;
+  padding: 2px 5px 2px 8px;
+  border-bottom: 1px solid hsl(var(--border) / 0.35);
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: hsl(var(--muted-foreground));
+  user-select: none;
+}
+
+.ws-node-card__dot {
+  flex: none;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.7;
+}
+
+.ws-node-card__kind {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: hsl(var(--foreground) / 0.7);
+}
+
+.ws-node-card__spacer {
+  flex: 1 1 auto;
+}
+
+.ws-node-card__body {
+  min-width: 0;
+}
+
+/* The card drags as a whole, so its own controls have to say otherwise. */
+.ws-node-card button {
+  cursor: pointer;
+}
+
+.ws-node-card button:disabled {
+  cursor: default;
+}
+
+/* ── Connection ports ─────────────────────────────────────────────────── */
+
+.react-flow__handle {
+  width: 9px;
+  height: 9px;
+  min-width: 9px;
+  min-height: 9px;
   box-shadow: none;
+  transition:
+    background-color 120ms var(--ease-seijaku, ease),
+    border-color 120ms var(--ease-seijaku, ease),
+    transform 120ms var(--ease-seijaku, ease);
 }
 
-/* Selection rectangle: 1px ink dashed, no glow. */
+.react-flow__handle-left:hover {
+  transform: translate(-50%, -50%) scale(1.35);
+}
+
+.react-flow__handle-right:hover {
+  transform: translate(50%, -50%) scale(1.35);
+}
+
+/* Live port: hovered, or the end the user is currently dragging from/to. */
+.react-flow__handle:hover,
+.react-flow__handle.connectingfrom,
+.react-flow__handle.connectingto,
+.react-flow__handle.valid {
+  background: hsl(var(--foreground));
+  border-color: hsl(var(--foreground));
+}
+
+/* ── Edges ────────────────────────────────────────────────────────────── */
+
+.react-flow__edge-path {
+  stroke-linecap: round;
+}
+
+.react-flow__edge.selectable {
+  cursor: pointer;
+}
+
+.react-flow__edge.selectable:hover .react-flow__edge-path {
+  stroke: hsl(var(--foreground) / 0.65);
+}
+
+.react-flow__edge.selected .react-flow__edge-path {
+  stroke: hsl(var(--foreground));
+}
+
+/* The rubber band while a connection is being dragged: dashed, so it never
+   reads as an already-committed edge. */
+.react-flow__connection-path {
+  stroke-dasharray: 5 4;
+  stroke-linecap: round;
+}
+
+/* ── Selection rectangle ──────────────────────────────────────────────── */
+
 .react-flow__selection {
-  border: 1px dashed var(--foreground);
+  border: 1px dashed hsl(var(--foreground));
   background: transparent;
 }
 
 .react-flow__nodesselection-rect,
 .react-flow__selection rect {
-  stroke: var(--foreground);
+  stroke: hsl(var(--foreground));
   stroke-width: 1;
   stroke-dasharray: 4 2;
   fill: transparent;
 }
 
-/* Controls: matte square buttons, hairline border between them. */
+.react-flow__nodesselection-rect:focus,
+.react-flow__nodesselection-rect:focus-visible {
+  outline: none;
+}
+
+/* ── Controls ─────────────────────────────────────────────────────────── */
+
 .react-flow__controls {
-  border: 1px solid var(--border);
+  border: 1px solid hsl(var(--border));
   border-radius: var(--radius);
   overflow: hidden;
   box-shadow: none;
 }
 
 .react-flow__controls-button {
-  border-bottom: 1px solid var(--border);
-  background: var(--background);
-  color: var(--foreground);
+  border-bottom: 1px solid hsl(var(--border));
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
   box-shadow: none;
 }
 
 .react-flow__controls-button:hover {
-  background: var(--muted);
+  background: hsl(var(--muted));
 }
 
 .react-flow__controls-button svg {
   fill: currentColor;
 }
 
-/* Background dots: ink at rest, not the demo blue. */
-.react-flow__background circle {
-  fill: var(--border);
-}
-
-/* MiniMap stays out of phase 1 (no persistent chrome beyond Controls). */
-.react-flow__minimap {
-  display: none;
-}
+/* ── Canvas chrome ────────────────────────────────────────────────────── */
 
 /* Pane cursor + grab affordance only; no demo halo. */
 .react-flow__pane {
@@ -102,6 +282,14 @@
   cursor: grabbing;
 }
 
+/* React Flow marks a reachable handle itself while a connection is being
+   dragged (`connectionindicator` → crosshair); nothing to add here. */
+
 .react-flow__attribution {
+  display: none;
+}
+
+/* MiniMap stays out (no persistent chrome beyond Controls). */
+.react-flow__minimap {
   display: none;
 }

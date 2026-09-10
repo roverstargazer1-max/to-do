@@ -15,6 +15,9 @@
  *                  publish, no optimistic layer (the workspace CRUD
  *                  convention; offline they fail with a toast, they do
  *                  not queue).
+ *   remove       — the node's connections go with it (hard FKs, ADR
+ *                  0021), so the edges family is invalidated alongside the
+ *                  nodes family; the referenced entity is never touched.
  *   move         — the layer-3 executor of the three-layer drag model: the
  *                  canvas already wrote the position optimistically (layer
  *                  2) before debouncing into the `node.move` mutation, so
@@ -46,6 +49,15 @@ export interface NodeCommandContext {
 /** Invalidates the nodes family: every per-workspace list, both modes. */
 function invalidateNodeCaches(queryClient: QueryClient): void {
   void queryClient.invalidateQueries({ queryKey: workspaceKeys.nodes.all });
+}
+
+/**
+ * Invalidates the edges family too. A connection's endpoints are hard FKs
+ * (ADR 0021): removing a node removes the connections that touched it, in
+ * both backends, by cascade — the cache must not keep drawing them.
+ */
+function invalidateEdgeCaches(queryClient: QueryClient): void {
+  void queryClient.invalidateQueries({ queryKey: workspaceKeys.edges.all });
 }
 
 export const nodeCommands = {
@@ -117,6 +129,7 @@ export const nodeCommands = {
     await workspaceMutations.removeNode(node.id);
 
     invalidateNodeCaches(ctx.queryClient);
+    invalidateEdgeCaches(ctx.queryClient);
     publishDomainEvent({
       type: "node.removed",
       workspaceId: node.workspace_id,

@@ -8,6 +8,9 @@ import {
   BackgroundVariant,
   Controls,
   useNodesState,
+  type Connection,
+  type OnConnect,
+  type OnEdgesChange,
   type OnMoveEnd,
   type OnNodeDrag,
   type Viewport,
@@ -26,9 +29,15 @@ import {
 import { notify } from "@/lib/notify";
 import { useTranslation } from "@/lib/i18n/useTranslation";
 import { useWorkspaceNodes } from "@/lib/hooks/useWorkspaceNodes";
+import { useWorkspaceEdges } from "@/lib/hooks/useWorkspaceEdges";
 import { workspaceKeys } from "@/lib/queries/workspace-keys";
 import { useWorkspaceViewportStore } from "@/lib/store/workspaceViewportStore";
-import type { NodePosition, WorkspaceNode } from "@/lib/types/workspace";
+import { edgeCommands } from "@/lib/commands/edge";
+import type {
+  NodePosition,
+  WorkspaceEdge,
+  WorkspaceNode,
+} from "@/lib/types/workspace";
 import {
   getNodeKindSpec,
   toWorkspaceFlowNodes,
@@ -36,6 +45,10 @@ import {
   type FocusNodeCommands,
   type WorkspaceFlowNode,
 } from "./node-registry";
+import {
+  toWorkspaceFlowEdges,
+  type WorkspaceFlowEdge,
+} from "./edge-projection";
 import { useNodePositionWrites } from "./useNodePositionWrites";
 import { AddTaskNodeDialog } from "./AddTaskNodeDialog";
 import { AddHabitNodeDialog } from "./AddHabitNodeDialog";
@@ -54,6 +67,13 @@ type AddNodeDialogKind = "task" | "habit" | "event";
  * live references — the entities behind them are read through their own
  * query families, never copied here.
  *
+ * The arrangement is two layers. **Nodes** are placed references, authored
+ * by drag. **Edges** are the connections between them (ADR 0021): a purely
+ * visual relationship, drawn from a card's right-hand port into another
+ * card's left-hand one and cut with the Delete key. Both are layout, both
+ * are persisted, neither carries a runtime — a connection says "these two
+ * belong together", nothing more.
+ *
  * The viewport (zoom/pan) is saved to the device-local viewport store
  * when a gesture ends; remounting on the same device restores it, and
  * switching workspaces swaps canvases because the component is keyed by
@@ -62,12 +82,16 @@ type AddNodeDialogKind = "task" | "habit" | "event";
  * Drag persistence is the three-layer model (ADR 0018): React Flow local
  * state during the drag (instant feedback); on drag end an optimistic
  * write to the node-list cache entry; then a debounced row-level position
- * PATCH under the position-specific `node.move` mutation key — debounce
- * before the mutation, so offline queuing holds at most one position
- * write per node.
+ * PATCH under the position-specific `node.move` mutation key. Drawing a
+ * connection follows the same shape — the line is drawn the instant the
+ * user lets go (local state, with its id minted up front so the persisted
+ * row is the same row), the write lands through `edge.add`, and the moment
+ * the rows carry it the drawn copy retires; cutting one drops it from the
+ * cache immediately and then persists that.
  *
  * Skin is ink & matte: workspace-canvas.css (1px borders, no shadows,
- * seijaku easing).
+ * seijaku easing) — node cards on a stepped-back sheet, so a node reads as
+ * a card rather than as text floating on the page.
  */
 export function WorkspaceCanvas({ workspaceId }: WorkspaceCanvasProps) {
   const savedViewport = useWorkspaceViewportStore((state) =>
@@ -79,16 +103,42 @@ export function WorkspaceCanvas({ workspaceId }: WorkspaceCanvasProps) {
   const { isGuestMode } = useAuth();
   const { t } = useTranslation();
   const { data: workspaceNodes } = useWorkspaceNodes(workspaceId);
+  const { data: workspaceEdges } = useWorkspaceEdges(workspaceId);
   const [nodes, setNodes, onNodesChange] = useNodesState<WorkspaceFlowNode>([]);
+  const [edges, setEdges] = useState<WorkspaceFlowEdge[]>([]);
   const { queuePositionWrite } = useNodePositionWrites();
   const wrapperRef = useRef<HTMLDivElement>(null);
 
-  // Query rows → flow nodes via the registry; rebuilds whenever the nodes
-  // list refetches (add / remove / invalidation). Drag positions already
-  // agree with the optimistic cache write, so nothing visually jumps.
+  // Connections the user has drawn that the rows do not carry yet. Kept in
+  // a ref because the projection effect reads it without re-subscribing.
+  const pendingEdgeIdsRef = useRef<Set<string>>(new Set());
+
+  // Query rows → flow nodes and flow edges via the registry and the edge
+  // projection; rebuilds whenever either list refetches (add / remove /
+  // connect / invalidation). Drag positions and freshly drawn lines
+  // already agree with what the user sees, so nothing visually jumps.
   useEffect(() => {
-    setNodes(toWorkspaceFlowNodes(workspaceNodes ?? []));
-  }, [workspaceNodes, setNodes]);
+    const flowNodes = toWorkspaceFlowNodes(workspaceNodes ?? []);
+    setNodes(flowNodes);
+
+    const persisted = toWorkspaceFlowEdges(
+      workspaceEdges ?? [],
+      flowNodes.map((node) => node.id),
+    );
+    const persistedIds = new Set(persisted.map((edge) => edge.id));
+    // A drawn connection retires the moment its row lands.
+    for (const id of persistedIds) pendingEdgeIdsRef.current.delete(id);
+
+    setEdges((current) => [
+      ...persisted,
+      // Still in flight: keep it drawn, or a concurrent nodes refetch would
+      // blink the line away for a frame.
+      ...current.filter(
+        (edge) =>
+          pendingEdgeIdsRef.current.has(edge.id) && !persistedIds.has(edge.id),
+      ),
+    ]);
+  }, [workspaceNodes, workspaceEdges, setNodes]);
 
   const handleMoveEnd: OnMoveEnd = useCallback(
     (_event: MouseEvent | TouchEvent | null, viewport: Viewport) => {
@@ -135,6 +185,116 @@ export function WorkspaceCanvas({ workspaceId }: WorkspaceCanvasProps) {
       });
     },
     [queryClient, workspaceId, isGuestMode, queuePositionWrite],
+  );
+
+  /**
+   * Drawing a connection. The id is minted here, not inside the command, so
+   * the line the user sees and the row that gets written are the same edge:
+   * when the refetch confirms it, nothing remounts and nothing blinks.
+   */
+  const handleConnect: OnConnect = useCallback(
+    (connection: Connection) => {
+      const { source, target } = connection;
+      if (!source || !target || source === target) return;
+
+      const edgeId = crypto.randomUUID();
+      pendingEdgeIdsRef.current.add(edgeId);
+      setEdges((current) => [
+        ...current,
+        {
+          id: edgeId,
+          source,
+          target,
+          type: "default",
+          data: { edgeId, workspaceId },
+        },
+      ]);
+
+      void edgeCommands
+        .add(
+          { queryClient, isGuestMode },
+          {
+            id: edgeId,
+            workspaceId,
+            sourceNodeId: source,
+            targetNodeId: target,
+          },
+        )
+        .catch((err) => {
+          console.error("Failed to connect nodes:", err);
+          notify.error(t("workspace.canvas.connectFailed"));
+        });
+    },
+    [queryClient, isGuestMode, workspaceId, t],
+  );
+
+  /**
+   * A connection may not loop onto its own node, and one ordered pair holds
+   * one connection: redrawing A → B is a no-op rather than a duplicate the
+   * database would reject.
+   */
+  const isValidConnection = useCallback(
+    (connection: Connection | WorkspaceFlowEdge) => {
+      const { source, target } = connection;
+      if (!source || !target || source === target) return false;
+      return !edges.some(
+        (edge) => edge.source === source && edge.target === target,
+      );
+    },
+    [edges],
+  );
+
+  // Selection and the local half of a cut. React Flow fires this alongside
+  // `onEdgesDelete`; only the latter is a write, so this stays view state.
+  const handleEdgesChange: OnEdgesChange<WorkspaceFlowEdge> = useCallback(
+    (changes) => {
+      setEdges((current) =>
+        changes.reduce<WorkspaceFlowEdge[]>((next, change) => {
+          if (change.type === "select") {
+            return next.map((edge) =>
+              edge.id === change.id
+                ? { ...edge, selected: change.selected }
+                : edge,
+            );
+          }
+          if (change.type === "remove") {
+            return next.filter((edge) => edge.id !== change.id);
+          }
+          return next;
+        }, current),
+      );
+    },
+    [],
+  );
+
+  /**
+   * Cutting a connection. Layer 2 first — the cache drops the row, so no
+   * concurrent refetch can resurrect it — then the command persists the
+   * cut. Both endpoints are untouched: a connection is arrangement.
+   */
+  const handleEdgesDelete = useCallback(
+    (deleted: WorkspaceFlowEdge[]) => {
+      for (const edge of deleted) {
+        const data = edge.data;
+        if (!data) continue;
+
+        queryClient.setQueryData<WorkspaceEdge[]>(
+          workspaceKeys.edges.list(workspaceId, isGuestMode),
+          (old) => old?.filter((row) => row.id !== data.edgeId),
+        );
+
+        void edgeCommands
+          .remove(
+            { queryClient, isGuestMode },
+            { id: data.edgeId, workspace_id: data.workspaceId },
+          )
+          .catch((err) => {
+            console.error("Failed to remove edge:", err);
+            notify.error(t("workspace.canvas.disconnectFailed"));
+          });
+      }
+    },
+    [queryClient, workspaceId, isGuestMode, t],
   );
 
   // Which node-kind picker is open; the position is computed at open time.
@@ -205,17 +365,26 @@ export function WorkspaceCanvas({ workspaceId }: WorkspaceCanvasProps) {
     >
       <ReactFlow
         nodes={nodes}
+        edges={edges}
         nodeTypes={workspaceNodeTypes}
         onNodesChange={onNodesChange}
+        onEdgesChange={handleEdgesChange}
         onNodeDragStop={handleNodeDragStop}
+        onConnect={handleConnect}
+        onEdgesDelete={handleEdgesDelete}
+        isValidConnection={isValidConnection}
         defaultViewport={savedViewport ?? { x: 0, y: 0, zoom: 1 }}
         onMoveEnd={handleMoveEnd}
-        // Canvas is the pan surface; nodes drag (layout writes), but
-        // nothing selects and nothing connects (edges are not built).
-        elementsSelectable={false}
-        nodesConnectable={false}
+        // Selection exists so a connection can be picked and cut; the
+        // Delete key is scoped to connections because nodes are
+        // `deletable: false` (a node leaves through its own control).
+        elementsSelectable
+        nodesConnectable
         nodesDraggable
-        deleteKeyCode={null}
+        deleteKeyCode={["Backspace", "Delete"]}
+        // Ports are 9px; a generous drop radius keeps them grabbable on
+        // touch without turning a node drag into a connection.
+        connectionRadius={28}
         minZoom={0.25}
         maxZoom={2}
         proOptions={{ hideAttribution: true }}
@@ -224,7 +393,7 @@ export function WorkspaceCanvas({ workspaceId }: WorkspaceCanvasProps) {
           variant={BackgroundVariant.Dots}
           gap={24}
           size={1.5}
-          color="var(--border)"
+          color="var(--canvas-grid)"
         />
         <Controls position="bottom-left" showInteractive={false} />
       </ReactFlow>

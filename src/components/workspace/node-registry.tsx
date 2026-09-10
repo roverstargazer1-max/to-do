@@ -321,7 +321,11 @@ export const workspaceNodeTypes: NodeTypes = {
   [UNKNOWN_NODE_KIND]: bindSpecComponent(unknownNodeSpec),
 };
 
-/** Translate persisted node rows into flow nodes via the registry. */
+/**
+ * Translate persisted node rows into flow nodes via the registry. Nodes
+ * are `deletable: false`: the canvas's Delete key cuts connections, and
+ * a node is dismissed through its own control (ADR 0021).
+ */
 export function toWorkspaceFlowNodes(
   rows: WorkspaceNode[],
 ): WorkspaceFlowNode[] {
@@ -332,6 +336,11 @@ export function toWorkspaceFlowNodes(
       type: spec.kind,
       position: { x: row.position_x, y: row.position_y },
       data: { row },
+      // The Delete key belongs to connections (ADR 0021). A node leaves the
+      // canvas through its own remove control — `node.remove`, a layout
+      // write with its own event and toast — never by a keystroke that
+      // would only edit local state.
+      deletable: false,
     };
     if (row.width != null) {
       node.style = { width: row.width };

@@ -23,4 +23,14 @@ export const workspaceKeys = {
     list: (workspaceId: string, isGuestMode: boolean) =>
       ["workspace-nodes", workspaceId, { isGuestMode }] as const,
   },
+
+  edges: {
+    /** Root prefix matching every per-workspace edge list. */
+    all: ["workspace-edges"] as const,
+    /** Prefix matching the `["workspace-edges", workspaceId, { isGuestMode }]` entry. */
+    of: (workspaceId: string) => ["workspace-edges", workspaceId] as const,
+    /** The list entry `useWorkspaceEdges` reads (ADR 0021). */
+    list: (workspaceId: string, isGuestMode: boolean) =>
+      ["workspace-edges", workspaceId, { isGuestMode }] as const,
+  },
 };

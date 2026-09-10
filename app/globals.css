@@ -46,6 +46,13 @@
   --color-brand: hsl(var(--brand));
   --color-brand-foreground: hsl(var(--brand-foreground));
 
+  /* Workspace canvas surfaces (ADR 0018/0021) — see the light/dark blocks
+     below for the values: the canvas is a stepped-back sheet, node cards
+     are the brighter surface defined by its 1px border. */
+  --color-canvas: hsl(var(--canvas));
+  --color-canvas-node: hsl(var(--canvas-node));
+  --color-canvas-grid: hsl(var(--canvas-grid));
+
   --color-sidebar: hsl(var(--sidebar));
   --color-sidebar-foreground: hsl(var(--sidebar-foreground));
   --color-sidebar-primary: hsl(var(--sidebar-primary));
@@ -147,6 +154,13 @@
   --sidebar-accent-foreground: 0 0% 18%;
   --sidebar-border: 60 5% 91%;
   --sidebar-ring: 0 0% 18%;
+
+  /* Workspace canvas: a stepped-back sheet under white, floating cards.
+     The card must be a real surface, not a near-miss of the sheet — the
+     reported "cards look transparent" is what a 4% step reads as. */
+  --canvas: 60 9% 94%;
+  --canvas-node: 0 0% 100%;
+  --canvas-grid: 0 0% 76%;
 }
 
 /* Dark mode variables - Zen-Modernist (Sumi Ink) */
@@ -183,6 +197,11 @@
   --sidebar-accent-foreground: 0 0% 90%;
   --sidebar-border: 0 0% 20%;
   --sidebar-ring: 0 0% 90%;
+
+  /* Workspace canvas: recessed sheet, cards a step lighter than the page. */
+  --canvas: 0 0% 7%;
+  --canvas-node: 0 0% 15%;
+  --canvas-grid: 0 0% 26%;
 }
 
 @layer base {

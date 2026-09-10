@@ -13,6 +13,12 @@
  * leaves a node whose entity query misses; that node renders the dismissable
  * orphan placeholder. Rare and visible, never silent rot.
  *
+ * Connections that touched a removed node go with it (their endpoints are
+ * hard FKs, ADR 0021) — the caller does not have to ask, and the edges
+ * cache is invalidated alongside the nodes one. Undo revives the node but
+ * not those connections: the removal is layout-lossless for nodes, and a
+ * cut connection is redrawn with one drag. ADR 0021 records the trade.
+ *
  * Policy is identical for Guest and cloud: the workspace mutation services
  * split the two storage backends inline, so this helper needs no mode
  * branch. Every removal publishes `node.removed` and every re-insertion
@@ -34,6 +40,16 @@ export interface NodeCleanupContext {
 /** Invalidates the nodes family: every per-workspace list, both modes. */
 function invalidateNodeCaches(queryClient: QueryClient): void {
   void queryClient.invalidateQueries({ queryKey: workspaceKeys.nodes.all });
+}
+
+/**
+ * Invalidates the edges family too. A connection's endpoints are hard FKs
+ * (ADR 0021), so removing a node removes the connections that touched it
+ * — in both backends, by cascade. The cache has to hear about it or the
+ * canvas would keep drawing lines to a node that is already gone.
+ */
+function invalidateEdgeCaches(queryClient: QueryClient): void {
+  void queryClient.invalidateQueries({ queryKey: workspaceKeys.edges.all });
 }
 
 /**
@@ -75,6 +91,7 @@ export async function removeNodesReferencing(
 
   if (removed.length > 0) {
     invalidateNodeCaches(ctx.queryClient);
+    invalidateEdgeCaches(ctx.queryClient);
   }
   return removed;
 }

@@ -10,6 +10,7 @@ import { fetchAllRows } from "@/lib/supabase/paginate";
 import { guestWorkspaceStore } from "@/lib/workspace/guest-store";
 import type {
   Workspace,
+  WorkspaceEdge,
   WorkspaceNode,
   CreateWorkspaceInput,
 } from "@/lib/types/workspace";
@@ -146,6 +147,69 @@ export const workspaceMutations = {
       .single();
     if (error) throw new Error(error.message);
     return data as WorkspaceNode;
+  },
+
+  listEdges: async (workspaceId: string): Promise<WorkspaceEdge[]> => {
+    if (isGuest()) {
+      return guestWorkspaceStore.listEdges(workspaceId);
+    }
+    const supabase = createClient();
+    // RLS scopes the select to the caller's rows; paged per the repo's
+    // unbounded-select lint rule.
+    return fetchAllRows<WorkspaceEdge>((from, to) =>
+      supabase
+        .from("workspace_edges")
+        .select("*")
+        .eq("workspace_id", workspaceId)
+        .order("created_at", { ascending: true })
+        .range(from, to),
+    );
+  },
+
+  /**
+   * Draw a connection between two nodes (ADR 0021). The id is supplied by
+   * the caller — the canvas already drew the edge — so the persisted row
+   * and the drawn one are the same row. Both endpoints are hard FKs, so a
+   * connection to a node that no longer exists is rejected by the database
+   * rather than silently stored.
+   */
+  addEdge: async (input: {
+    id: string;
+    workspaceId: string;
+    sourceNodeId: string;
+    targetNodeId: string;
+  }): Promise<WorkspaceEdge> => {
+    if (isGuest()) {
+      return guestWorkspaceStore.addEdge(input);
+    }
+    const userId = await currentUserId();
+    const supabase = createClient();
+    const { data, error } = await supabase
+      .from("workspace_edges")
+      .insert({
+        id: input.id,
+        workspace_id: input.workspaceId,
+        user_id: userId,
+        source_node_id: input.sourceNodeId,
+        target_node_id: input.targetNodeId,
+      })
+      .select("*")
+      .single();
+    if (error) throw new Error(error.message);
+    return data as WorkspaceEdge;
+  },
+
+  /** Cutting a connection changes the layout only — never the two nodes. */
+  removeEdge: async (id: string): Promise<void> => {
+    if (isGuest()) {
+      return guestWorkspaceStore.removeEdge(id);
+    }
+    const supabase = createClient();
+    const { error } = await supabase
+      .from("workspace_edges")
+      .delete()
+      .eq("id", id);
+    if (error) throw new Error(error.message);
   },
 
   /** Row-level position PATCH — only position and updated_at move. */

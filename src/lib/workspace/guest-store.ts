@@ -8,15 +8,26 @@
  * reads are synchronous-cheap, and every mutation persists immediately
  * (workspace CRUD is low-frequency; node drag persistence debounces at
  * the command layer, not here).
+ *
+ * Since ADR 0021 the same record carries the canvas's `edges` section.
+ * `workspace_edges` is a *hard* relation in both backends (the cloud
+ * schema's FKs cascade), so the two cascades the row storage gets for
+ * free are spelled out here: deleting a node drops the connections that
+ * touched it, and deleting a workspace drops all of its own.
  */
 import { get, set, del } from "idb-keyval";
-import type { Workspace, WorkspaceNode } from "@/lib/types/workspace";
+import type {
+  Workspace,
+  WorkspaceEdge,
+  WorkspaceNode,
+} from "@/lib/types/workspace";
 
 const GUEST_WORKSPACES_KEY = "kanso-guest-workspaces";
 
 interface GuestWorkspaceData {
   workspaces: Workspace[];
   nodes: WorkspaceNode[];
+  edges: WorkspaceEdge[];
 }
 
 let cache: GuestWorkspaceData | null = null;
@@ -24,7 +35,14 @@ let cache: GuestWorkspaceData | null = null;
 async function loadData(): Promise<GuestWorkspaceData> {
   if (cache) return cache;
   const stored = await get<GuestWorkspaceData>(GUEST_WORKSPACES_KEY);
-  cache = stored ?? { workspaces: [], nodes: [] };
+  // `edges` is absent from records written before ADR 0021 — a canvas from
+  // before connections simply has none, so the section defaults instead of
+  // failing the read.
+  cache = {
+    workspaces: stored?.workspaces ?? [],
+    nodes: stored?.nodes ?? [],
+    edges: stored?.edges ?? [],
+  };
   return cache;
 }
 
@@ -88,6 +106,9 @@ export const guestWorkspaceStore = {
     const data = await loadData();
     data.workspaces = data.workspaces.filter((w) => w.id !== id);
     data.nodes = data.nodes.filter((n) => n.workspace_id !== id);
+    // Edges are the workspace's own arrangement, so they die with it — the
+    // cloud schema's `workspace_edges.workspace_id … CASCADE` counterpart.
+    data.edges = data.edges.filter((e) => e.workspace_id !== id);
     await persistData();
   },
 
@@ -108,6 +129,13 @@ export const guestWorkspaceStore = {
     return data.nodes.map((n) => ({ ...n }));
   },
 
+  async listEdges(workspaceId: string): Promise<WorkspaceEdge[]> {
+    const data = await loadData();
+    return data.edges
+      .filter((e) => e.workspace_id === workspaceId)
+      .map((e) => ({ ...e }));
+  },
+
   /**
    * Backup restore (ticket 09, ADR 0015 discipline): one fixed path,
    * overwrite-on-backup, no conflict model. Row ids, placement, and display
@@ -123,6 +151,11 @@ export const guestWorkspaceStore = {
     cache = {
       workspaces: workspaces.map((w) => ({ ...w })),
       nodes: nodes.map((n) => ({ ...n })),
+      // Restoring overwrites the canvas with what the archive carried. A
+      // backup has no connections section (see ADR 0021), so a restore
+      // leaves the canvas unconnected rather than keeping rows whose two
+      // endpoints the restore just replaced.
+      edges: [],
     };
     await persistData();
   },
@@ -184,10 +217,50 @@ export const guestWorkspaceStore = {
     await persistData();
   },
 
-  /** Removing a node never touches the referenced entity — layout only. */
+  /**
+   * Removing a node never touches the referenced entity — layout only.
+   * The connections that touched the node are a different matter: they
+   * reference the layout itself, so they go with it, exactly as the cloud
+   * schema's cascading endpoint FKs do.
+   */
   async removeNode(id: string): Promise<void> {
     const data = await loadData();
     data.nodes = data.nodes.filter((n) => n.id !== id);
+    data.edges = data.edges.filter(
+      (e) => e.source_node_id !== id && e.target_node_id !== id,
+    );
+    await persistData();
+  },
+
+  async addEdge(input: {
+    id: string;
+    workspaceId: string;
+    sourceNodeId: string;
+    targetNodeId: string;
+  }): Promise<WorkspaceEdge> {
+    const data = await loadData();
+    // The id arrives from the caller (the canvas already drew the edge), so
+    // a retried write converges on the same row instead of duplicating.
+    const existing = data.edges.find((e) => e.id === input.id);
+    if (existing) return { ...existing };
+
+    const edge: WorkspaceEdge = {
+      id: input.id,
+      workspace_id: input.workspaceId,
+      user_id: "guest",
+      source_node_id: input.sourceNodeId,
+      target_node_id: input.targetNodeId,
+      created_at: nowIso(),
+      updated_at: nowIso(),
+    };
+    data.edges.push(edge);
+    await persistData();
+    return { ...edge };
+  },
+
+  async removeEdge(id: string): Promise<void> {
+    const data = await loadData();
+    data.edges = data.edges.filter((e) => e.id !== id);
     await persistData();
   },
 };

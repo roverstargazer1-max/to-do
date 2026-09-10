@@ -33,4 +33,7 @@ export interface BackupData {
    */
   workspaces?: Workspace[];
   workspace_nodes?: WorkspaceNode[];
+  // Canvas connections (ADR 0021) are deliberately NOT a section here: the
+  // guest WebDAV flow's two workspace sections are pinned by its own
+  // contract, and widening them is its own ticket. See ADR 0021.
 }

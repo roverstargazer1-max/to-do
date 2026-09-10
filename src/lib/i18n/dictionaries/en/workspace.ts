@@ -39,6 +39,8 @@ export const workspace = {
   "workspace.canvas.addFocus": "Focus",
   "workspace.canvas.focusAdded": "Focus node added to canvas",
   "workspace.canvas.focusAddFailed": "Failed to add focus node to canvas",
+  "workspace.canvas.connectFailed": "Failed to connect the nodes",
+  "workspace.canvas.disconnectFailed": "Failed to remove the connection",
 
   // --- Add-node pickers (AddTaskNodeDialog / AddHabitNodeDialog / AddEventNodeDialog) ---
   "workspace.addTask.title": "Add task to canvas",
@@ -83,6 +85,12 @@ export const workspace = {
     `${params.count} streak`,
   // Event node's all-day marker.
   "workspace.node.allDay": "All day",
+  // The card head's kind label (NodeCard.tsx) — uppercased by CSS.
+  "workspace.node.kindTask": "Task",
+  "workspace.node.kindHabit": "Habit",
+  "workspace.node.kindEvent": "Event",
+  "workspace.node.kindFocus": "Focus",
+  "workspace.node.kindUnknown": "Unknown",
 
   // --- Focus node (FocusNode.tsx) ---
   "workspace.focusNode.modeFocus": "Focus",

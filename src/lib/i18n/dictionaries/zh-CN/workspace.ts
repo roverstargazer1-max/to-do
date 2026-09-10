@@ -34,6 +34,8 @@ export const workspace = {
   "workspace.canvas.addFocus": "专注",
   "workspace.canvas.focusAdded": "专注节点已添加到画布",
   "workspace.canvas.focusAddFailed": "添加专注节点到画布失败",
+  "workspace.canvas.connectFailed": "连接节点失败",
+  "workspace.canvas.disconnectFailed": "移除连线失败",
 
   // --- Add-node pickers ---
   "workspace.addTask.title": "添加任务到画布",
@@ -72,6 +74,11 @@ export const workspace = {
   "workspace.node.streak": (params: TranslationParams) =>
     `连续 ${params.count}`,
   "workspace.node.allDay": "全天",
+  "workspace.node.kindTask": "任务",
+  "workspace.node.kindHabit": "习惯",
+  "workspace.node.kindEvent": "事件",
+  "workspace.node.kindFocus": "专注",
+  "workspace.node.kindUnknown": "未知",
 
   // --- Focus node ---
   "workspace.focusNode.modeFocus": "专注",

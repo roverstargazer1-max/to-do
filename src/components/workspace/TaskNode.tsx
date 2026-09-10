@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 import { handleMutationError } from "@/lib/utils/mutation-error";
 import { nodeCommands } from "@/lib/commands/node";
 import type { ToggleTaskInput } from "@/lib/commands/task";
+import { NodeCard } from "./NodeCard";
 import { NodeOrphanBody } from "./NodeOrphanBody";
 import {
   formatDueDate,
@@ -80,7 +81,7 @@ export function TaskNode({ data, spec }: WorkspaceNodeComponentProps) {
       disabled={removing}
       data-testid={`task-node-remove-${testKey}`}
       aria-label={t("workspace.node.removeTaskAria")}
-      className="nodrag absolute -top-2 -right-2 h-5 w-5 grid place-content-center rounded-md border border-border bg-background text-muted-foreground hover:text-foreground hover:border-foreground/40 transition-colors duration-200 ease-seijaku"
+      className="nodrag grid h-4 w-4 place-content-center rounded-[3px] text-muted-foreground transition-colors duration-200 ease-seijaku hover:bg-muted hover:text-foreground disabled:opacity-50"
     >
       <X className="h-3 w-3" strokeWidth={2.25} />
     </button>
@@ -93,70 +94,68 @@ export function TaskNode({ data, spec }: WorkspaceNodeComponentProps) {
     : "missing";
 
   return (
-    <div
-      data-testid={`task-node-${testKey}`}
-      className="relative w-full bg-background"
-    >
+    <div data-testid={`task-node-${testKey}`} className="relative w-full">
       <span data-testid={`task-node-state-${testKey}`} className="sr-only">
         {stateLabel}
       </span>
-      {removeButton}
 
-      {isLoading ? (
-        <div className="flex items-center gap-2.5 px-3 py-3 w-52">
-          <Skeleton className="h-4 w-4 rounded-[3px]" />
-          <Skeleton className="h-4 flex-1" />
-        </div>
-      ) : task ? (
-        <div className="flex items-start gap-2.5 px-3 py-2.5">
-          <Checkbox
-            checked={task.is_completed}
-            onCheckedChange={() =>
-              toggle.mutate({
-                id: task.id,
-                is_completed: !task.is_completed,
-              })
-            }
-            disabled={toggle.isPending}
-            data-testid={`task-node-toggle-${task.id}`}
-            aria-label={t("workspace.node.toggleTaskAria")}
-            className="nodrag h-4 w-4 mt-0.5"
-          />
-          <div className="flex flex-col gap-0.5 min-w-0 flex-1">
-            <p className="text-sm font-medium leading-snug break-words text-foreground">
-              <span
-                className={cn(task.is_completed && "task-ink-completed-text")}
-                data-animate="false"
-              >
-                {task.content}
-              </span>
-            </p>
-            {(task.due_date || task.priority < 4) && (
-              <div className="flex items-center gap-2.5 flex-wrap">
-                {task.due_date && (
-                  <span className="text-[11px] text-muted-foreground/80 flex items-center gap-1 font-medium uppercase tracking-wider">
-                    <Calendar className="h-3 w-3" strokeWidth={2.25} />
-                    {formatDueDate(task.due_date)}
-                  </span>
-                )}
-                {task.priority < 4 && (
-                  <span
-                    className={cn(
-                      "flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider",
-                      priorityTextClasses[task.priority as 1 | 2 | 3 | 4],
-                    )}
-                  >
-                    <Flag className="h-3 w-3" strokeWidth={2.5} />P
-                    {task.priority}
-                  </span>
-                )}
-              </div>
-            )}
+      <NodeCard kind={t("workspace.node.kindTask")} action={removeButton}>
+        {isLoading ? (
+          <div className="flex items-center gap-2.5 px-3 py-2.5">
+            <Skeleton className="h-4 w-4 rounded-[3px]" />
+            <Skeleton className="h-4 flex-1" />
           </div>
-        </div>
-      ) : (
-        <NodeOrphanBody lostLabel={t("workspace.canvas.addTask")} />
-      )}
+        ) : task ? (
+          <div className="flex items-start gap-2.5 px-3 py-2.5">
+            <Checkbox
+              checked={task.is_completed}
+              onCheckedChange={() =>
+                toggle.mutate({
+                  id: task.id,
+                  is_completed: !task.is_completed,
+                })
+              }
+              disabled={toggle.isPending}
+              data-testid={`task-node-toggle-${task.id}`}
+              aria-label={t("workspace.node.toggleTaskAria")}
+              className="nodrag h-4 w-4 mt-0.5"
+            />
+            <div className="flex flex-col gap-0.5 min-w-0 flex-1">
+              <p className="text-sm font-medium leading-snug break-words text-foreground">
+                <span
+                  className={cn(task.is_completed && "task-ink-completed-text")}
+                  data-animate="false"
+                >
+                  {task.content}
+                </span>
+              </p>
+              {(task.due_date || task.priority < 4) && (
+                <div className="flex items-center gap-2.5 flex-wrap">
+                  {task.due_date && (
+                    <span className="text-[11px] text-muted-foreground/80 flex items-center gap-1 font-medium uppercase tracking-wider">
+                      <Calendar className="h-3 w-3" strokeWidth={2.25} />
+                      {formatDueDate(task.due_date)}
+                    </span>
+                  )}
+                  {task.priority < 4 && (
+                    <span
+                      className={cn(
+                        "flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider",
+                        priorityTextClasses[task.priority as 1 | 2 | 3 | 4],
+                      )}
+                    >
+                      <Flag className="h-3 w-3" strokeWidth={2.5} />P
+                      {task.priority}
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        ) : (
+          <NodeOrphanBody lostLabel={t("workspace.canvas.addTask")} />
+        )}
+      </NodeCard>
     </div>
   );
 }

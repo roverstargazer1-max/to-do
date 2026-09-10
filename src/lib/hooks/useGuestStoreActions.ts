@@ -18,6 +18,7 @@ const GUEST_QUERY_KEYS = [
   "demo-mode",
   "workspaces",
   "workspace-nodes",
+  "workspace-edges",
 ];
 
 function useGuestStoreAction(

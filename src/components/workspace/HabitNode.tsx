@@ -14,6 +14,7 @@ import { notify } from "@/lib/notify";
 import { useTranslation } from "@/lib/i18n/useTranslation";
 import { cn } from "@/lib/utils";
 import { nodeCommands } from "@/lib/commands/node";
+import { NodeCard } from "./NodeCard";
 import { NodeOrphanBody } from "./NodeOrphanBody";
 import type { WorkspaceNodeComponentProps } from "./node-registry";
 
@@ -87,7 +88,7 @@ export function HabitNode({ data }: WorkspaceNodeComponentProps) {
       disabled={removing}
       data-testid={`habit-node-remove-${testKey}`}
       aria-label={t("workspace.node.removeHabitAria")}
-      className="nodrag absolute -top-2 -right-2 h-5 w-5 grid place-content-center rounded-md border border-border bg-background text-muted-foreground hover:text-foreground hover:border-foreground/40 transition-colors duration-200 ease-seijaku"
+      className="nodrag grid h-4 w-4 place-content-center rounded-[3px] text-muted-foreground transition-colors duration-200 ease-seijaku hover:bg-muted hover:text-foreground disabled:opacity-50"
     >
       <X className="h-3 w-3" strokeWidth={2.25} />
     </button>
@@ -96,69 +97,67 @@ export function HabitNode({ data }: WorkspaceNodeComponentProps) {
   const stateLabel = habit ? (doneToday ? "done" : "not-done") : "missing";
 
   return (
-    <div
-      data-testid={`habit-node-${testKey}`}
-      className="relative w-full bg-background"
-    >
+    <div data-testid={`habit-node-${testKey}`} className="relative w-full">
       <span data-testid={`habit-node-state-${testKey}`} className="sr-only">
         {stateLabel}
       </span>
-      {removeButton}
 
-      {isLoading ? (
-        <div className="flex items-center gap-2.5 px-3 py-3 w-52">
-          <Skeleton className="h-4 w-4 rounded-[3px]" />
-          <Skeleton className="h-4 flex-1" />
-        </div>
-      ) : habit ? (
-        <div className="flex items-center gap-2.5 px-3 py-2.5">
-          <button
-            type="button"
-            onClick={handleCheckIn}
-            disabled={markComplete.isPending}
-            data-testid={`habit-node-checkin-${habit.id}`}
-            aria-label={t("workspace.node.checkInHabitAria")}
-            aria-pressed={doneToday}
-            className={cn(
-              "nodrag h-4 w-4 shrink-0 grid place-content-center rounded-[3px] border transition-colors duration-200 ease-seijaku",
-              doneToday
-                ? "border-transparent text-background"
-                : "border-foreground/30 text-transparent hover:border-foreground/60",
-            )}
-            style={doneToday ? { backgroundColor: habit.color } : undefined}
-          >
-            <Check className="h-3 w-3" strokeWidth={3.5} />
-          </button>
-          <div className="flex flex-col gap-0.5 min-w-0 flex-1">
-            <p className="flex items-center gap-1.5 text-sm font-medium leading-snug break-words text-foreground">
-              {(() => {
-                const Icon = getHabitIcon(habit.icon);
-                return (
-                  <Icon
-                    className="h-3.5 w-3.5 shrink-0"
-                    strokeWidth={2.25}
-                    style={{ color: habit.color }}
-                  />
-                );
-              })()}
-              <span className="truncate">{habit.name}</span>
-            </p>
-            <p className="text-[11px] text-muted-foreground/80 font-medium uppercase tracking-wider">
-              <span data-testid={`habit-node-today-${habit.id}`}>
-                {doneToday
-                  ? t("workspace.node.doneToday")
-                  : t("workspace.node.today")}
-              </span>
-              <span className="px-1 text-foreground/25">·</span>
-              <span className="tabular-nums text-foreground/70">
-                {t("workspace.node.streak", { count: streak })}
-              </span>
-            </p>
+      <NodeCard kind={t("workspace.node.kindHabit")} action={removeButton}>
+        {isLoading ? (
+          <div className="flex items-center gap-2.5 px-3 py-2.5">
+            <Skeleton className="h-4 w-4 rounded-[3px]" />
+            <Skeleton className="h-4 flex-1" />
           </div>
-        </div>
-      ) : (
-        <NodeOrphanBody lostLabel={t("workspace.canvas.addHabit")} />
-      )}
+        ) : habit ? (
+          <div className="flex items-center gap-2.5 px-3 py-2.5">
+            <button
+              type="button"
+              onClick={handleCheckIn}
+              disabled={markComplete.isPending}
+              data-testid={`habit-node-checkin-${habit.id}`}
+              aria-label={t("workspace.node.checkInHabitAria")}
+              aria-pressed={doneToday}
+              className={cn(
+                "nodrag h-4 w-4 shrink-0 grid place-content-center rounded-[3px] border transition-colors duration-200 ease-seijaku",
+                doneToday
+                  ? "border-transparent text-background"
+                  : "border-foreground/30 text-transparent hover:border-foreground/60",
+              )}
+              style={doneToday ? { backgroundColor: habit.color } : undefined}
+            >
+              <Check className="h-3 w-3" strokeWidth={3.5} />
+            </button>
+            <div className="flex flex-col gap-0.5 min-w-0 flex-1">
+              <p className="flex items-center gap-1.5 text-sm font-medium leading-snug break-words text-foreground">
+                {(() => {
+                  const Icon = getHabitIcon(habit.icon);
+                  return (
+                    <Icon
+                      className="h-3.5 w-3.5 shrink-0"
+                      strokeWidth={2.25}
+                      style={{ color: habit.color }}
+                    />
+                  );
+                })()}
+                <span className="truncate">{habit.name}</span>
+              </p>
+              <p className="text-[11px] text-muted-foreground/80 font-medium uppercase tracking-wider">
+                <span data-testid={`habit-node-today-${habit.id}`}>
+                  {doneToday
+                    ? t("workspace.node.doneToday")
+                    : t("workspace.node.today")}
+                </span>
+                <span className="px-1 text-foreground/25">·</span>
+                <span className="tabular-nums text-foreground/70">
+                  {t("workspace.node.streak", { count: streak })}
+                </span>
+              </p>
+            </div>
+          </div>
+        ) : (
+          <NodeOrphanBody lostLabel={t("workspace.canvas.addHabit")} />
+        )}
+      </NodeCard>
     </div>
   );
 }
