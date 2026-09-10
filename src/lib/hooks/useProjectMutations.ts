@@ -3,8 +3,10 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/components/AuthProvider";
 import { handleMutationError } from "@/lib/utils/mutation-error";
-import type { Project } from "@/lib/types/task";
+import type { Project, Task } from "@/lib/types/task";
 import { projectMutations } from "@/lib/mutations/project";
+import { taskKeys } from "@/lib/queries/task-keys";
+import { removeNodesReferencing } from "@/lib/commands/node-cleanup";
 
 export function useCreateProject() {
   const queryClient = useQueryClient();
@@ -124,10 +126,42 @@ export function useMoveTasksToInbox() {
 
 export function useDeleteProjectTasks() {
   const queryClient = useQueryClient();
+  const { isGuestMode } = useAuth();
 
   return useMutation({
     mutationKey: ["deleteProjectTasks"],
-    mutationFn: projectMutations.deleteProjectTasks,
+    mutationFn: async (projectId: string) => {
+      // The task ids this delete will destroy, from the best client
+      // knowledge before the write lands (ADR 0019). A task the cache never
+      // saw leaves its node as a dismissable orphan placeholder.
+      const taskIds = [
+        ...new Set(
+          queryClient
+            .getQueriesData<Task[]>({ queryKey: taskKeys.all })
+            .flatMap(([, data]) =>
+              (data ?? [])
+                .filter((t) => t.project_id === projectId)
+                .map((t) => t.id),
+            ),
+        ),
+      ];
+
+      await projectMutations.deleteProjectTasks(projectId);
+
+      // The project hard-delete flow's node cleanup — the interim wiring
+      // until project commands migrate (ticket 08). Nodes referencing the
+      // destroyed tasks are removed across workspaces; a cleanup failure
+      // degrades to orphan placeholders, never a failed task delete.
+      await removeNodesReferencing(
+        { queryClient, isGuestMode },
+        { entityType: "task", entityIds: taskIds },
+      ).catch((err: unknown) => {
+        console.warn(
+          "Node cleanup after project task delete failed; nodes will surface as orphans:",
+          err,
+        );
+      });
+    },
     onError: (err) => {
       handleMutationError(err);
     },
