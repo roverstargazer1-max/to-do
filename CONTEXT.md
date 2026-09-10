@@ -88,6 +88,71 @@ until a person presses a button.
 
 ---
 
+## Domain commands (disambiguated)
+
+"Command" is overloaded across a state-change concept and a UI affordance,
+and must always be qualified with one of the following.
+
+### Domain Command
+
+A named intent to change app state — `task.toggle`, `task.create`. The single
+funnel for interactive writes: every caller (the normal UI, the Workspace
+canvas, a future agent or automation) invokes the same command, and the
+command owns the whole write policy — the write itself, the optimistic
+update, rollback, cache invalidation, and publication of the resulting
+Domain Event. Callable from any context, not only React. See
+`docs/adr/0016-domain-command-layer.md`.
+
+A Domain Command is a **funnel, never a source**: data still reaches the app
+through paths that are not commands (migration, Backup restore, imports, the
+calendar sync engine, server-side triggers), so reads trust the Query cache,
+never a command log.
+_Avoid_: "action" (a Toast concept); bare "command" in a domain context.
+
+### Domain Event
+
+The observation a Domain Command publishes once a state change lands — a
+past-tense named fact about one entity (`task.completed`, never
+`task.toggle` plus a flag). The name is the trigger contract: consumers bind
+to event names, so each outcome gets its own. The payload is an entity
+reference plus at most a minimal change summary — never a full row.
+Published, not stored: consumers observe events, they do not replay them as
+data. Distinct from cache invalidation, which announces that cached data is
+stale and says nothing about what the user did. Writes that bypass commands
+(Backup restore, migration, imports, the calendar sync engine, server-side
+triggers) invalidate caches but publish no Domain Event — they are not user
+intents.
+
+### Domain Event Bus
+
+The typed in-memory channel Domain Events are published over: a module-level
+synchronous emitter, subscribed to by observers (the Edge Engine, agents,
+later analytics). Tier-independent — identical for a Guest, since it has no
+transport and no auth. It is an observation channel, never a data channel:
+the Query cache remains the only read source. No cross-tab or cross-device
+propagation — a tab hears only its own commands, matching the app-wide
+baseline; realtime cross-device mirroring stays a premium capability. See
+`docs/adr/0017-domain-event-bus.md`.
+
+### Command palette
+
+The cmdk-driven search-and-action menu. A UI affordance that can _invoke_
+Domain Commands like any component would; it is not one and owns no write
+logic. "Command" in user-facing copy means this; in a spec or PR it means the
+Domain kind — qualify anyway.
+
+### Command vs mutation
+
+A Domain Command is the named, reusable definition of a state change; a
+"mutation" in this codebase's TanStack sense is one execution of a command by
+one caller — the thing with pending/success/error/paused lifecycle and
+offline resume. The `src/lib/mutations/` services sit _below_ commands: they
+know how to write (guest vs cloud) but nothing about cache policy or events.
+The fourteen offline-resumable mutationKeys (`["toggleTask"]`, …) are the
+execution identity of commands and predate the command layer unchanged.
+
+---
+
 ## Accounts and sign-in
 
 ### Account
@@ -430,6 +495,90 @@ its own due date, priority, notes, and project. No schema change is required —
 the record is already a `tasks` row; promotion removes the `parent_id` and
 surfaces it as a peer task. Not yet built; noted here to prevent the concept from
 being invented under a conflicting name.
+
+---
+
+## Workspace (the canvas surface)
+
+### Workspace
+
+The infinite-canvas surface where a person composes, arranges, and connects
+Nodes — a projection and orchestration layer over the domain. A Workspace
+holds no domain data: it is a saved arrangement of Node references. One
+Workspace is one row; its nodes are rows of their own.
+_Not to be confused with_ **board** — the task list view style
+(`view_style: "board"`, TaskBoard): a way of looking at one project's tasks,
+not a canvas. _Avoid_: "board", "canvas file".
+
+### Node
+
+One placed item on a Workspace: a reference to a domain entity (a task, a
+habit, a calendar event, the focus timer) plus layout metadata — position,
+size, display config. A node stores **reference metadata only** (node id,
+entity type, entity id, position, size, display config) — never a copy of the
+entity's business fields. The entity is read through the same Query cache the
+normal UI uses; the node is a lens, not a container. An unknown node kind
+renders as a placeholder rather than an error — a stale canvas must still
+render. _Avoid_: "widget", "card" (a TaskList concept).
+
+### Node reference
+
+The `entity_type` + `entity_id` pair on a node — which domain record it
+points at. Deliberately **soft**: the database cannot enforce it (one column,
+several possible target tables), so reference integrity is an application
+concern, not a constraint. A node whose target no longer exists is an
+**orphan**.
+
+### Orphan
+
+A node whose target no longer exists. Not a stored state: orphan-ness is
+**derived at read time** — the node's entity query misses, and the node
+renders an orphan placeholder offering dismiss (which is `node.remove`).
+Delete commands clean up the nodes they orphan and carry them in their Undo
+context, so an undone delete revives the node with its entity; deletions the
+command layer never sees (another device, Backup restore, the calendar sync
+engine) surface as placeholders. No cascade trigger, no tombstone column —
+see `docs/adr/0019-orphan-nodes.md`.
+_Not to be confused with_ the Calendar-connection **Tombstone** (a
+locally-deleted synced event awaiting remote push) — unrelated concept,
+shared word.
+_Avoid_: "zombie node", "dead reference".
+
+### Node event
+
+The event a workspace command publishes about the arrangement —
+`node.added`, `node.moved`, `node.removed`: same bus and past-tense naming
+discipline as a Domain Event, but a fact about the canvas, not about domain
+data. Future edges bind to node events. Moving a node publishes a Node
+event; toggling the task that node references publishes a Domain Event —
+different facts, different families.
+
+### Workspace command
+
+A command whose subject is the arrangement rather than domain data —
+`node.add`, `node.move`, `workspace.create`. Same layer, same funnel
+discipline, same bus as Domain Commands; publishes Node events. Born as
+commands from day one — the command layer never grows a second write path.
+
+### Viewport
+
+The canvas's zoom and pan — which part of a Workspace is on screen.
+**Device-local**: saved per device in its own persisted store, never
+cloud-synced. Node positions are authored layout and travel with the account;
+the viewport does not. _Avoid_: folding it into the Workspace (it is not
+workspace data).
+
+### Focus node
+
+A node (`kind: focus`) with no entity reference — a projection of the timer
+**singleton**, not a second timer. Running state reads the same `timerStore`
+every timer surface reads; its pause/start actions call the same actions the
+Focus page does, so pausing anywhere pauses everywhere (in-tab by
+construction, cross-device via Timer handoff). Countdown derives from the
+server-anchored `ends_at` (ADR 0002). Timer **history** is a different source
+(`focus_logs` queries) — a focus node shows the live timer, not past
+sessions. The timer deliberately sits outside the command layer for now; see
+`docs/adr/0020-focus-node-projection.md`.
 
 ---
 
