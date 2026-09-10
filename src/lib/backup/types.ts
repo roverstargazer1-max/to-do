@@ -2,6 +2,7 @@ import type { Task, Project } from "@/lib/types/task";
 import type { Habit, HabitEntry } from "@/lib/types/habit";
 import type { FocusLog } from "@/lib/types/focus";
 import type { CalendarEvent } from "@/lib/types/calendar-event";
+import type { Workspace, WorkspaceNode } from "@/lib/types/workspace";
 
 /**
  * Metadata for the backup archive to handle versioning and audits.
@@ -25,4 +26,11 @@ export interface BackupData {
   focus_logs: FocusLog[];
   events: CalendarEvent[];
   location_history?: string[];
+  /**
+   * Guest workspace sections (ticket 09, ADR 0018): row ids preserved verbatim
+   * per Backup convention. Optional so pre-workspace zips (and the cloud
+   * account export, which doesn't carry canvas layout) still parse.
+   */
+  workspaces?: Workspace[];
+  workspace_nodes?: WorkspaceNode[];
 }
