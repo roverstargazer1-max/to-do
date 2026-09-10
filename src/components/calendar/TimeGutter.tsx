@@ -6,8 +6,9 @@ import {
   HOUR_HEIGHT,
   HEADER_HEIGHT,
   hours,
-  HOUR_LABELS,
+  hourLabels,
 } from "@/lib/calendar/grid-constants";
+import { useClientLanguage } from "@/lib/i18n/useClientLanguage";
 
 export function TimeGutter({
   className,
@@ -16,6 +17,8 @@ export function TimeGutter({
   className?: string;
   ref?: Ref<HTMLDivElement>;
 }) {
+  const language = useClientLanguage();
+  const labels = hourLabels(language);
   return (
     <div
       ref={ref}
@@ -32,7 +35,7 @@ export function TimeGutter({
           className="text-[10px] md:text-xs text-muted-foreground text-right pr-2 md:pr-3 pt-2 font-medium bg-background"
           style={{ height: `${HOUR_HEIGHT}px` }}
         >
-          {HOUR_LABELS[hour]}
+          {labels[hour]}
         </div>
       ))}
     </div>

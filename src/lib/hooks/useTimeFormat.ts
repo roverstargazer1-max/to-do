@@ -1,45 +1,36 @@
 "use client";
 
-import { format } from "date-fns";
-import { useUiStore } from "@/lib/store/uiStore";
 import { useCallback } from "react";
+import { useDateFormatter } from "@/lib/i18n/useDateFormatter";
+import { useUiStore } from "@/lib/store/uiStore";
 
 /**
- * Hook to format time based on the user's preference (12h/24h/system).
+ * Hook to format time based on the user's preference (12h/24h/system),
+ * localized through the Intl seam keyed by the active UI language
+ * (ticket 03). "system" now resolves against the app language rather
+ * than `navigator.language` — en → 12h, zh-CN → 24h.
  */
 export const useTimeFormat = () => {
   const timeFormat = useUiStore((state) => state.timeFormat);
+  const { formatClock, is24Hour } = useDateFormatter();
 
   const formatTime = useCallback(
     (date: Date) => {
       // 24-hour format: 14:30
       if (timeFormat === "24h") {
-        return format(date, "HH:mm");
+        return formatClock(date, "24h");
       }
 
-      // System format: detect from browser locale using Intl.DateTimeFormat
+      // System format: resolve the hour cycle from the active language.
       if (timeFormat === "system") {
-        const is24hr = new Intl.DateTimeFormat(navigator.language, {
-          hour: "numeric",
-        })
-          .formatToParts(new Date(2024, 0, 1, 14, 0))
-          .some((part) => part.value === "14");
-        return is24hr ? format(date, "HH:mm") : format(date, "h:mm a");
+        return formatClock(date, is24Hour ? "24h" : "12h");
       }
 
       // 12-hour format: 2:30 PM (default or explicit)
-      return format(date, "h:mm a");
+      return formatClock(date, "12h");
     },
-    [timeFormat],
+    [timeFormat, formatClock, is24Hour],
   );
 
-  const formatDateWithTime = useCallback(
-    (date: Date, dateFormat: string) => {
-      const timePart = formatTime(date);
-      return `${format(date, dateFormat)} ${timePart}`;
-    },
-    [formatTime],
-  );
-
-  return { formatTime, formatDateWithTime, timeFormat };
+  return { formatTime, timeFormat };
 };
