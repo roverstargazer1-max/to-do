@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 import withSerwistInit from "@serwist/next";
 import { withSentryConfig } from "@sentry/nextjs";
-import { version } from "./package.json";
+import { version } from "./package.json" with { type: "json" };
 
 import bundleAnalyzer from "@next/bundle-analyzer";
 
