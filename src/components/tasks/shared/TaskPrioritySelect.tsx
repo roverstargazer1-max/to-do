@@ -9,6 +9,7 @@ import {
   SelectTrigger,
 } from "@/components/ui/select";
 import { useHaptic } from "@/lib/hooks/useHaptic";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 
 const priorities: {
   value: 1 | 2 | 3 | 4;
@@ -52,6 +53,7 @@ export function TaskPrioritySelect({
   isMobile = false,
 }: TaskPrioritySelectProps) {
   const { trigger } = useHaptic();
+  const { t } = useTranslation();
   const isSelected = priority !== 4;
 
   return (
@@ -74,7 +76,7 @@ export function TaskPrioritySelect({
           isSelected &&
             "w-auto px-2.5 min-w-[68px] text-[13px] text-brand bg-brand/10 border-transparent hover:bg-brand/20 hover:text-brand",
         )}
-        title={!isMobile ? "Set priority" : undefined}
+        title={!isMobile ? t("tasks.priority.setPriority") : undefined}
       >
         <div className="flex items-center gap-1.5 justify-center w-full">
           <Flag
@@ -108,12 +110,12 @@ export function TaskPrioritySelect({
               <span className="font-medium">
                 {p.label} —{" "}
                 {p.value === 1
-                  ? "Urgent"
+                  ? t("tasks.priority.urgent")
                   : p.value === 2
-                    ? "High"
+                    ? t("tasks.priority.high")
                     : p.value === 3
-                      ? "Normal"
-                      : "Low"}
+                      ? t("tasks.priority.normal")
+                      : t("tasks.priority.low")}
               </span>
             </div>
           </SelectItem>

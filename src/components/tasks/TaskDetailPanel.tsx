@@ -15,6 +15,7 @@ import { useInboxProject } from "@/lib/hooks/useTasks";
 import { useProjects } from "@/lib/hooks/useProjects";
 import { useMediaQuery } from "@/lib/hooks/useMediaQuery";
 import { useHaptic } from "@/lib/hooks/useHaptic";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 import dynamic from "next/dynamic";
 import { DeleteConfirmationDialog } from "@/components/ui/DeleteConfirmationDialog";
 
@@ -37,6 +38,7 @@ interface TaskDetailPanelProps {
 
 export function TaskDetailPanel({ task, onClose }: TaskDetailPanelProps) {
   const { trigger } = useHaptic();
+  const { t } = useTranslation();
 
   type TaskFormValues = CreateTaskInput & {
     recurrence?: RecurrenceRule | null;
@@ -191,7 +193,7 @@ export function TaskDetailPanel({ task, onClose }: TaskDetailPanelProps) {
     return (
       <div className="flex h-full items-center justify-center p-16 animate-in fade-in duration-500">
         <p className="type-body text-muted-foreground font-medium">
-          Select a task to view details
+          {t("tasks.detail.selectTask")}
         </p>
       </div>
     );
@@ -208,7 +210,7 @@ export function TaskDetailPanel({ task, onClose }: TaskDetailPanelProps) {
                 onClose();
               }}
               className="h-9 w-9 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground bg-secondary hover:bg-secondary/80 border border-border transition-all duration-200"
-              aria-label="Close task details"
+              aria-label={t("tasks.detail.close")}
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -289,8 +291,8 @@ export function TaskDetailPanel({ task, onClose }: TaskDetailPanelProps) {
         isOpen={showDeleteDialog}
         onClose={() => setShowDeleteDialog(false)}
         onConfirm={handleConfirmDelete}
-        title="Delete Task"
-        description={`Are you sure you want to delete "${task.content}"? This action cannot be undone.`}
+        title={t("tasks.delete.title")}
+        description={t("tasks.delete.description", { content: task.content })}
       />
     </>
   );

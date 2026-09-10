@@ -50,6 +50,7 @@ import {
   computeFreezeOrderPairs,
   isDropBlockedGroup,
 } from "@/lib/utils/task-dnd";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 
 // dnd-kit announces every onDragOver by default, thrashing aria-live at
 // 60-120Hz. Returning undefined is a no-op; start/end/cancel still fire.
@@ -492,6 +493,8 @@ const KanbanColumn = memo(function KanbanColumn({
   keyboardSelectedId?: string | null;
 }) {
   const { setNodeRef } = useDroppable({ id: group.title });
+  const { t } = useTranslation();
+  const displayTitle = group.titleKey ? t(group.titleKey) : group.title;
 
   // Without shrink-0 the flex columns compress to fit, so the board never
   // overflows and neither snap nor drag auto-scroll has anything to scroll.
@@ -502,7 +505,7 @@ const KanbanColumn = memo(function KanbanColumn({
     >
       <div className="px-3 py-2.5 flex items-center justify-between">
         <h3 className="type-h3 lowercase tracking-tight text-foreground/70">
-          {group.title}
+          {displayTitle}
           <span className="ml-2 text-[11px] font-bold opacity-40 tabular-nums">
             {group.tasks.length}
           </span>
@@ -533,7 +536,7 @@ const KanbanColumn = memo(function KanbanColumn({
           {group.tasks.length === 0 && (
             <div className="h-24 flex items-center justify-center border-2 border-dashed border-border/40 rounded-2xl">
               <span className="text-[11px] font-bold text-muted-foreground/70 uppercase tracking-widest">
-                Ma (Void)
+                {t("tasks.board.void")}
               </span>
             </div>
           )}

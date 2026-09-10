@@ -13,18 +13,28 @@ import {
   ResponsiveDialogHeader,
   ResponsiveDialogTitle,
 } from "@/components/ui/responsive-dialog";
+import { useTranslation } from "@/lib/i18n/useTranslation";
+import type { TranslationKey } from "@/lib/i18n/dictionaries/en";
 
 interface ToolbarAction {
-  label: string;
+  labelKey: TranslationKey;
   icon: typeof Bold;
   apply: (selected: string) => string;
 }
 
 const TOOLBAR_ACTIONS: ToolbarAction[] = [
-  { label: "Bold", icon: Bold, apply: (s) => `**${s || "bold"}**` },
-  { label: "Italic", icon: Italic, apply: (s) => `_${s || "italic"}_` },
   {
-    label: "List",
+    labelKey: "tasks.notes.toolbarBold",
+    icon: Bold,
+    apply: (s) => `**${s || "bold"}**`,
+  },
+  {
+    labelKey: "tasks.notes.toolbarItalic",
+    icon: Italic,
+    apply: (s) => `_${s || "italic"}_`,
+  },
+  {
+    labelKey: "tasks.notes.toolbarList",
     icon: List,
     apply: (s) =>
       s
@@ -35,7 +45,7 @@ const TOOLBAR_ACTIONS: ToolbarAction[] = [
         : "- ",
   },
   {
-    label: "Link",
+    labelKey: "tasks.notes.toolbarLink",
     icon: LinkIcon,
     apply: (s) => `[${s || "link text"}](url)`,
   },
@@ -60,6 +70,7 @@ export function TaskNotesEditor({
 }: TaskNotesEditorProps) {
   const { trigger } = useHaptic();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const { t } = useTranslation();
 
   const applyToolbarAction = (action: ToolbarAction) => {
     const textarea = textareaRef.current;
@@ -85,7 +96,9 @@ export function TaskNotesEditor({
       <ResponsiveDialogContent className="flex flex-col h-auto max-h-[85dvh] overflow-hidden sm:h-[85vh] sm:max-w-2xl">
         <ResponsiveDialogHeader>
           <div className="flex items-center justify-between gap-3 sm:pr-10">
-            <ResponsiveDialogTitle>Notes</ResponsiveDialogTitle>
+            <ResponsiveDialogTitle>
+              {t("tasks.notes.title")}
+            </ResponsiveDialogTitle>
             <Button
               variant="outline"
               size="sm"
@@ -95,7 +108,7 @@ export function TaskNotesEditor({
                 setIsPreviewMode((prev) => !prev);
               }}
             >
-              {isPreviewMode ? "Edit" : "Preview"}
+              {isPreviewMode ? t("tasks.notes.edit") : t("tasks.notes.preview")}
             </Button>
           </div>
         </ResponsiveDialogHeader>
@@ -126,17 +139,17 @@ export function TaskNotesEditor({
             )}
           >
             <div className="flex items-center gap-1">
-              {TOOLBAR_ACTIONS.map(({ label, icon: Icon, apply }) => (
+              {TOOLBAR_ACTIONS.map(({ labelKey, icon: Icon, apply }) => (
                 <Button
-                  key={label}
+                  key={labelKey}
                   type="button"
                   variant="ghost"
                   size="sm"
-                  aria-label={label}
+                  aria-label={t(labelKey)}
                   className="h-8 w-8 p-0 rounded-lg text-muted-foreground hover:text-foreground"
                   onClick={() => {
                     trigger("toggle");
-                    applyToolbarAction({ label, icon: Icon, apply });
+                    applyToolbarAction({ labelKey, icon: Icon, apply });
                   }}
                 >
                   <Icon className="h-4 w-4" strokeWidth={2.25} />
@@ -145,8 +158,8 @@ export function TaskNotesEditor({
             </div>
             <textarea
               ref={textareaRef}
-              aria-label="Notes"
-              placeholder="Add details... (Markdown supported)"
+              aria-label={t("tasks.notes.title")}
+              placeholder={t("tasks.notes.placeholder")}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               className="w-full flex-1 min-h-0 overflow-y-auto text-sm leading-relaxed bg-transparent border-0 outline-none resize-none p-0 text-foreground placeholder:text-muted-foreground/70"

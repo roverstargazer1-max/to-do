@@ -7,6 +7,8 @@ import { DragHandle } from "./DragHandle";
 import { Checkbox } from "@/components/ui/checkbox";
 import { priorityCheckboxClasses, priorityTextClasses } from "./task-utils";
 import { Calendar, Flag, Moon } from "lucide-react";
+import { useTranslation } from "@/lib/i18n/useTranslation";
+import { useClientLanguage } from "@/lib/i18n/useClientLanguage";
 
 interface TaskGhostProps {
   task: Task;
@@ -16,6 +18,8 @@ interface TaskGhostProps {
 }
 
 // Read-only task row rendered exclusively in the DnD DragOverlay.
+// It mounts fresh at every drag start, so translated strings always
+// resolve against the current language.
 export const TaskGhost = React.memo(
   function TaskGhost({
     task,
@@ -23,6 +27,8 @@ export const TaskGhost = React.memo(
     project,
     viewMode = "list",
   }: TaskGhostProps) {
+    const { t } = useTranslation();
+    const language = useClientLanguage();
     return (
       <div
         className={cn(
@@ -99,7 +105,7 @@ export const TaskGhost = React.memo(
               {task.due_date && (
                 <span className="text-[11px] text-muted-foreground/80 flex items-center gap-1 font-medium uppercase tracking-wider">
                   <Calendar className="h-3 w-3" strokeWidth={2.25} />
-                  {formatDueDate(task.due_date)}
+                  {formatDueDate(task.due_date, language)}
                 </span>
               )}
               {task.priority < 4 && (
@@ -115,7 +121,7 @@ export const TaskGhost = React.memo(
               {task.is_evening && (
                 <span className="flex items-center gap-1 text-[11px] font-medium text-foreground/80 uppercase tracking-wider">
                   <Moon className="h-3 w-3 fill-current" />
-                  Evening
+                  {t("tasks.card.evening")}
                 </span>
               )}
             </div>

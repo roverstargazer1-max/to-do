@@ -32,6 +32,7 @@ import { useHaptic } from "@/lib/hooks/useHaptic";
 import { cn } from "@/lib/utils";
 import { SyncIndicator } from "@/components/ui/SyncIndicator";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 
 interface TasksPageHeaderProps {
   currentSort: SortOption;
@@ -54,6 +55,7 @@ function TasksPageHeaderBase({
 }: TasksPageHeaderProps) {
   const { openSheet } = useCompletedTasks();
   const { trigger } = useHaptic();
+  const { t } = useTranslation();
 
   // O(1) zustand writes — useTransition would only add scheduler latency here.
   const handleSortChange = (sort: SortOption) => {
@@ -85,18 +87,22 @@ function TasksPageHeaderBase({
           <TabsTrigger
             value="list"
             className="rounded-md gap-2 px-2.5 text-[13px] font-medium tracking-tight data-[state=active]:bg-brand data-[state=active]:text-brand-foreground data-[state=active]:shadow-none transition-all h-8 border border-transparent data-[state=active]:border-brand/20"
-            title="List View (Shift+1)"
+            title={t("tasks.header.listViewTitle")}
           >
             <List className="h-4 w-4" strokeWidth={2.25} />
-            <span className="hidden lg:inline">List</span>
+            <span className="hidden lg:inline">
+              {t("tasks.header.listView")}
+            </span>
           </TabsTrigger>
           <TabsTrigger
             value="board"
             className="rounded-md gap-2 px-2.5 text-[13px] font-medium tracking-tight data-[state=active]:bg-brand data-[state=active]:text-brand-foreground data-[state=active]:shadow-none transition-all h-8 border border-transparent data-[state=active]:border-brand/20"
-            title="Board View (Shift+2)"
+            title={t("tasks.header.boardViewTitle")}
           >
             <KanbanSquare className="h-4 w-4" strokeWidth={2.25} />
-            <span className="hidden lg:inline">Board</span>
+            <span className="hidden lg:inline">
+              {t("tasks.header.boardView")}
+            </span>
           </TabsTrigger>
         </TabsList>
       </Tabs>
@@ -114,7 +120,7 @@ function TasksPageHeaderBase({
             <Button
               variant="ghost"
               size="sm"
-              aria-label="Filter and sort options"
+              aria-label={t("tasks.header.filterOptions")}
               className={cn(
                 "p-0 hover:bg-foreground/5 shrink-0 transition-colors h-8 w-8 rounded-md",
                 !isFilterActive && "hover:bg-transparent",
@@ -131,34 +137,34 @@ function TasksPageHeaderBase({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="w-48">
-            <DropdownMenuLabel>Sort By</DropdownMenuLabel>
+            <DropdownMenuLabel>{t("tasks.header.sortBy")}</DropdownMenuLabel>
             <DropdownMenuRadioGroup
               value={currentSort}
               onValueChange={(v) => handleSortChange(v as SortOption)}
             >
-              {Object.entries(SORT_LABELS).map(([value, label]) => (
+              {Object.entries(SORT_LABELS).map(([value, labelKey]) => (
                 <DropdownMenuRadioItem
                   key={value}
                   value={value}
                   onClick={() => trigger("toggle")}
                 >
-                  {label}
+                  {t(labelKey)}
                 </DropdownMenuRadioItem>
               ))}
             </DropdownMenuRadioGroup>
             <DropdownMenuSeparator />
-            <DropdownMenuLabel>Group By</DropdownMenuLabel>
+            <DropdownMenuLabel>{t("tasks.header.groupBy")}</DropdownMenuLabel>
             <DropdownMenuRadioGroup
               value={currentGroup}
               onValueChange={(v) => handleGroupChange(v as GroupOption)}
             >
-              {Object.entries(GROUP_LABELS).map(([value, label]) => (
+              {Object.entries(GROUP_LABELS).map(([value, labelKey]) => (
                 <DropdownMenuRadioItem
                   key={value}
                   value={value}
                   onClick={() => trigger("toggle")}
                 >
-                  {label}
+                  {t(labelKey)}
                 </DropdownMenuRadioItem>
               ))}
             </DropdownMenuRadioGroup>
@@ -194,7 +200,7 @@ function TasksPageHeaderBase({
                     trigger("toggle");
                     handleSortChange("date");
                   }}
-                  aria-label="Clear sort"
+                  aria-label={t("tasks.header.clearSort")}
                   className="hover:bg-foreground/10 rounded-sm p-0.5 transition-colors shrink-0 ml-0.5"
                 >
                   <Plus
@@ -223,7 +229,7 @@ function TasksPageHeaderBase({
                     trigger("toggle");
                     handleGroupChange("none");
                   }}
-                  aria-label="Clear grouping"
+                  aria-label={t("tasks.header.clearGrouping")}
                   className="hover:bg-foreground/10 rounded-sm p-0.5 transition-colors shrink-0 ml-0.5"
                 >
                   <Plus
@@ -247,7 +253,7 @@ function TasksPageHeaderBase({
           className="h-4 w-4 text-foreground/70"
           strokeWidth={2.25}
         />
-        <span className="hidden lg:inline">Completed</span>
+        <span className="hidden lg:inline">{t("tasks.header.completed")}</span>
       </Button>
 
       <Button
@@ -256,7 +262,7 @@ function TasksPageHeaderBase({
         className="hidden md:flex h-9 items-center gap-2 rounded-lg bg-brand text-brand-foreground hover:bg-brand/90 border-none shadow-sm shadow-brand/10 transition-seijaku shrink-0 px-2.5 lg:px-4 text-[13px] font-semibold"
       >
         <Plus className="h-4 w-4" strokeWidth={2.5} />
-        <span className="hidden lg:inline">New Task</span>
+        <span className="hidden lg:inline">{t("tasks.header.newTask")}</span>
       </Button>
     </div>
   );

@@ -24,6 +24,7 @@ import { useRouter } from "next/navigation";
 import { BoardTaskCard } from "./BoardTaskCard";
 import { ListTaskCard } from "./ListTaskCard";
 import { SwipeableTaskContent } from "./SwipeableTaskContent";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 
 interface TaskItemProps {
   task: Task;
@@ -68,6 +69,7 @@ function TaskItemBase({
   const deleteMutation = useDeleteTask();
   const toggleMutation = useToggleTask();
   const router = useRouter();
+  const { t } = useTranslation();
 
   useEffect(() => {
     if (isKeyboardSelected && cardRef.current) {
@@ -240,8 +242,8 @@ function TaskItemBase({
         isOpen={showDeleteDialog}
         onClose={handleCancelDelete}
         onConfirm={handleConfirmDelete}
-        title="Delete Task"
-        description={`Are you sure you want to delete "${task.content}"? This action cannot be undone.`}
+        title={t("tasks.delete.title")}
+        description={t("tasks.delete.description", { content: task.content })}
       />
     </div>
   );

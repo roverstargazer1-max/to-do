@@ -1,11 +1,8 @@
-import {
-  parseISO,
-  isToday,
-  isTomorrow,
-  format,
-  isBefore,
-  startOfDay,
-} from "date-fns";
+import { parseISO, isToday, isTomorrow, isBefore, startOfDay } from "date-fns";
+import { getDictionary } from "@/lib/i18n/dictionaries";
+import { formatMonthDay } from "@/lib/i18n/date-format";
+import { translate } from "@/lib/i18n/translate";
+import type { Locale } from "@/lib/i18n/types";
 
 export const priorityTextClasses: Record<1 | 2 | 3 | 4, string> = {
   1: "text-foreground font-bold",
@@ -23,11 +20,19 @@ export const priorityCheckboxClasses: Record<1 | 2 | 3 | 4, string> = {
   4: "border-foreground/80 data-[state=checked]:bg-foreground data-[state=checked]:border-foreground",
 };
 
-export function formatDueDate(dateString: string): string {
+/**
+ * Due-date chip text: "Today"/"Tomorrow" from the dictionary, otherwise
+ * `MMM d` via the Intl seam. Pure in `language` — callers pass the gated
+ * uiStore language so the chip re-renders on a locale switch (D-10).
+ */
+export function formatDueDate(dateString: string, language?: Locale): string {
   const date = parseISO(dateString);
-  if (isToday(date)) return "Today";
-  if (isTomorrow(date)) return "Tomorrow";
-  return format(date, "MMM d");
+  const dictionary = getDictionary(language ?? "en");
+  if (isToday(date))
+    return translate("tasks.dateGroup.today", undefined, dictionary);
+  if (isTomorrow(date))
+    return translate("tasks.dateGroup.tomorrow", undefined, dictionary);
+  return formatMonthDay(date, language);
 }
 
 export function isOverdue(dateString: string | null | undefined): boolean {

@@ -7,6 +7,7 @@ import { AlignLeft } from "lucide-react";
 import { useHaptic } from "@/lib/hooks/useHaptic";
 import { IconCell } from "@/components/ui/IconCell";
 import { TaskNotesEditor } from "./TaskNotesEditor";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 
 interface TaskNotesRowProps {
   description: string;
@@ -53,6 +54,7 @@ export function TaskNotesRow({
   onOpenChange: setNotesEditorOpen,
 }: TaskNotesRowProps) {
   const { trigger } = useHaptic();
+  const { t } = useTranslation();
 
   const hasDescription = !!description.trim();
 
@@ -94,7 +96,7 @@ export function TaskNotesRow({
             </div>
           ) : (
             <span className="text-sm flex-1 min-w-0 text-muted-foreground">
-              Add details... (Markdown supported)
+              {t("tasks.notes.placeholder")}
             </span>
           )}
         </div>

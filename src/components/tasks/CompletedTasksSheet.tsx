@@ -8,6 +8,7 @@ import { Virtuoso } from "react-virtuoso";
 
 import type { Task } from "@/lib/types/task";
 import { useTimeFormat } from "@/lib/hooks/useTimeFormat";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 import {
   useUpdateTask,
   useClearCompletedTasks,
@@ -43,6 +44,7 @@ interface CompletedTasksSheetProps {
 const CompletedTaskItem = React.memo(({ task }: { task: Task }) => {
   const updateMutation = useUpdateTask();
   const { trigger } = useHaptic();
+  const { t } = useTranslation();
 
   const handleUncomplete = () => {
     trigger("toggle");
@@ -63,7 +65,10 @@ const CompletedTaskItem = React.memo(({ task }: { task: Task }) => {
 
   return (
     <div className="flex items-start gap-3 py-2 md:py-2 px-4 border-b border-border/40 hover:bg-secondary/30 transition-colors group min-h-[44px]">
-      <button onClick={handleUncomplete} aria-label="Mark task incomplete">
+      <button
+        onClick={handleUncomplete}
+        aria-label={t("tasks.logbook.markIncomplete")}
+      >
         <CheckCircle2
           className="h-5 w-5 text-foreground/50 hover:text-foreground transition-colors"
           strokeWidth={2.5}
@@ -132,6 +137,7 @@ export function CompletedTasksSheet({
   const [showClearDialog, setShowClearDialog] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const { trigger } = useHaptic();
+  const { t } = useTranslation();
 
   useBackNavigation(open && !isDesktop, () => onOpenChange(false));
 
@@ -161,13 +167,17 @@ export function CompletedTasksSheet({
     const items: FlattenedItem[] = [];
 
     if (today.length > 0) {
-      items.push({ type: "header", title: "Today", id: "header-today" });
+      items.push({
+        type: "header",
+        title: t("tasks.logbook.today"),
+        id: "header-today",
+      });
       today.forEach((task) => items.push({ type: "task", task, id: task.id }));
     }
     if (yesterday.length > 0) {
       items.push({
         type: "header",
-        title: "Yesterday",
+        title: t("tasks.logbook.yesterday"),
         id: "header-yesterday",
       });
       yesterday.forEach((task) =>
@@ -175,18 +185,26 @@ export function CompletedTasksSheet({
       );
     }
     if (thisWeek.length > 0) {
-      items.push({ type: "header", title: "This Week", id: "header-week" });
+      items.push({
+        type: "header",
+        title: t("tasks.logbook.thisWeek"),
+        id: "header-week",
+      });
       thisWeek.forEach((task) =>
         items.push({ type: "task", task, id: task.id }),
       );
     }
     if (older.length > 0) {
-      items.push({ type: "header", title: "Older", id: "header-older" });
+      items.push({
+        type: "header",
+        title: t("tasks.logbook.older"),
+        id: "header-older",
+      });
       older.forEach((task) => items.push({ type: "task", task, id: task.id }));
     }
 
     return items;
-  }, [filteredCompletedTasks]);
+  }, [filteredCompletedTasks, t]);
 
   const isSearching = searchQuery.length > 0;
   const hasResults = flattenedItems.length > 0;
@@ -217,18 +235,21 @@ export function CompletedTasksSheet({
       ) : completedTasks.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-12 text-center px-4">
           <CheckCircle2 className="h-16 w-16 text-muted-foreground/50 mb-4" />
-          <h2 className="text-xl font-semibold mb-2">No Completed Tasks</h2>
+          <h2 className="text-xl font-semibold mb-2">
+            {t("tasks.logbook.emptyTitle")}
+          </h2>
           <p className="text-muted-foreground max-w-md">
-            Tasks you complete will appear here. Start checking off items from
-            your task list!
+            {t("tasks.logbook.emptyDescription")}
           </p>
         </div>
       ) : !hasResults && isSearching ? (
         <div className="flex flex-col items-center justify-center py-12 text-center px-4">
           <Search className="h-12 w-12 text-muted-foreground/30 mb-4" />
-          <h2 className="text-lg font-medium mb-1">No tasks found</h2>
+          <h2 className="text-lg font-medium mb-1">
+            {t("tasks.logbook.noResultsTitle")}
+          </h2>
           <p className="text-sm text-muted-foreground">
-            Try searching for something else
+            {t("tasks.logbook.noResultsDescription")}
           </p>
         </div>
       ) : (
@@ -255,10 +276,10 @@ export function CompletedTasksSheet({
                 className="h-4 w-4 text-foreground/70"
                 strokeWidth={2.5}
               />
-              <span className="type-h2">Logbook</span>
+              <span className="type-h2">{t("tasks.logbook.title")}</span>
             </DialogTitle>
             <DialogDescription className="sr-only">
-              View and manage your completed task history.
+              {t("tasks.logbook.description")}
             </DialogDescription>
             <div className="flex items-center gap-3">
               {completedTasks.length > 0 && (
@@ -272,7 +293,9 @@ export function CompletedTasksSheet({
                   className="h-8 gap-2 rounded-sm shadow-none font-medium px-3"
                 >
                   <Trash2 className="h-3.5 w-3.5" strokeWidth={2.25} />
-                  <span className="text-xs">Clear History</span>
+                  <span className="text-xs">
+                    {t("tasks.logbook.clearHistory")}
+                  </span>
                 </Button>
               )}
               <DialogClose asChild>
@@ -280,8 +303,8 @@ export function CompletedTasksSheet({
                   variant="ghost"
                   size="icon"
                   className="h-10 w-10 text-muted-foreground hover:text-foreground transition-seijaku-fast rounded-sm"
-                  title="Close"
-                  aria-label="Close"
+                  title={t("tasks.logbook.close")}
+                  aria-label={t("tasks.logbook.close")}
                 >
                   <X className="h-4 w-4" strokeWidth={2.25} />
                 </Button>
@@ -295,8 +318,8 @@ export function CompletedTasksSheet({
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground group-focus-within:text-brand transition-colors" />
                 <Input
                   className="pl-9 bg-secondary/20 border-border/40 focus:border-border/60 focus:bg-secondary/30 h-9 text-sm transition-all placeholder:text-muted-foreground"
-                  placeholder="Search completed tasks..."
-                  aria-label="Search completed tasks"
+                  placeholder={t("tasks.logbook.searchPlaceholder")}
+                  aria-label={t("tasks.logbook.searchLabel")}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
@@ -310,8 +333,8 @@ export function CompletedTasksSheet({
           isOpen={showClearDialog}
           onClose={() => setShowClearDialog(false)}
           onConfirm={handleClearHistory}
-          title="Clear History"
-          description="Are you sure you want to delete all completed tasks? This action cannot be undone and will remove these tasks from your statistics."
+          title={t("tasks.logbook.clearConfirmTitle")}
+          description={t("tasks.logbook.clearConfirmDescription")}
         />
       </Dialog>
     );
@@ -327,17 +350,17 @@ export function CompletedTasksSheet({
                 className="h-5 w-5 text-foreground/70"
                 strokeWidth={2.5}
               />
-              <span className="type-h2">Logbook</span>
+              <span className="type-h2">{t("tasks.logbook.title")}</span>
             </DrawerTitle>
             <DrawerDescription className="sr-only">
-              View and manage your completed task history.
+              {t("tasks.logbook.description")}
             </DrawerDescription>
             <div className="flex items-center gap-3">
               {completedTasks.length > 0 && (
                 <Button
                   variant="destructive"
                   size="icon"
-                  aria-label="Clear history"
+                  aria-label={t("tasks.logbook.clearHistory")}
                   className="h-10 w-10 active:scale-95 transition-seijaku-fast rounded-md shadow-none"
                   onClick={() => {
                     trigger("thud");
@@ -351,7 +374,7 @@ export function CompletedTasksSheet({
                 <Button
                   variant="ghost"
                   size="icon"
-                  aria-label="Close"
+                  aria-label={t("tasks.logbook.close")}
                   className="h-10 w-10 text-muted-foreground active:scale-95 transition-seijaku-fast"
                 >
                   <X className="h-6 w-6" strokeWidth={2} />
@@ -366,8 +389,8 @@ export function CompletedTasksSheet({
                 <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                 <Input
                   className="pl-11 bg-secondary/20 h-12 text-base shadow-none border-border/30 focus:border-border/60 focus:bg-secondary/30 rounded-xl transition-all"
-                  placeholder="Search completed tasks..."
-                  aria-label="Search completed tasks"
+                  placeholder={t("tasks.logbook.searchPlaceholder")}
+                  aria-label={t("tasks.logbook.searchLabel")}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
@@ -382,8 +405,8 @@ export function CompletedTasksSheet({
         isOpen={showClearDialog}
         onClose={() => setShowClearDialog(false)}
         onConfirm={handleClearHistory}
-        title="Clear History"
-        description="Are you sure you want to delete all completed tasks? This action cannot be undone and will remove these tasks from your statistics."
+        title={t("tasks.logbook.clearConfirmTitle")}
+        description={t("tasks.logbook.clearConfirmDescription")}
       />
     </>
   );

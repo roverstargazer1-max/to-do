@@ -53,6 +53,8 @@ import {
 } from "@/lib/hooks/useTaskMutations";
 import { useUiStore } from "@/lib/store/uiStore";
 import { notify } from "@/lib/notify";
+import { useTranslation } from "@/lib/i18n/useTranslation";
+import { tr } from "@/lib/i18n/tr";
 import { useHaptic } from "@/lib/hooks/useHaptic";
 import { useIsAnyModalOpen } from "@/lib/hooks/useIsAnyModalOpen";
 import { useHotkeys } from "react-hotkeys-hook";
@@ -149,6 +151,7 @@ function TaskListBase({
   const { openAddTask } = useTaskActions();
   const { trigger: triggerHaptic } = useHaptic();
   const setActiveTaskId = useTimerStore((state) => state.setActiveTaskId);
+  const { t } = useTranslation();
 
   const mouseSensor = useSensor(MouseSensor, {
     // If we're on mobile (!isDesktop), we enforce a delay even for mouse pointers
@@ -918,7 +921,7 @@ function TaskListBase({
           if (task) {
             useUiStore.getState().setYankedTaskId(task.id);
             triggerHaptic("toggle");
-            notify("Task yanked");
+            notify(tr("tasks.toast.yanked"));
           }
         }
       });
@@ -945,7 +948,7 @@ function TaskListBase({
           .find((t) => t.id === yankedTaskId);
       if (!yankedTask) {
         useUiStore.getState().setYankedTaskId(null);
-        notify.error("Yanked task no longer exists");
+        notify.error(tr("tasks.toast.yankedMissing"));
         return;
       }
       e.preventDefault();
@@ -1035,10 +1038,10 @@ function TaskListBase({
       <div className="px-4 md:px-6">
         <EmptyState
           icon={CheckSquare}
-          title="No tasks yet"
-          description="Focus on what matters. Create your first task to start your journey."
+          title={t("tasks.empty.title")}
+          description={t("tasks.empty.description")}
           action={{
-            label: "Create Task",
+            label: t("tasks.empty.action"),
             onClick: () => {
               triggerHaptic("toggle");
               openAddTask();
@@ -1081,7 +1084,11 @@ function TaskListBase({
           ref={scrollContainerRef}
           data-task-list-scroll-container="true"
           role={viewMode === "board" ? "grid" : "listbox"}
-          aria-label={viewMode === "board" ? "Task board" : "Task list"}
+          aria-label={
+            viewMode === "board"
+              ? t("tasks.view.boardAria")
+              : t("tasks.view.listAria")
+          }
           tabIndex={0}
           aria-activedescendant={
             keyboardSelectedId ? taskDomId(keyboardSelectedId) : undefined

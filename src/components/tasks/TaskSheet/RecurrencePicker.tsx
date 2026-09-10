@@ -10,8 +10,9 @@ import {
 import { Repeat } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { RecurrenceRule } from "@/lib/utils/recurrence";
-import { formatRecurrenceRule } from "@/lib/utils/recurrence";
 import { useHaptic } from "@/lib/hooks/useHaptic";
+import { useTranslation } from "@/lib/i18n/useTranslation";
+import type { TranslationKey } from "@/lib/i18n/dictionaries/en";
 
 interface RecurrencePickerProps {
   value: RecurrenceRule | null;
@@ -20,13 +21,45 @@ interface RecurrencePickerProps {
   isMobile?: boolean;
 }
 
-const PRESET_RULES: { label: string; value: RecurrenceRule | null }[] = [
-  { label: "Does not repeat", value: null },
-  { label: "Daily", value: { freq: "DAILY", interval: 1 } },
-  { label: "Weekly", value: { freq: "WEEKLY", interval: 1 } },
-  { label: "Monthly", value: { freq: "MONTHLY", interval: 1 } },
-  { label: "Yearly", value: { freq: "YEARLY", interval: 1 } },
+const PRESET_RULES: {
+  labelKey: TranslationKey;
+  value: RecurrenceRule | null;
+}[] = [
+  { labelKey: "tasks.recurrence.doesNotRepeat", value: null },
+  { labelKey: "tasks.recurrence.daily", value: { freq: "DAILY", interval: 1 } },
+  {
+    labelKey: "tasks.recurrence.weekly",
+    value: { freq: "WEEKLY", interval: 1 },
+  },
+  {
+    labelKey: "tasks.recurrence.monthly",
+    value: { freq: "MONTHLY", interval: 1 },
+  },
+  {
+    labelKey: "tasks.recurrence.yearly",
+    value: { freq: "YEARLY", interval: 1 },
+  },
 ];
+
+const FREQ_PRESET_KEY: Record<
+  NonNullable<RecurrenceRule["freq"]>,
+  TranslationKey
+> = {
+  DAILY: "tasks.recurrence.daily",
+  WEEKLY: "tasks.recurrence.weekly",
+  MONTHLY: "tasks.recurrence.monthly",
+  YEARLY: "tasks.recurrence.yearly",
+};
+
+const FREQ_UNIT_KEY: Record<
+  NonNullable<RecurrenceRule["freq"]>,
+  TranslationKey
+> = {
+  DAILY: "tasks.recurrence.unitDay",
+  WEEKLY: "tasks.recurrence.unitWeek",
+  MONTHLY: "tasks.recurrence.unitMonth",
+  YEARLY: "tasks.recurrence.unitYear",
+};
 
 // Helper to get the letter code for the badge
 function getRecurrenceBadge(value: RecurrenceRule | null) {
@@ -58,6 +91,17 @@ export default function RecurrencePicker({
   const hasRecurrence = !!value;
   const badgeLetter = hasRecurrence ? getRecurrenceBadge(value) : null;
   const { trigger } = useHaptic();
+  const { t } = useTranslation();
+
+  // Locale-aware stand-in for the former `formatRecurrenceRule` util.
+  const formatRule = (rule: RecurrenceRule | null): string => {
+    if (!rule) return t("tasks.recurrence.doesNotRepeat");
+    if (rule.interval === 1) return t(FREQ_PRESET_KEY[rule.freq]);
+    return t("tasks.recurrence.everyInterval", {
+      interval: rule.interval,
+      unit: t(FREQ_UNIT_KEY[rule.freq]),
+    });
+  };
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -75,7 +119,7 @@ export default function RecurrencePicker({
             onClick={() => {
               trigger("toggle");
             }}
-            title={!isMobile ? formatRecurrenceRule(value) : undefined}
+            title={!isMobile ? formatRule(value) : undefined}
           >
             <Repeat className="h-4 w-4 transition-all" strokeWidth={2} />
             {hasRecurrence && badgeLetter && (
@@ -90,7 +134,7 @@ export default function RecurrencePicker({
             className="w-full justify-start text-left font-normal h-9 text-[13px]"
           >
             <Repeat className="mr-2 h-4 w-4" />
-            {formatRecurrenceRule(value)}
+            {formatRule(value)}
           </Button>
         )}
       </PopoverTrigger>
@@ -98,7 +142,7 @@ export default function RecurrencePicker({
         <div className="space-y-1">
           {PRESET_RULES.map((preset) => (
             <Button
-              key={preset.label}
+              key={preset.labelKey}
               variant={
                 value?.freq === preset.value?.freq &&
                 value?.interval === preset.value?.interval
@@ -117,7 +161,7 @@ export default function RecurrencePicker({
                 if (!preset.value) setOpen(false);
               }}
             >
-              {preset.label}
+              {t(preset.labelKey)}
             </Button>
           ))}
 
@@ -125,7 +169,7 @@ export default function RecurrencePicker({
             <div className="pt-2 mt-1 border-t border-border">
               <div className="flex items-center justify-between px-1 mb-1.5">
                 <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-                  Type
+                  {t("tasks.recurrence.type")}
                 </span>
               </div>
               <div className="grid grid-cols-2 gap-1 bg-foreground/[0.04] dark:bg-foreground/[0.06] p-0.5 rounded-md border border-border/40">
@@ -143,7 +187,7 @@ export default function RecurrencePicker({
                     onChange({ ...value, mode: "strict" });
                   }}
                 >
-                  Strict
+                  {t("tasks.recurrence.strict")}
                 </Button>
                 <Button
                   variant={
@@ -163,13 +207,13 @@ export default function RecurrencePicker({
                     onChange({ ...value, mode: "flexible" });
                   }}
                 >
-                  Flexible
+                  {t("tasks.recurrence.flexible")}
                 </Button>
               </div>
               <p className="text-[10px] text-muted-foreground/60 mt-1.5 px-1 leading-tight">
                 {value.mode === "strict"
-                  ? "Repeats from original due date."
-                  : "Repeats from completion date."}
+                  ? t("tasks.recurrence.strictHint")
+                  : t("tasks.recurrence.flexibleHint")}
               </p>
             </div>
           )}

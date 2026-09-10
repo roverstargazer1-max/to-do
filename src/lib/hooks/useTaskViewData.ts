@@ -11,6 +11,7 @@ import {
 } from "date-fns";
 import type { Task, Project } from "@/lib/types/task";
 import type { SortOption, GroupOption } from "@/lib/types/sorting";
+import type { TranslationKey } from "@/lib/i18n/dictionaries/en";
 
 interface useTaskViewDataProps {
   tasks: Task[] | undefined;
@@ -20,7 +21,13 @@ interface useTaskViewDataProps {
 }
 
 export interface TaskGroup {
+  /**
+   * Stable identifier for the group — doubles as the dnd droppable id, so
+   * it stays locale-independent. Renderers display `titleKey` when set.
+   */
   title: string;
+  /** Dictionary key for fixed group names (undefined for project names). */
+  titleKey?: TranslationKey;
   tasks: Task[];
 }
 
@@ -40,8 +47,8 @@ export function getBoardColumns({
 }: ProcessedTasks): TaskGroup[] {
   if (groups && groups.length > 0) return groups;
   return [
-    { title: "Tasks", tasks: active },
-    { title: "This Evening", tasks: evening },
+    { title: "Tasks", titleKey: "tasks.group.tasks", tasks: active },
+    { title: "This Evening", titleKey: "tasks.group.evening", tasks: evening },
   ];
 }
 
@@ -64,6 +71,7 @@ export function useTaskViewData({
     // Grouping state
     const groupMap: Record<string, Task[]> = {};
     const groupOrder: string[] = [];
+    const groupTitleKeys: Record<string, TranslationKey> = {};
 
     // 0. Pre-map projects for O(1) lookup in the loop
     const projectsMap = new Map<string, Project>();
@@ -75,20 +83,34 @@ export function useTaskViewData({
 
     // Initialize groups if needed
     if (groupBy === "priority") {
-      const labels: Record<number, string> = {
-        1: "Critical",
-        2: "High",
-        3: "Medium",
-        4: "Low",
+      const groups: Record<
+        number,
+        { title: string; titleKey: TranslationKey }
+      > = {
+        1: { title: "Critical", titleKey: "tasks.priorityGroup.critical" },
+        2: { title: "High", titleKey: "tasks.priorityGroup.high" },
+        3: { title: "Medium", titleKey: "tasks.priorityGroup.medium" },
+        4: { title: "Low", titleKey: "tasks.priorityGroup.low" },
       };
       [1, 2, 3, 4].forEach((p) => {
-        const key = labels[p as 1 | 2 | 3 | 4];
-        groupMap[key] = [];
-        groupOrder.push(key);
+        const key = groups[p as 1 | 2 | 3 | 4];
+        groupMap[key.title] = [];
+        groupOrder.push(key.title);
+        groupTitleKeys[key.title] = key.titleKey;
       });
     } else if (groupBy === "date") {
-      groupOrder.push("Overdue", "Today", "Tomorrow", "Upcoming", "No Date");
-      groupOrder.forEach((k) => (groupMap[k] = []));
+      const dateGroups: { title: string; titleKey: TranslationKey }[] = [
+        { title: "Overdue", titleKey: "tasks.dateGroup.overdue" },
+        { title: "Today", titleKey: "tasks.dateGroup.today" },
+        { title: "Tomorrow", titleKey: "tasks.dateGroup.tomorrow" },
+        { title: "Upcoming", titleKey: "tasks.dateGroup.upcoming" },
+        { title: "No Date", titleKey: "tasks.dateGroup.noDate" },
+      ];
+      dateGroups.forEach(({ title, titleKey }) => {
+        groupMap[title] = [];
+        groupOrder.push(title);
+        groupTitleKeys[title] = titleKey;
+      });
     }
 
     const today = startOfDay(new Date());
@@ -159,6 +181,9 @@ export function useTaskViewData({
         if (!groupMap[title]) {
           groupMap[title] = [];
           groupOrder.push(title);
+          if (!project && projectId === "inbox") {
+            groupTitleKeys[title] = "common.sidebar.inbox";
+          }
         }
         groupMap[title].push(task);
       }
@@ -219,7 +244,11 @@ export function useTaskViewData({
         ? null
         : groupOrder
             .filter((key) => groupMap[key].length > 0)
-            .map((key) => ({ title: key, tasks: groupMap[key] }));
+            .map((key) => ({
+              title: key,
+              titleKey: groupTitleKeys[key],
+              tasks: groupMap[key],
+            }));
 
     return { active, completed, evening, groups: finalGroups };
   }, [tasks, sortBy, groupBy, projects]);

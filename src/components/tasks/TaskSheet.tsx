@@ -29,6 +29,7 @@ import type { RecurrenceRule } from "@/lib/utils/recurrence";
 import { TaskView } from "./TaskView";
 import { TaskInsightsPanel } from "./TaskInsightsPanel";
 import { useHaptic } from "@/lib/hooks/useHaptic";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 import { SheetTabToggle, type SheetTab } from "@/components/ui/SheetTabToggle";
 import { cn } from "@/lib/utils";
 
@@ -124,6 +125,7 @@ export default function TaskSheet({
   const { data: projects } = useProjects();
   const isMobile = useMediaQuery("(max-width: 768px)");
   const { trigger: triggerHaptic } = useHaptic();
+  const { t } = useTranslation();
 
   const [prevOpen, setPrevOpen] = useState(open);
   const [prevTask, setPrevTask] = useState(initialTask);
@@ -299,12 +301,14 @@ export default function TaskSheet({
         <div className="flex flex-col max-h-[90dvh] min-w-0">
           <ResponsiveDialogHeader className="sr-only">
             <ResponsiveDialogTitle>
-              {initialTask ? "Edit Task" : "New Task"}
+              {initialTask
+                ? t("tasks.sheet.editTitle")
+                : t("tasks.sheet.newTitle")}
             </ResponsiveDialogTitle>
             <ResponsiveDialogDescription>
               {initialTask
-                ? "Update existing task details"
-                : "Create a new task with content and metadata"}
+                ? t("tasks.sheet.editDescription")
+                : t("tasks.sheet.newDescription")}
             </ResponsiveDialogDescription>
           </ResponsiveDialogHeader>
 
@@ -441,8 +445,10 @@ export default function TaskSheet({
         isOpen={showDeleteDialog}
         onClose={() => setShowDeleteDialog(false)}
         onConfirm={handleConfirmDelete}
-        title="Delete Task"
-        description={`Are you sure you want to delete "${effectiveTask?.content}"? This action cannot be undone.`}
+        title={t("tasks.delete.title")}
+        description={t("tasks.delete.description", {
+          content: effectiveTask?.content ?? "",
+        })}
       />
     </ResponsiveDialog>
   );

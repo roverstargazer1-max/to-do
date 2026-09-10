@@ -43,6 +43,7 @@ import { DragHandle } from "@/components/tasks/DragHandle";
 import { computeReorderPairs } from "@/lib/utils/task-dnd";
 import { useUiStore } from "@/lib/store/uiStore";
 import type { Task } from "@/lib/types/task";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 
 const dndAnnouncements = {
   ...defaultAnnouncements,
@@ -104,6 +105,7 @@ function SubtaskItemContent({
   onEditKeyDown,
 }: SubtaskRowProps) {
   const { trigger } = useHaptic();
+  const { t } = useTranslation();
 
   return (
     <>
@@ -111,7 +113,7 @@ function SubtaskItemContent({
         checked={isCompleted}
         onCheckedChange={(checked) => onToggle(id, checked as boolean)}
         disabled={isDraftMode}
-        aria-label={`Mark "${content}" complete`}
+        aria-label={t("tasks.subtask.markComplete", { content })}
         className={cn(
           "relative mt-0.5 h-3.5 w-3.5 !rounded-sm",
           !isDesktop && touchTargetClasses.default,
@@ -131,7 +133,7 @@ function SubtaskItemContent({
           }
           onBlur={() => onSaveEdit(id)}
           onKeyDown={(e) => onEditKeyDown(e, id, index)}
-          aria-label="Edit step"
+          aria-label={t("tasks.subtask.editStep")}
           className="flex-1 h-7 py-0 px-0 text-[14px] bg-transparent border-none shadow-none focus-visible:ring-0"
         />
       ) : (
@@ -149,7 +151,7 @@ function SubtaskItemContent({
       <Button
         variant="ghost"
         size="icon"
-        aria-label="Delete step"
+        aria-label={t("tasks.subtask.deleteStep")}
         className={cn(
           "relative h-7 w-7 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity text-destructive md:text-muted-foreground md:hover:text-destructive hover:bg-destructive-surface-hover rounded-lg",
           !isDesktop && touchTargetClasses.delete,
@@ -219,6 +221,7 @@ export default function SubtaskList({
 }: SubtaskListProps) {
   const isDesktop = useUiStore((s) => s.isDesktop);
   const { trigger: triggerHaptic } = useHaptic();
+  const { t } = useTranslation();
 
   const [internalNewSubtaskContent, setInternalNewSubtaskContent] =
     useState("");
@@ -552,7 +555,9 @@ export default function SubtaskList({
                     <Checkbox
                       checked={false}
                       disabled
-                      aria-label={`Step "${activeContent}"`}
+                      aria-label={t("tasks.subtask.stepLabel", {
+                        content: activeContent,
+                      })}
                       className={cn(
                         "mt-0.5 h-3.5 w-3.5 !rounded-sm",
                         priorityCheckboxClasses[4],
@@ -574,7 +579,7 @@ export default function SubtaskList({
       <div className="flex items-center gap-3 px-3 pt-1 group">
         <button
           type="button"
-          aria-label="Add step"
+          aria-label={t("tasks.subtask.addStep")}
           disabled={!newSubtaskContent.trim()}
           className={cn(
             "relative flex items-center justify-center w-3.5 h-3.5 shrink-0 text-muted-foreground group-focus-within:text-brand hover:text-brand disabled:hover:text-muted-foreground transition-colors",
@@ -589,8 +594,8 @@ export default function SubtaskList({
           value={newSubtaskContent}
           onChange={(e) => setNewSubtaskContent(e.target.value)}
           onKeyDown={handleNewStepKeyDown}
-          placeholder="Add a step..."
-          aria-label="Add a step"
+          placeholder={t("tasks.subtask.addStepPlaceholder")}
+          aria-label={t("tasks.subtask.addStepLabel")}
           className="flex-1 h-8 text-[14px] bg-transparent border-none shadow-none focus-visible:ring-0 placeholder:text-muted-foreground transition-colors p-0"
         />
       </div>

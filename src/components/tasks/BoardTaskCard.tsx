@@ -13,6 +13,8 @@ import {
   taskDomId,
 } from "./task-utils";
 import { KanbanBoardCardButton } from "@/components/kanban";
+import { useTranslation } from "@/lib/i18n/useTranslation";
+import { useClientLanguage } from "@/lib/i18n/useClientLanguage";
 
 interface BoardTaskCardProps {
   task: Task;
@@ -35,6 +37,8 @@ export function BoardTaskCard({
   shouldAnimate,
   isKeyboardSelected,
 }: BoardTaskCardProps) {
+  const { t } = useTranslation();
+  const language = useClientLanguage();
   return (
     <div
       id={taskDomId(task.id)}
@@ -83,7 +87,7 @@ export function BoardTaskCard({
               <KanbanBoardCardButton
                 onClick={handlePlayFocus}
                 className="h-7 w-7 text-muted-foreground/40 hover:text-brand-foreground hover:bg-brand hover:shadow-brand/10 border-none transition-seijaku"
-                tooltip="Start focus timer"
+                tooltip={t("tasks.card.startFocus")}
               >
                 <Play className="h-3.5 w-3.5 fill-current" strokeWidth={2.25} />
               </KanbanBoardCardButton>
@@ -95,7 +99,7 @@ export function BoardTaskCard({
           {task.due_date && (
             <span className="flex items-center gap-1 text-[11px] font-medium text-muted-foreground/70 uppercase tracking-wider">
               <Calendar className="h-3 w-3" strokeWidth={2.5} />
-              {formatDueDate(task.due_date)}
+              {formatDueDate(task.due_date, language)}
             </span>
           )}
           {task.priority < 4 && (
@@ -111,7 +115,7 @@ export function BoardTaskCard({
           {task.is_evening && (
             <span className="flex items-center gap-1 text-[11px] font-medium text-foreground/80 uppercase tracking-wider">
               <Moon className="h-3 w-3 fill-current" />
-              Evening
+              {t("tasks.card.evening")}
             </span>
           )}
           <StepProgressBadge subtasks={task.subtasks} />

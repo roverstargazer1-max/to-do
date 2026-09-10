@@ -19,6 +19,8 @@ import {
 } from "@dnd-kit/core";
 import { DragHandle } from "./DragHandle";
 import { KanbanBoardCardButton } from "@/components/kanban";
+import { useTranslation } from "@/lib/i18n/useTranslation";
+import { useClientLanguage } from "@/lib/i18n/useClientLanguage";
 
 interface ListTaskCardProps {
   task: Task;
@@ -55,6 +57,8 @@ export function ListTaskCard({
   shouldAnimate = false,
   isKeyboardSelected = false,
 }: ListTaskCardProps) {
+  const { t } = useTranslation();
+  const language = useClientLanguage();
   return (
     <div
       id={taskDomId(task.id)}
@@ -120,7 +124,11 @@ export function ListTaskCard({
                 variant="ghost"
                 size="icon"
                 onClick={toggleExpand}
-                aria-label={isExpanded ? "Collapse task" : "Expand task"}
+                aria-label={
+                  isExpanded
+                    ? t("tasks.card.collapseTask")
+                    : t("tasks.card.expandTask")
+                }
                 className="h-11 w-11 text-muted-foreground hover:text-foreground transition-colors shrink-0 flex items-center justify-center -mr-1"
               >
                 <ChevronRight
@@ -135,7 +143,7 @@ export function ListTaskCard({
               <KanbanBoardCardButton
                 onClick={handlePlayFocus}
                 className="h-11 w-11 text-muted-foreground/40 hover:text-brand-foreground hover:bg-brand hover:shadow-brand/10 border-none transition-seijaku flex items-center justify-center p-0 -mr-2"
-                tooltip="Start focus timer"
+                tooltip={t("tasks.card.startFocus")}
               >
                 <Play className="h-4 w-4 fill-current" strokeWidth={2.25} />
               </KanbanBoardCardButton>
@@ -158,7 +166,7 @@ export function ListTaskCard({
                 )}
               >
                 <Calendar className="h-3 w-3" strokeWidth={2.5} />
-                {formatDueDate(task.due_date)}
+                {formatDueDate(task.due_date, language)}
               </span>
             )}
             {task.priority < 4 && (
@@ -174,7 +182,7 @@ export function ListTaskCard({
             {task.is_evening && (
               <span className="type-ui flex items-center gap-1.5 text-[11px] font-medium text-foreground/80 uppercase tracking-wider whitespace-nowrap">
                 <Moon className="h-3 w-3 fill-current" strokeWidth={2.5} />
-                Evening
+                {t("tasks.card.evening")}
               </span>
             )}
             <StepProgressBadge
@@ -187,7 +195,11 @@ export function ListTaskCard({
                 variant="ghost"
                 size="icon"
                 onClick={toggleExpand}
-                aria-label={isExpanded ? "Collapse task" : "Expand task"}
+                aria-label={
+                  isExpanded
+                    ? t("tasks.card.collapseTask")
+                    : t("tasks.card.expandTask")
+                }
                 className={cn(
                   "h-6 w-6 text-muted-foreground hover:text-foreground transition-colors ml-1",
                   isExpanded && "text-brand",
@@ -212,7 +224,7 @@ export function ListTaskCard({
             variant="ghost"
             size="icon"
             onClick={onDeleteRequest}
-            aria-label="Delete task"
+            aria-label={t("tasks.card.deleteTask")}
             className="h-7 w-7 text-muted-foreground hover:text-destructive transition-all opacity-0 group-hover:opacity-100 focus-within:opacity-100"
           >
             <Trash2 className="h-4 w-4" strokeWidth={2.5} />
@@ -221,7 +233,7 @@ export function ListTaskCard({
           <KanbanBoardCardButton
             onClick={handlePlayFocus}
             className="h-7 w-7 text-muted-foreground/40 hover:text-brand-foreground hover:bg-brand hover:shadow-brand/10 border-none transition-seijaku"
-            tooltip="Start focus timer"
+            tooltip={t("tasks.card.startFocus")}
           >
             <Play className="h-3.5 w-3.5 fill-current" strokeWidth={2.25} />
           </KanbanBoardCardButton>

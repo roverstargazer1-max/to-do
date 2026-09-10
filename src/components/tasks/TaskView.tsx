@@ -35,6 +35,7 @@ import type { RecurrenceRule } from "@/lib/utils/recurrence";
 
 import { FieldErrors } from "react-hook-form";
 import type { CreateTaskInput } from "@/lib/schemas/task";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 
 interface TaskViewBaseProps {
   content: string;
@@ -130,6 +131,7 @@ export function TaskView(props: TaskViewProps) {
   const scrollRef = useHorizontalScroll();
   const [notesEditorOpen, setNotesEditorOpen] = useState(false);
   const titleTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const { t } = useTranslation();
 
   const handleTitleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter") {
@@ -187,8 +189,8 @@ export function TaskView(props: TaskViewProps) {
         <textarea
           ref={titleTextareaRef}
           id={contentId}
-          placeholder="What needs to be done?"
-          aria-label="Task content"
+          placeholder={t("tasks.form.contentPlaceholder")}
+          aria-label={t("tasks.form.contentLabel")}
           value={content}
           onChange={(e) => setContent(e.target.value.replace(/[\r\n]+/g, " "))}
           onKeyDown={handleTitleKeyDown}
@@ -204,7 +206,9 @@ export function TaskView(props: TaskViewProps) {
         />
         {errors?.content && (
           <p id={contentErrorId} className="text-xs text-destructive mt-1">
-            {errors.content.message}
+            {errors.content.message === "Task content is required"
+              ? t("tasks.validation.contentRequired")
+              : errors.content.message}
           </p>
         )}
       </div>
@@ -247,9 +251,9 @@ export function TaskView(props: TaskViewProps) {
               title={
                 mode === "create"
                   ? !isMobile
-                    ? "Start Date"
+                    ? t("tasks.form.startDate")
                     : undefined
-                  : "Start Date"
+                  : t("tasks.form.startDate")
               }
               icon={CalendarClock}
               {...createDatePickerPositioning}
@@ -320,9 +324,9 @@ export function TaskView(props: TaskViewProps) {
               />
             </IconCell>
             <span className="text-sm flex-1 text-foreground">
-              Subtasks
+              {t("tasks.form.subtasks")}
               {subtaskCount > 0 &&
-                ` · ${subtaskCount} ${subtaskCount === 1 ? "step" : "steps"}`}
+                ` · ${subtaskCount} ${t("tasks.form.stepCount", { count: subtaskCount })}`}
             </span>
           </button>
 
@@ -364,7 +368,7 @@ export function TaskView(props: TaskViewProps) {
             onPointerDown={() => trigger("toggle")}
             className="h-9 w-auto min-w-[130px] max-w-[200px] type-ui border-input bg-background hover:bg-accent hover:text-accent-foreground shadow-none transition-all rounded-lg text-foreground [&_svg]:opacity-100 [&_svg]:text-foreground px-3 shrink-0"
           >
-            <SelectValue placeholder="Inbox" />
+            <SelectValue placeholder={t("tasks.form.inbox")} />
           </SelectTrigger>
           <SelectContent
             className={cn(
@@ -378,7 +382,7 @@ export function TaskView(props: TaskViewProps) {
                   strokeWidth={2.25}
                   className={mode === "create" ? "h-4 w-4" : "h-3.5 w-3.5"}
                 />
-                <span className="font-medium">Inbox</span>
+                <span className="font-medium">{t("tasks.form.inbox")}</span>
               </div>
             </SelectItem>
             {projects
@@ -408,7 +412,7 @@ export function TaskView(props: TaskViewProps) {
               trigger("thud");
               props.onDelete();
             }}
-            aria-label="Delete task"
+            aria-label={t("tasks.form.deleteTask")}
           >
             <Trash2 strokeWidth={2.25} />
           </Button>
@@ -427,7 +431,11 @@ export function TaskView(props: TaskViewProps) {
             onSubmit();
           }}
           disabled={!hasContent || isPending}
-          aria-label={mode === "create" ? "Create task" : "Save changes"}
+          aria-label={
+            mode === "create"
+              ? t("tasks.form.createTask")
+              : t("tasks.form.saveChanges")
+          }
         >
           {mode === "create" ? (
             <Send className="h-5 w-5 stroke-[2.25px]" />

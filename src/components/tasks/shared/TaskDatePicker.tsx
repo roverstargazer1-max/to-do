@@ -1,7 +1,5 @@
 "use client";
 
-import { format } from "date-fns";
-import { useTimeFormat } from "@/lib/hooks/useTimeFormat";
 import { Calendar as CalendarIcon, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -19,6 +17,9 @@ import { DateTimeWizard } from "@/components/ui/date-time-wizard";
 import { cn } from "@/lib/utils";
 import { LucideIcon } from "lucide-react";
 import { useHaptic } from "@/lib/hooks/useHaptic";
+import { useTimeFormat } from "@/lib/hooks/useTimeFormat";
+import { useDateFormatter } from "@/lib/i18n/useDateFormatter";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 
 interface TaskDatePickerProps {
   date: Date | undefined;
@@ -46,7 +47,7 @@ export function TaskDatePicker({
   open,
   onOpenChange,
   variant = "icon",
-  title = "Due Date",
+  title,
   activeClassName = "text-brand bg-brand/10 hover:bg-brand/20 hover:text-brand",
   icon: Icon = CalendarIcon,
   side = "bottom",
@@ -60,7 +61,11 @@ export function TaskDatePicker({
 }: TaskDatePickerProps) {
   const isCompact = variant === "compact";
   const { trigger } = useHaptic();
-  const { formatDateWithTime } = useTimeFormat();
+  const { formatTime } = useTimeFormat();
+  const { formatMonthDay, formatLongDate } = useDateFormatter();
+  const { t } = useTranslation();
+
+  const resolvedTitle = title ?? t("tasks.form.dueDate");
 
   const buttonContent = (
     <div className="flex items-center gap-1.5">
@@ -84,13 +89,19 @@ export function TaskDatePicker({
             )}
           >
             {showTime
-              ? formatDateWithTime(date, "MMM d")
-              : format(date, "MMMM d, yyyy")}
+              ? `${formatMonthDay(date)} ${formatTime(date)}`
+              : formatLongDate(date)}
           </span>
 
           <span
             role="button"
-            title={!isMobile ? `Clear ${title.toLowerCase()}` : undefined}
+            title={
+              !isMobile
+                ? t("tasks.form.clearDate", {
+                    field: resolvedTitle.toLowerCase(),
+                  })
+                : undefined
+            }
             className={cn(
               "ml-1 p-0.5 rounded",
               isCompact
@@ -143,7 +154,13 @@ export function TaskDatePicker({
                     ),
                 ),
           )}
-          title={!isMobile ? `Set ${title.toLowerCase()}` : undefined}
+          title={
+            !isMobile
+              ? t("tasks.form.setDate", {
+                  field: resolvedTitle.toLowerCase(),
+                })
+              : undefined
+          }
         >
           {buttonContent}
         </Button>
@@ -155,7 +172,9 @@ export function TaskDatePicker({
           )}
         >
           <ResponsiveDialogHeader className="sr-only">
-            <ResponsiveDialogTitle>Set {title}</ResponsiveDialogTitle>
+            <ResponsiveDialogTitle>
+              {t("tasks.form.setDate", { field: resolvedTitle })}
+            </ResponsiveDialogTitle>
           </ResponsiveDialogHeader>
           <DateTimeWizard
             date={date}
@@ -195,7 +214,13 @@ export function TaskDatePicker({
                     ),
                 ),
           )}
-          title={!isMobile ? `Set ${title.toLowerCase()}` : undefined}
+          title={
+            !isMobile
+              ? t("tasks.form.setDate", {
+                  field: resolvedTitle.toLowerCase(),
+                })
+              : undefined
+          }
         >
           {buttonContent}
         </Button>

@@ -12,6 +12,7 @@ import SortableListTaskCard from "./SortableListTaskCard";
 import type { Task, Project } from "@/lib/types/task";
 import type { ProcessedTasks, TaskGroup } from "@/lib/hooks/useTaskViewData";
 import { cn } from "@/lib/utils";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 
 /**
  * DroppableContainer is a lightweight wrapper for dnd-kit drop zones.
@@ -73,6 +74,13 @@ function SectionHeader({
   );
 }
 
+/** Resolves a group's display title: dictionary key when fixed, raw name otherwise. */
+function useGroupTitle() {
+  const { t } = useTranslation();
+  return (group: TaskGroup) =>
+    group.titleKey ? t(group.titleKey) : group.title;
+}
+
 interface TaskListViewProps {
   processedTasks: ProcessedTasks;
   activeTasks: Task[];
@@ -109,6 +117,8 @@ function TaskListViewBase({
   const groups = groupTasks;
   const active = activeTasks;
   const evening = eveningTasks;
+  const groupTitle = useGroupTitle();
+  const { t } = useTranslation();
 
   const activeIds = useMemo(() => active.map((t) => t.id), [active]);
   const eveningIds = useMemo(() => evening.map((t) => t.id), [evening]);
@@ -124,7 +134,10 @@ function TaskListViewBase({
           const groupTaskIds = group.tasks.map((t: Task) => t.id);
           return (
             <section key={group.title} className="first:mt-2">
-              <SectionHeader title={group.title} count={group.tasks.length} />
+              <SectionHeader
+                title={groupTitle(group)}
+                count={group.tasks.length}
+              />
               <SortableContext
                 id={group.title}
                 items={groupTaskIds}
@@ -201,7 +214,7 @@ function TaskListViewBase({
           )}
         >
           <SectionHeader
-            title="This Evening"
+            title={t("tasks.group.evening")}
             count={evening.length > 0 ? evening.length : undefined}
             icon={<Moon className="h-4 w-4" />}
           />
@@ -233,7 +246,7 @@ function TaskListViewBase({
                 {evening.length === 0 && (
                   <div className="h-12 flex items-center justify-center border-2 border-dashed border-primary/20 rounded-2xl mx-1">
                     <span className="text-[10px] font-bold text-muted-foreground/70 uppercase tracking-widest">
-                      Drop here for evening
+                      {t("tasks.board.dropForEvening")}
                     </span>
                   </div>
                 )}
@@ -247,7 +260,7 @@ function TaskListViewBase({
       {completed.length > 0 && (
         <section className="mt-4">
           <SectionHeader
-            title="Completed"
+            title={t("tasks.group.completedSection")}
             count={completed.length}
             variant="muted"
           />
