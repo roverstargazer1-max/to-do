@@ -1,0 +1,107 @@
+/*
+ * Workspace canvas skin (ink & matte) — React Flow base style is imported
+ * by the canvas component; everything the default demo look ships (heavy
+ * shadows, blue accents, rounded cards) is re-skinned here: 1px borders,
+ * no shadows, house easing (seijaku) on node interactions, muted dots.
+ */
+
+.react-flow {
+  --xy-background-color: var(--background);
+  --xy-node-background-color-default: var(--background);
+  --xy-node-border-default: 1px solid var(--border);
+  --xy-node-color-default: var(--foreground);
+  --xy-node-border-radius-default: var(--radius);
+  --xy-node-boxshadow-default: none;
+  --xy-node-boxshadow-selected-default: none;
+  --xy-node-boxshadow-hovered-default: none;
+  --xy-edge-stroke-default: var(--border);
+  --xy-edge-strokeselected-default: var(--foreground);
+  --xy-controls-button-background-color-default: var(--background);
+  --xy-controls-button-background-color-hover-default: var(--muted);
+  --xy-controls-button-color-default: var(--foreground);
+  --xy-controls-button-color-hover-default: var(--foreground);
+  --xy-controls-button-border-default: 1px solid var(--border);
+  --xy-attribution-background-color-default: transparent;
+}
+
+/* Edges: hairline ink, no default bezier shadow tricks. */
+.react-flow__edge-path {
+  stroke-width: 1;
+}
+
+/* Nodes: matte cards, ink hairline, no shadows anywhere. */
+.react-flow__node {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--background);
+  box-shadow: none;
+  transition:
+    border-color 200ms var(--ease-seijaku, ease),
+    transform 200ms var(--ease-seijaku, ease);
+}
+
+.react-flow__node:hover,
+.react-flow__node.selected {
+  border-color: var(--foreground);
+  box-shadow: none;
+}
+
+/* Selection rectangle: 1px ink dashed, no glow. */
+.react-flow__selection {
+  border: 1px dashed var(--foreground);
+  background: transparent;
+}
+
+.react-flow__nodesselection-rect,
+.react-flow__selection rect {
+  stroke: var(--foreground);
+  stroke-width: 1;
+  stroke-dasharray: 4 2;
+  fill: transparent;
+}
+
+/* Controls: matte square buttons, hairline border between them. */
+.react-flow__controls {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  box-shadow: none;
+}
+
+.react-flow__controls-button {
+  border-bottom: 1px solid var(--border);
+  background: var(--background);
+  color: var(--foreground);
+  box-shadow: none;
+}
+
+.react-flow__controls-button:hover {
+  background: var(--muted);
+}
+
+.react-flow__controls-button svg {
+  fill: currentColor;
+}
+
+/* Background dots: ink at rest, not the demo blue. */
+.react-flow__background circle {
+  fill: var(--border);
+}
+
+/* MiniMap stays out of phase 1 (no persistent chrome beyond Controls). */
+.react-flow__minimap {
+  display: none;
+}
+
+/* Pane cursor + grab affordance only; no demo halo. */
+.react-flow__pane {
+  cursor: grab;
+}
+
+.react-flow__pane.dragging {
+  cursor: grabbing;
+}
+
+.react-flow__attribution {
+  display: none;
+}
