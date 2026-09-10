@@ -6,17 +6,24 @@ import { CheckSquare, Calendar, BarChart3 } from "lucide-react";
 import { motion } from "framer-motion";
 import { useHaptic } from "@/lib/hooks/useHaptic";
 import { cn } from "@/lib/utils";
+import { useTranslation } from "@/lib/i18n/useTranslation";
+import type { TranslationKey } from "@/lib/i18n/dictionaries/en";
 
-const navItems = [
-  { label: "All Tasks", icon: CheckSquare, path: "/" },
-  { label: "Calendar", icon: Calendar, path: "/calendar" },
-  { label: "Stats", icon: BarChart3, path: "/stats" },
+const navItems: {
+  labelKey: TranslationKey;
+  icon: typeof CheckSquare;
+  path: string;
+}[] = [
+  { labelKey: "common.nav.allTasks", icon: CheckSquare, path: "/" },
+  { labelKey: "common.nav.calendar", icon: Calendar, path: "/calendar" },
+  { labelKey: "common.nav.stats", icon: BarChart3, path: "/stats" },
 ];
 
 export function MobileNav() {
   const pathname = usePathname();
   const router = useRouter();
   const { trigger, isPhone } = useHaptic();
+  const { t } = useTranslation();
 
   // Prefetch all routes on mount for instant navigation
   useEffect(() => {
@@ -45,7 +52,7 @@ export function MobileNav() {
             >
               <Icon className="h-5 w-5" />
               <span className="text-xs font-medium leading-4">
-                {item.label}
+                {t(item.labelKey)}
               </span>
             </motion.button>
           );

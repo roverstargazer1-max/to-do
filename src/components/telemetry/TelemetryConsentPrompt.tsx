@@ -10,8 +10,10 @@ import { usePrefersReducedMotion } from "@/lib/hooks/usePrefersReducedMotion";
 import { useHaptic } from "@/lib/hooks/useHaptic";
 import { cn } from "@/lib/utils";
 import { NOTIFICATION_LINK_BUTTON_CLASS } from "@/components/ui/notification-link-button";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 
 export function TelemetryConsentPrompt() {
+  const { t } = useTranslation();
   const { consent, setConsent } = useTelemetryConsent();
   const prefersReducedMotion = usePrefersReducedMotion();
   const { trigger } = useHaptic();
@@ -52,7 +54,7 @@ export function TelemetryConsentPrompt() {
       {isVisible && (
         <motion.aside
           role="region"
-          aria-label="Telemetry consent"
+          aria-label={t("common.telemetry.regionLabel")}
           data-testid="telemetry-consent-prompt"
           initial={{ y: 24, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
@@ -89,8 +91,7 @@ export function TelemetryConsentPrompt() {
               <ShieldCheck className="h-4 w-4 text-muted-foreground shrink-0" />
               <div className="flex-1 min-w-0 pr-1 sm:pr-0">
                 <p className="text-xs sm:text-sm text-foreground/90 font-normal leading-relaxed">
-                  Kagelin is open source &amp; privacy-first. Share anonymous
-                  telemetry to help improve the app? See our{" "}
+                  {t("common.telemetry.message")}
                   <PrivacyPolicyLink />.
                 </p>
               </div>
@@ -99,7 +100,7 @@ export function TelemetryConsentPrompt() {
                 size="icon"
                 onClick={handleDismiss}
                 className="sm:hidden h-7 w-7 -mr-1 -mt-1 shrink-0 text-muted-foreground hover:text-foreground"
-                aria-label="Dismiss"
+                aria-label={t("common.telemetry.closeAria")}
               >
                 <X className="h-3.5 w-3.5" />
               </Button>
@@ -114,14 +115,14 @@ export function TelemetryConsentPrompt() {
                   "text-muted-foreground",
                 )}
               >
-                No thanks
+                {t("common.telemetry.dismiss")}
               </button>
               <button
                 type="button"
                 onClick={handleEnable}
                 className={cn(NOTIFICATION_LINK_BUTTON_CLASS, "text-brand")}
               >
-                Enable
+                {t("common.telemetry.enable")}
               </button>
             </div>
           </div>

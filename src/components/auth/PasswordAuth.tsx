@@ -14,10 +14,8 @@ import { PasswordField } from "@/components/auth/PasswordField";
 import { useTurnstileCaptcha } from "@/lib/hooks/useTurnstileCaptcha";
 import { usePasswordBreachCheck } from "@/lib/hooks/usePasswordBreachCheck";
 import { isPasswordTooShort } from "@/lib/auth/password-policy";
-import {
-  SIGNUP_DISABLED_MESSAGE,
-  isSignupDisabledError,
-} from "@/lib/auth/format-auth-error";
+import { isSignupDisabledError } from "@/lib/auth/format-auth-error";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 
 // Same confirmation copy for every sign-up success — Supabase gives no
 // signal to distinguish a new email from an already-registered one.
@@ -37,6 +35,7 @@ export function PasswordAuth({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [signedUp, setSignedUp] = useState(false);
+  const { t } = useTranslation();
   const {
     siteKey,
     captchaToken,
@@ -70,15 +69,17 @@ export function PasswordAuth({
           : await signInWithPassword(email, password, captchaToken);
 
       if (authError) {
-        const message = authError.message || "Authentication failed";
+        const message = authError.message || t("auth.error.authFailedFallback");
         setError(
-          isSignupDisabledError(message) ? SIGNUP_DISABLED_MESSAGE : message,
+          isSignupDisabledError(message)
+            ? t("auth.error.signupDisabled")
+            : message,
         );
       } else if (mode === "sign-up") {
         setSignedUp(true);
       }
     } catch (err) {
-      setError("An unexpected error occurred");
+      setError(t("auth.error.unexpected"));
       console.error(err);
     } finally {
       resetCaptcha();
@@ -90,17 +91,15 @@ export function PasswordAuth({
     return (
       <AuthConfirmationCard
         motionKey="signup-confirmation"
-        title="Check your inbox"
+        title={t("auth.confirm.checkInbox")}
         description={
           <>
-            {"If "}
+            {t("auth.confirm.signUpNewPrefix")}
             <span className="font-medium text-foreground">{email}</span>
-            {
-              " is new, we've sent a link to finish setting up your account. Already have an account? Sign in instead."
-            }
+            {t("auth.confirm.signUpNewSuffix")}
           </>
         }
-        actionLabel="Sign in instead"
+        actionLabel={t("auth.action.signInInstead")}
         onAction={onSwitchToSignIn}
       />
     );
@@ -117,7 +116,7 @@ export function PasswordAuth({
 
       <PasswordField
         id="password-auth-password"
-        label="Password"
+        label={t("auth.password.label")}
         labelClassName="text-[13px]"
         value={password}
         onChange={(value) => {
@@ -138,7 +137,7 @@ export function PasswordAuth({
                 onClick={onForgotPassword}
                 className={AUTH_LINK_CLASS}
               >
-                Forgot password?
+                {t("auth.password.forgot")}
               </button>
             )}
             {onSwitchToMagicLink && (
@@ -147,7 +146,7 @@ export function PasswordAuth({
                 onClick={onSwitchToMagicLink}
                 className={AUTH_LINK_CLASS}
               >
-                Email me a link instead
+                {t("auth.password.useMagicLink")}
               </button>
             )}
           </div>
@@ -173,12 +172,14 @@ export function PasswordAuth({
         {loading ? (
           <>
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            {mode === "sign-up" ? "Signing up..." : "Signing in..."}
+            {mode === "sign-up"
+              ? t("auth.action.signingUp")
+              : t("auth.action.signingIn")}
           </>
         ) : mode === "sign-up" ? (
-          "Sign up"
+          t("auth.action.signUp")
         ) : (
-          "Sign in"
+          t("auth.action.signIn")
         )}
       </Button>
     </form>

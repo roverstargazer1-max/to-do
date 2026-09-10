@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { format } from "date-fns";
 import { useHaptic } from "@/lib/hooks/useHaptic";
 import { useTimeFormat } from "@/lib/hooks/useTimeFormat";
 import { useScrollIsolation } from "@/lib/hooks/useScrollIsolation";
@@ -11,6 +10,17 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Calendar as CalendarIcon, Clock, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useTranslation } from "@/lib/i18n/useTranslation";
+import { useDateFormatter } from "@/lib/i18n/useDateFormatter";
+import type { TranslationKey } from "@/lib/i18n/dictionaries/en";
+
+/** Quick time presets — `id` keeps the React key locale-independent. */
+const TIME_PRESETS: { id: string; labelKey: TranslationKey; hour: number }[] = [
+  { id: "morning", labelKey: "common.dateWizard.morning", hour: 9 },
+  { id: "afternoon", labelKey: "common.dateWizard.afternoon", hour: 13 },
+  { id: "evening", labelKey: "common.dateWizard.evening", hour: 18 },
+  { id: "night", labelKey: "common.dateWizard.night", hour: 21 },
+];
 
 interface DateTimeWizardProps {
   date: Date | undefined;
@@ -35,6 +45,8 @@ export function DateTimeWizard({
 }: DateTimeWizardProps) {
   const { trigger } = useHaptic();
   const { formatTime } = useTimeFormat();
+  const { formatMonthDay, formatLongMonthDay } = useDateFormatter();
+  const { t } = useTranslation();
   const [step, setStep] = useState<"date" | "time">("date");
   const [tempDate, setTempDate] = useState<Date | undefined>(date);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -99,7 +111,9 @@ export function DateTimeWizard({
               className="text-xs font-medium data-[state=active]:bg-background data-[state=active]:text-primary data-[state=active]:shadow-sm rounded-sm"
             >
               <CalendarIcon className="w-3.5 h-3.5 mr-1.5" />
-              {tempDate ? format(tempDate, "MMM d") : "Date"}
+              {tempDate
+                ? formatMonthDay(tempDate)
+                : t("common.dateWizard.date")}
             </TabsTrigger>
             {showTime && (
               <TabsTrigger
@@ -108,7 +122,7 @@ export function DateTimeWizard({
                 className="text-xs font-medium data-[state=active]:bg-background data-[state=active]:text-primary data-[state=active]:shadow-sm rounded-sm disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 <Clock className="w-3.5 h-3.5 mr-1.5" />
-                {tempDate ? formatTime(tempDate) : "Time"}
+                {tempDate ? formatTime(tempDate) : t("common.dateWizard.time")}
               </TabsTrigger>
             )}
           </TabsList>
@@ -168,7 +182,7 @@ export function DateTimeWizard({
                   handleDateSelect(today);
                 }}
               >
-                Today
+                {t("common.dateWizard.today")}
               </Button>
               <Button
                 variant="ghost"
@@ -182,7 +196,7 @@ export function DateTimeWizard({
                   handleDateSelect(tomorrow);
                 }}
               >
-                Tomorrow
+                {t("common.dateWizard.tomorrow")}
               </Button>
               <Button
                 variant="ghost"
@@ -196,7 +210,7 @@ export function DateTimeWizard({
                   onEveningSelect?.();
                 }}
               >
-                Evening
+                {t("common.dateWizard.evening")}
               </Button>
             </div>
 
@@ -204,14 +218,18 @@ export function DateTimeWizard({
             <div className="mt-2 w-full flex justify-end">
               <Button size="sm" className="gap-1.5 w-full" onClick={onSave}>
                 <Check className="w-3.5 h-3.5" />
-                Done
+                {t("common.dateWizard.done")}
               </Button>
             </div>
           </div>
         ) : (
           <div className="flex flex-col items-center animate-in slide-in-from-right-5 fade-in duration-200">
             <div className="text-sm font-medium text-muted-foreground mb-4">
-              Set Time for {tempDate ? format(tempDate, "MMMM d") : "Today"}
+              {t("common.dateWizard.setTimeFor", {
+                date: tempDate
+                  ? formatLongMonthDay(tempDate)
+                  : t("common.dateWizard.today"),
+              })}
             </div>
 
             <SegmentedTimePicker
@@ -221,14 +239,9 @@ export function DateTimeWizard({
 
             {/* Quick Time Presets */}
             <div className="grid grid-cols-4 gap-1.5 mt-4 p-1 bg-muted/20 rounded-md border border-border/50">
-              {[
-                { label: "Morning", hour: 9 },
-                { label: "Afternoon", hour: 13 },
-                { label: "Evening", hour: 18 },
-                { label: "Night", hour: 21 },
-              ].map(({ label, hour }) => (
+              {TIME_PRESETS.map(({ id, labelKey, hour }) => (
                 <Button
-                  key={label}
+                  key={id}
                   variant="ghost"
                   size="sm"
                   className="h-8 text-[10px] sm:text-xs font-semibold hover:bg-background hover:shadow-sm flex flex-col gap-0 leading-none py-1"
@@ -239,7 +252,7 @@ export function DateTimeWizard({
                     setTempDate(d);
                   }}
                 >
-                  <span>{label}</span>
+                  <span>{t(labelKey)}</span>
                   <span className="text-[9px] font-normal opacity-60">
                     {hour < 12
                       ? `${hour}am`
@@ -254,7 +267,7 @@ export function DateTimeWizard({
             <div className="mt-2 w-full flex justify-end">
               <Button size="sm" className="gap-1.5 w-full" onClick={onSave}>
                 <Check className="w-3.5 h-3.5" />
-                Done
+                {t("common.dateWizard.done")}
               </Button>
             </div>
           </div>

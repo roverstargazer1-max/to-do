@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { Label } from "@/components/ui/label";
 import { useHorizontalScroll } from "@/lib/hooks/useHorizontalScroll";
 import { PROJECT_COLORS } from "@/lib/constants/colors";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 
 interface ColorPickerProps {
   value: string;
@@ -56,12 +57,17 @@ export function ColorPicker({
   value,
   onChange,
   variant = "grid",
-  label = "Color",
-  ariaLabel = "Select color",
+  label,
+  ariaLabel,
   className,
 }: ColorPickerProps) {
   const { trigger } = useHaptic();
   const scrollRef = useHorizontalScroll();
+  const { t } = useTranslation();
+  // Defaults live here rather than in the parameter list so they follow the
+  // active locale; callers may still override either string explicitly.
+  const resolvedLabel = label ?? t("common.colorPicker.label");
+  const resolvedAria = ariaLabel ?? t("common.colorPicker.selectAria");
 
   const handleSelect = React.useCallback(
     (hex: string) => {
@@ -81,7 +87,7 @@ export function ColorPicker({
           className,
         )}
         role="radiogroup"
-        aria-label={ariaLabel}
+        aria-label={resolvedAria}
       >
         {PROJECT_COLORS.map((c) => (
           <ColorButton
@@ -101,14 +107,16 @@ export function ColorPicker({
       data-testid="color-picker"
       className={cn("grid gap-1.5 w-full", className)}
     >
-      {label && (
-        <Label className="text-xs text-muted-foreground/60">{label}</Label>
+      {resolvedLabel && (
+        <Label className="text-xs text-muted-foreground/60">
+          {resolvedLabel}
+        </Label>
       )}
       <div
         ref={scrollRef}
-        className="flex flex-nowrap gap-2.5 overflow-x-auto scrollbar-hide py-3 px-2 -mx-2"
+        className="flex flex-nowrap gap-2.5 overflow-x-auto scrollbar-hide px-2 py-3 -mx-2"
         role="radiogroup"
-        aria-label={ariaLabel}
+        aria-label={resolvedAria}
       >
         {PROJECT_COLORS.map((c) => (
           <ColorButton

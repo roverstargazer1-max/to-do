@@ -1,6 +1,11 @@
+"use client";
+
 import { cn } from "@/lib/utils";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 
 export function BetaBadge({ className }: { className?: string }) {
+  const { t } = useTranslation();
+
   return (
     <span
       className={cn(
@@ -8,7 +13,7 @@ export function BetaBadge({ className }: { className?: string }) {
         className,
       )}
     >
-      Beta
+      {t("common.badge.beta")}
     </span>
   );
 }

@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
 import { useBackNavigation } from "@/lib/hooks/useBackNavigation";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 import { useState } from "react";
 import { Loader2, Archive, Inbox, Trash2 } from "lucide-react";
 
@@ -47,6 +48,7 @@ export function DeleteProjectDialog({
   onOpenChange,
 }: DeleteProjectDialogProps) {
   const isDesktop = useMediaQuery("(min-width: 768px)");
+  const { t } = useTranslation();
   const archiveProject = useArchiveProject();
   const moveTasksToInbox = useMoveTasksToInbox();
   const deleteProjectTasks = useDeleteProjectTasks();
@@ -114,14 +116,18 @@ export function DeleteProjectDialog({
     trigger("success");
   };
 
-  const description = `Are you sure you want to delete "${project.name}"? Choose what happens to its tasks.`;
+  const description = t("common.dialog.deleteProjectDescription", {
+    name: project.name,
+  });
 
   if (isDesktop) {
     return (
       <AlertDialog open={open} onOpenChange={onOpenChange}>
         <AlertDialogContent aria-describedby="delete-project-description">
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Project</AlertDialogTitle>
+            <AlertDialogTitle>
+              {t("common.sidebar.deleteProject")}
+            </AlertDialogTitle>
             <AlertDialogDescription id="delete-project-description">
               {description}
             </AlertDialogDescription>
@@ -133,7 +139,7 @@ export function DeleteProjectDialog({
                 onOpenChange(false);
               }}
             >
-              Cancel
+              {t("common.cancel")}
             </AlertDialogCancel>
             <Button
               variant="outline"
@@ -149,7 +155,7 @@ export function DeleteProjectDialog({
                   strokeWidth={2.25}
                 />
               )}
-              Keep Archived
+              {t("common.dialog.keepArchived")}
             </Button>
             <Button
               variant="outline"
@@ -165,7 +171,7 @@ export function DeleteProjectDialog({
                   strokeWidth={2.25}
                 />
               )}
-              Move to Inbox
+              {t("common.dialog.moveToInbox")}
             </Button>
             <Button
               variant="destructive"
@@ -178,7 +184,7 @@ export function DeleteProjectDialog({
               ) : (
                 <Trash2 className="h-4 w-4" strokeWidth={2.25} />
               )}
-              Delete
+              {t("common.dialog.delete")}
             </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -190,7 +196,7 @@ export function DeleteProjectDialog({
     <Drawer open={open} onOpenChange={onOpenChange} repositionInputs={false}>
       <DrawerContent>
         <DrawerHeader className="text-left">
-          <DrawerTitle>Delete Project</DrawerTitle>
+          <DrawerTitle>{t("common.sidebar.deleteProject")}</DrawerTitle>
           <DrawerDescription>{description}</DrawerDescription>
         </DrawerHeader>
         <DrawerFooter className="pt-2">
@@ -205,7 +211,7 @@ export function DeleteProjectDialog({
             ) : (
               <Trash2 className="h-4 w-4" strokeWidth={2.25} />
             )}
-            <span>Delete All Tasks</span>
+            <span>{t("common.dialog.deleteAllTasks")}</span>
           </Button>
           <Button
             variant="outline"
@@ -221,7 +227,7 @@ export function DeleteProjectDialog({
                 strokeWidth={2.25}
               />
             )}
-            <span>Move to Inbox</span>
+            <span>{t("common.dialog.moveToInbox")}</span>
           </Button>
           <Button
             variant="outline"
@@ -237,7 +243,7 @@ export function DeleteProjectDialog({
                 strokeWidth={2.25}
               />
             )}
-            <span>Keep Archived</span>
+            <span>{t("common.dialog.keepArchived")}</span>
           </Button>
           <DrawerClose asChild>
             <Button
@@ -245,7 +251,7 @@ export function DeleteProjectDialog({
               className="w-full"
               onClick={() => trigger("tick")}
             >
-              Cancel
+              {t("common.cancel")}
             </Button>
           </DrawerClose>
         </DrawerFooter>

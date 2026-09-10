@@ -5,9 +5,10 @@ import { HabitCompactList } from "@/components/habits/HabitCompactList";
 import { useHabits, type HabitWithEntries } from "@/lib/hooks/useHabits";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AlertCircle, Plus, Layers } from "lucide-react";
-import { format } from "date-fns";
 import { useHaptic } from "@/lib/hooks/useHaptic";
 import { useUiStore } from "@/lib/store/uiStore";
+import { useTranslation } from "@/lib/i18n/useTranslation";
+import { useDateFormatter } from "@/lib/i18n/useDateFormatter";
 import { getHabitIcon } from "@/components/habits/shared/HabitIconPicker";
 import { EmptyState } from "@/components/ui/EmptyState";
 
@@ -18,6 +19,8 @@ export default function HabitsPage() {
   const { data: habits, isLoading, error } = useHabits();
   const { openAddHabit, openEditHabit, openHabitInsights } = useHabitActions();
   const { trigger } = useHaptic();
+  const { t } = useTranslation();
+  const { formatLongWeekdayMonthDay } = useDateFormatter();
   const habitViewMode = useUiStore((s) => s.habitViewMode);
   const setHabitViewMode = useUiStore((s) => s.setHabitViewMode);
 
@@ -69,9 +72,11 @@ export default function HabitsPage() {
           strokeWidth={2.25}
         />
         <div className="text-center">
-          <h2 className="type-h2">Failed to load habits</h2>
+          <h2 className="type-h2">{t("habits.page.loadError")}</h2>
           <p className="text-sm text-muted-foreground mt-1">
-            {error instanceof Error ? error.message : "Unknown error"}
+            {error instanceof Error
+              ? error.message
+              : t("common.errors.unknown")}
           </p>
         </div>
       </div>
@@ -86,9 +91,11 @@ export default function HabitsPage() {
       <div className="px-4 md:px-6 pt-4 pb-4 flex flex-col gap-3 md:flex-row md:items-start md:justify-between md:gap-4">
         <div>
           <p className="text-sm text-muted-foreground flex items-center gap-2">
-            {format(today, "EEEE, MMMM d")}
+            {formatLongWeekdayMonthDay(today)}
           </p>
-          <h1 className="type-h1 mt-1 text-primary">Habits</h1>
+          <h1 className="type-h1 mt-1 text-primary">
+            {t("habits.page.title")}
+          </h1>
         </div>
 
         <HabitsPageHeader
@@ -102,10 +109,10 @@ export default function HabitsPage() {
         {!hasHabits ? (
           <EmptyState
             icon={Layers}
-            title="No habits yet"
-            description="Small changes lead to big results. Create your first habit to start tracking."
+            title={t("habits.page.emptyTitle")}
+            description={t("habits.page.emptyDescription")}
             action={{
-              label: "Create Habit",
+              label: t("habits.page.createHabit"),
               onClick: handleOpenCreate,
               icon: Plus,
             }}

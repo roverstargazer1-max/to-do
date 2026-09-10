@@ -23,6 +23,7 @@ import { cn } from "@/lib/utils";
 import { IconCell } from "@/components/ui/IconCell";
 import { DEFAULT_PROJECT_COLOR } from "@/lib/constants/colors";
 import { useMediaQuery } from "@/lib/hooks/useMediaQuery";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 
 interface CreateProjectDialogProps {
   open: boolean;
@@ -33,6 +34,7 @@ export function CreateProjectDialog({
   open,
   onOpenChange,
 }: CreateProjectDialogProps) {
+  const { t } = useTranslation();
   const {
     register,
     handleSubmit,
@@ -41,7 +43,14 @@ export function CreateProjectDialog({
     reset,
     formState: { errors, isValid },
   } = useForm<CreateProjectInput>({
-    resolver: zodResolver(CreateProjectSchema),
+    resolver: zodResolver(CreateProjectSchema, {
+      error: (issue) =>
+        issue.message === "Project name is required"
+          ? t("common.project.nameError")
+          : issue.code === "invalid_format" && issue.format === "regex"
+            ? t("common.project.invalidColor")
+            : undefined,
+    }),
     mode: "onChange",
     defaultValues: {
       name: "",
@@ -81,9 +90,11 @@ export function CreateProjectDialog({
           className="flex flex-col h-auto max-h-[90dvh]"
         >
           <ResponsiveDialogHeader className="sr-only">
-            <ResponsiveDialogTitle>Create Project</ResponsiveDialogTitle>
+            <ResponsiveDialogTitle>
+              {t("common.project.createTitle")}
+            </ResponsiveDialogTitle>
             <ResponsiveDialogDescription>
-              Organize your tasks into a new project.
+              {t("common.project.createDescription")}
             </ResponsiveDialogDescription>
           </ResponsiveDialogHeader>
 
@@ -92,8 +103,8 @@ export function CreateProjectDialog({
             <input
               {...register("name")}
               id="project-name"
-              aria-label="Project Name"
-              placeholder="Work, Personal, School..."
+              aria-label={t("common.project.nameLabel")}
+              placeholder={t("common.project.namePlaceholder")}
               autoFocus={isFinePointer}
               className={cn(
                 "w-full text-xl font-semibold tracking-tight bg-transparent border-0 outline-none",
@@ -136,7 +147,7 @@ export function CreateProjectDialog({
                   onChange={(newColor) =>
                     setValue("color", newColor, { shouldValidate: true })
                   }
-                  ariaLabel="Project color"
+                  ariaLabel={t("common.project.colorLabel")}
                 />
               </div>
             </div>
@@ -154,7 +165,9 @@ export function CreateProjectDialog({
               onClick={() => trigger("success")}
               disabled={!isValid || createProject.isPending}
               aria-label={
-                createProject.isPending ? "Creating project" : "Create project"
+                createProject.isPending
+                  ? t("common.project.creating")
+                  : t("common.project.create")
               }
             >
               <Send className="h-5 w-5 stroke-[2.25px]" />

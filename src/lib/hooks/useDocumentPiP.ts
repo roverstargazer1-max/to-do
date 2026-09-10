@@ -2,6 +2,7 @@
 
 import { useCallback, useRef, useState } from "react";
 import { useUiStore } from "@/lib/store/uiStore";
+import { tr } from "@/lib/i18n/tr";
 
 /**
  * Document Picture-in-Picture Hook
@@ -102,7 +103,7 @@ export function useDocumentPiP() {
 
           // Set up basic HTML structure for popup
           pipWindow.document.write(
-            "<!DOCTYPE html><html><head><meta charset='utf-8'><title>Focus Timer</title></head><body></body></html>",
+            `<!DOCTYPE html><html><head><meta charset='utf-8'><title>${tr("common.pip.focusTimer")}</title></head><body></body></html>`,
           );
           pipWindow.document.close();
         }

@@ -1,3 +1,5 @@
+"use client";
+
 import * as React from "react";
 import {
   ChevronDownIcon,
@@ -10,8 +12,13 @@ import {
   getDefaultClassNames,
   type DropdownProps,
 } from "react-day-picker";
+// Subpath imports: the `react-day-picker/locale` barrel re-exports every
+// locale, and only these two are used.
+import { enUS } from "react-day-picker/locale/en-US";
+import { zhCN } from "react-day-picker/locale/zh-CN";
 
 import { cn } from "@/lib/utils";
+import { useDateFormatter } from "@/lib/i18n/useDateFormatter";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Select,
@@ -34,9 +41,17 @@ function Calendar({
   buttonVariant?: React.ComponentProps<typeof Button>["variant"];
 }) {
   const defaultClassNames = getDefaultClassNames();
+  const { language, formatMonthShort } = useDateFormatter();
+
+  // Weekday header names, the month caption, and the first day of the week all
+  // come from this locale — zh-CN starts the week on Monday, en-US on Sunday.
+  // The app's own week math keeps its hardcoded Monday constant; this only
+  // governs the calendar grid's presentation.
+  const dayPickerLocale = language === "zh-CN" ? zhCN : enUS;
 
   return (
     <DayPicker
+      locale={dayPickerLocale}
       showOutsideDays={showOutsideDays}
       className={cn(
         "bg-background group/calendar p-3 [--cell-size:2.5rem] in-data-[slot=card-content]:bg-transparent in-data-[slot=popover-content]:bg-transparent",
@@ -46,8 +61,8 @@ function Calendar({
       )}
       captionLayout={captionLayout}
       formatters={{
-        formatMonthDropdown: (date) =>
-          date.toLocaleString("default", { month: "short" }),
+        // Bound to the app language, not the browser's (ticket 03 seam).
+        formatMonthDropdown: (date) => formatMonthShort(date),
         ...formatters,
       }}
       classNames={{

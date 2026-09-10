@@ -3,6 +3,7 @@
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Mail } from "lucide-react";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 
 export function AuthEmailField({
   id,
@@ -17,10 +18,11 @@ export function AuthEmailField({
   disabled?: boolean;
   children?: React.ReactNode;
 }) {
+  const { t } = useTranslation();
   return (
     <div className="space-y-2">
       <Label htmlFor={id} className="text-[13px]">
-        Email address
+        {t("auth.email.label")}
       </Label>
       <div className="relative">
         <Mail
@@ -30,7 +32,7 @@ export function AuthEmailField({
         <Input
           id={id}
           type="email"
-          placeholder="name@example.com"
+          placeholder={t("auth.email.placeholder")}
           className="pl-9 h-11 text-base md:text-base"
           value={value}
           onChange={(e) => onChange(e.target.value)}

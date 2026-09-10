@@ -2,14 +2,20 @@
 
 import { useEffect } from "react";
 import * as Sentry from "@sentry/nextjs";
+import { tr } from "@/lib/i18n/tr";
+import { useUiStore } from "@/lib/store/uiStore";
 
 /**
  * Catches errors thrown by the root layout itself (providers, fonts, etc.) —
  * `error.tsx` can't, since it renders *inside* the layout. Next.js requires
- * this file to render its own <html>/<body>; kept deliberately dependency-free
- * (no Tailwind tokens, providers, or app components) since those are exactly
- * what may have just crashed. Sentry is the one exception — it's a monitoring
- * SDK, not an app dependency, and is the only way to see root-layout crashes.
+ * this file to render its own <html>/<body>; kept deliberately lean (no
+ * Tailwind tokens, providers, or app components) since those are exactly what
+ * may have just crashed. Two exceptions: Sentry (a monitoring SDK, and the
+ * only way to see root-layout crashes) and the i18n store, whose module-level
+ * zustand state survives a layout crash — `tr()` reads it without any React
+ * context. Renders English on the server, the active locale after hydration;
+ * `suppressHydrationWarning` absorbs that one-frame difference on the
+ * document element, matching the root layout's policy.
  */
 export default function GlobalError({
   error,
@@ -18,13 +24,15 @@ export default function GlobalError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  const language = useUiStore((s) => s.language ?? "en");
+
   useEffect(() => {
     console.error("Unhandled root layout error:", error);
     Sentry.captureException(error);
   }, [error]);
 
   return (
-    <html lang="en">
+    <html lang={language} suppressHydrationWarning>
       <body
         style={{
           minHeight: "100vh",
@@ -40,11 +48,10 @@ export default function GlobalError({
         }}
       >
         <h1 style={{ fontSize: "1.5rem", fontWeight: 600 }}>
-          Kagelin failed to load
+          {tr("common.globalError.title")}
         </h1>
         <p style={{ marginTop: "0.75rem", maxWidth: "28rem", opacity: 0.75 }}>
-          Something went wrong before the app could start. Try reloading — your
-          data is safe.
+          {tr("common.globalError.description")}
         </p>
         <button
           onClick={() => reset()}
@@ -58,7 +65,7 @@ export default function GlobalError({
             cursor: "pointer",
           }}
         >
-          Try again
+          {tr("common.globalError.tryAgain")}
         </button>
       </body>
     </html>

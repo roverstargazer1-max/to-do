@@ -3,17 +3,19 @@
 import { Download, Share, X } from "lucide-react";
 import { usePwaInstall } from "@/lib/hooks/usePwaInstall";
 import { Button } from "@/components/ui/button";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 
 export function PwaInstallHint() {
+  const { t } = useTranslation();
   const { shouldShowBanner, isIOS, promptInstall, dismiss } = usePwaInstall();
 
   if (!shouldShowBanner) return null;
 
   const Icon = isIOS ? Share : Download;
-  const title = isIOS ? "Add Kagelin to your Home Screen" : "Install Kagelin";
+  const title = isIOS ? t("common.pwa.iosTitle") : t("common.pwa.installTitle");
   const description = isIOS
-    ? "Tap Share, then Add to Home Screen. Also required for notifications."
-    : "Works offline and launches straight from your home screen.";
+    ? t("common.pwa.iosDescription")
+    : t("common.pwa.installDescription");
 
   return (
     <div
@@ -35,7 +37,7 @@ export function PwaInstallHint() {
               className="mt-2 h-8"
               onClick={promptInstall}
             >
-              Install
+              {t("settings.pwa.install")}
             </Button>
           )}
         </div>
@@ -43,7 +45,7 @@ export function PwaInstallHint() {
       <button
         type="button"
         onClick={dismiss}
-        aria-label="Dismiss"
+        aria-label={t("common.telemetry.closeAria")}
         className="shrink-0 text-muted-foreground hover:text-foreground transition-colors"
       >
         <X className="h-3.5 w-3.5" strokeWidth={2.25} />

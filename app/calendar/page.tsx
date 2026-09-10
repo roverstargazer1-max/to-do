@@ -16,6 +16,7 @@ import type { CalendarEventUI } from "@/lib/types/calendar-event";
 import { useTask } from "@/lib/hooks/useTasks";
 import TaskSheet from "@/components/tasks/TaskSheet";
 import { notify } from "@/lib/notify";
+import { tr } from "@/lib/i18n/tr";
 
 export default function CalendarPage() {
   const { currentDate, view, events, setView, setDate, openCreateEvent } =
@@ -33,7 +34,7 @@ export default function CalendarPage() {
     const params = new URLSearchParams(window.location.search);
     const oauthError = params.get("oauth_error");
     if (oauthError) {
-      notify.error(`Calendar connection failed: ${oauthError}`);
+      notify.error(tr("calendar.page.connectionFailed", { error: oauthError }));
       window.history.replaceState({}, "", "/calendar");
     }
   }, []);

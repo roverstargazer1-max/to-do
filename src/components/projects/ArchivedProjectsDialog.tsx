@@ -12,6 +12,7 @@ import { useUnarchiveProject } from "@/lib/hooks/useProjectMutations";
 import { Button } from "@/components/ui/button";
 import { Archive, ArchiveRestore, Loader2 } from "lucide-react";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 
 interface ArchivedProjectsDialogProps {
   open: boolean;
@@ -22,6 +23,7 @@ export function ArchivedProjectsDialog({
   open,
   onOpenChange,
 }: ArchivedProjectsDialogProps) {
+  const { t } = useTranslation();
   const { data: archivedProjects, isLoading } = useArchivedProjects();
   const unarchiveProject = useUnarchiveProject();
 
@@ -30,10 +32,10 @@ export function ArchivedProjectsDialog({
       <ResponsiveDialogContent className="sm:max-w-md p-0 overflow-hidden">
         <ResponsiveDialogHeader className="px-4 pt-6 shrink-0">
           <ResponsiveDialogTitle className="type-h2">
-            Archived Projects
+            {t("common.sidebar.archivedProjects")}
           </ResponsiveDialogTitle>
           <ResponsiveDialogDescription className="sr-only">
-            View and restore archived projects
+            {t("common.projects.archivedDescription")}
           </ResponsiveDialogDescription>
         </ResponsiveDialogHeader>
 
@@ -64,7 +66,7 @@ export function ArchivedProjectsDialog({
                     disabled={unarchiveProject.isPending}
                   >
                     <ArchiveRestore className="h-4 w-4" />
-                    Restore
+                    {t("common.projects.restore")}
                   </Button>
                 </div>
               ))}
@@ -72,8 +74,8 @@ export function ArchivedProjectsDialog({
           ) : (
             <EmptyState
               icon={Archive}
-              title="No archived projects"
-              description="Projects you archive will show up here for restoring later."
+              title={t("common.projects.archivedEmptyTitle")}
+              description={t("common.projects.archivedEmptyDescription")}
               className="py-8 gap-4"
             />
           )}

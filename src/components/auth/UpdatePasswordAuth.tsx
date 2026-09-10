@@ -13,6 +13,7 @@ import { PasswordField } from "@/components/auth/PasswordField";
 import { AuthErrorMessage } from "@/components/auth/AuthErrorMessage";
 import { usePasswordBreachCheck } from "@/lib/hooks/usePasswordBreachCheck";
 import { isPasswordTooShort } from "@/lib/auth/password-policy";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 
 export function UpdatePasswordAuth() {
   const { user, loading, isGuestMode, updatePassword, signOut } = useAuth();
@@ -23,6 +24,7 @@ export function UpdatePasswordAuth() {
   const [error, setError] = useState<string | null>(null);
   const [updated, setUpdated] = useState(false);
   const { breached, checkOnBlur, clearBreach } = usePasswordBreachCheck();
+  const { t } = useTranslation();
 
   const passwordTooShort = isPasswordTooShort(password);
   const passwordsMismatch =
@@ -39,7 +41,7 @@ export function UpdatePasswordAuth() {
     try {
       const { error: updateError } = await updatePassword(password);
       if (updateError) {
-        setError(updateError.message || "Failed to update password");
+        setError(updateError.message || t("auth.error.updatePasswordFailed"));
       } else {
         // Not awaited — the render below already tolerates `user` clearing
         // on a later render, so waiting here would only add latency.
@@ -47,7 +49,7 @@ export function UpdatePasswordAuth() {
         setUpdated(true);
       }
     } catch (err) {
-      setError("An unexpected error occurred");
+      setError(t("auth.error.unexpected"));
       console.error(err);
     } finally {
       setSubmitting(false);
@@ -57,7 +59,7 @@ export function UpdatePasswordAuth() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <p className="text-muted-foreground">Loading...</p>
+        <p className="text-muted-foreground">{t("auth.loading")}</p>
       </div>
     );
   }
@@ -67,13 +69,14 @@ export function UpdatePasswordAuth() {
     return (
       <div className="h-dvh w-full flex items-center justify-center px-4 bg-background">
         <div className="max-w-md w-full space-y-4 text-center px-4 py-8 sm:p-8 rounded-2xl border border-border bg-card shadow-sm">
-          <h1 className="text-xl font-semibold">Link expired</h1>
+          <h1 className="text-xl font-semibold">
+            {t("auth.reset.linkExpiredTitle")}
+          </h1>
           <p className="text-sm text-muted-foreground">
-            This password reset link is invalid or has expired. Request a new
-            one from the sign-in page.
+            {t("auth.reset.linkExpiredDescription")}
           </p>
           <Button asChild className="w-full h-11">
-            <Link href="/login">Back to sign in</Link>
+            <Link href="/login">{t("auth.action.backToSignIn")}</Link>
           </Button>
         </div>
       </div>
@@ -96,27 +99,31 @@ export function UpdatePasswordAuth() {
               />
             </div>
             <div className="space-y-1">
-              <h1 className="text-xl font-semibold">Password updated</h1>
+              <h1 className="text-xl font-semibold">
+                {t("auth.reset.updatedTitle")}
+              </h1>
               <p className="text-sm text-muted-foreground">
-                You can now use your new password to sign in.
+                {t("auth.reset.updatedDescription")}
               </p>
             </div>
             <Button
               className="w-full h-11"
               onClick={() => router.push("/login")}
             >
-              Sign in
+              {t("auth.action.signIn")}
             </Button>
           </div>
         ) : (
           <>
             <div className="text-center space-y-1">
-              <h1 className="text-xl font-semibold">Choose a new password</h1>
+              <h1 className="text-xl font-semibold">
+                {t("auth.reset.chooseNewPassword")}
+              </h1>
             </div>
             <form onSubmit={handleSubmit} className="space-y-4">
               <PasswordField
                 id="update-password-new"
-                label="New password"
+                label={t("auth.password.new")}
                 value={password}
                 onChange={(value) => {
                   setPassword(value);
@@ -124,22 +131,22 @@ export function UpdatePasswordAuth() {
                 }}
                 onBlur={() => checkOnBlur(password, passwordTooShort)}
                 disabled={submitting}
-                toggleLabel="new password"
+                toggleLabel={t("auth.password.newToggle")}
                 passwordTooShort={passwordTooShort}
                 breached={breached}
               />
 
               <AuthPasswordField
                 id="update-password-confirm"
-                label="Confirm password"
+                label={t("auth.password.confirm")}
                 value={confirmPassword}
                 onChange={setConfirmPassword}
                 disabled={submitting}
-                toggleLabel="confirm password"
+                toggleLabel={t("auth.password.confirmToggle")}
               >
                 {passwordsMismatch && (
                   <p className="text-xs text-destructive">
-                    Passwords do not match.
+                    {t("auth.password.mismatch")}
                   </p>
                 )}
               </AuthPasswordField>
@@ -160,10 +167,10 @@ export function UpdatePasswordAuth() {
                 {submitting ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Updating...
+                    {t("auth.action.updating")}
                   </>
                 ) : (
-                  "Update password"
+                  t("auth.action.updatePassword")
                 )}
               </Button>
             </form>

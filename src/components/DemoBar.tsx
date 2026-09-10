@@ -11,10 +11,12 @@ import {
 } from "@/components/bannerSlot";
 import { cn } from "@/lib/utils";
 import { NOTIFICATION_LINK_BUTTON_CLASS } from "@/components/ui/notification-link-button";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 
 export function DemoBar() {
   const activeBanner = useActiveBanner();
   const clearGuestData = useClearGuestData();
+  const { t } = useTranslation();
   const [confirmOpen, setConfirmOpen] = useState(false);
 
   if (activeBanner !== "demo") return null;
@@ -30,14 +32,14 @@ export function DemoBar() {
         >
           <Sparkles className="w-4 h-4 text-muted-foreground shrink-0" />
           <span className="text-[13px] font-medium tracking-[0.01em]">
-            You&apos;re exploring with demo data
+            {t("common.demo.message")}
           </span>
           <button
             type="button"
             onClick={() => setConfirmOpen(true)}
             className={cn(NOTIFICATION_LINK_BUTTON_CLASS, "text-brand")}
           >
-            Start fresh
+            {t("common.demo.startFresh")}
           </button>
         </div>
       </div>

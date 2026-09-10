@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Drawer, DrawerContent, DrawerTitle } from "@/components/ui/drawer";
 import { useMediaQuery } from "@/lib/hooks/useMediaQuery";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 
 const Command = React.forwardRef<
   React.ElementRef<typeof CommandPrimitive>,
@@ -32,12 +33,13 @@ const commandClassName =
 
 const CommandDialog = ({ children, ...props }: CommandDialogProps) => {
   const isMobile = useMediaQuery("(max-width: 640px)");
+  const { t } = useTranslation();
 
   if (isMobile) {
     return (
       <Drawer {...props} repositionInputs={false}>
         <DrawerContent className="max-h-[85vh] overflow-hidden p-0">
-          <DrawerTitle className="sr-only">Command Menu</DrawerTitle>
+          <DrawerTitle className="sr-only">{t("command.title")}</DrawerTitle>
           <Command loop className={commandClassName}>
             {children}
           </Command>
@@ -49,7 +51,7 @@ const CommandDialog = ({ children, ...props }: CommandDialogProps) => {
   return (
     <Dialog {...props}>
       <DialogContent className="overflow-hidden p-0 shadow-none border-border/60 bg-background sm:max-w-[480px] sm:rounded-lg">
-        <DialogTitle className="sr-only">Command Menu</DialogTitle>
+        <DialogTitle className="sr-only">{t("command.title")}</DialogTitle>
         <Command loop className={commandClassName}>
           {children}
         </Command>

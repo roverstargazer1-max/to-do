@@ -5,8 +5,10 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { ShieldAlert } from "lucide-react";
 import { slideUp } from "@/lib/motion";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 
 export default function AccessDeniedPage() {
+  const { t } = useTranslation();
   const router = useRouter();
 
   return (
@@ -18,15 +20,16 @@ export default function AccessDeniedPage() {
           </div>
         </div>
 
-        <h1 className="text-3xl font-semibold">Private Access Only</h1>
+        <h1 className="text-3xl font-semibold">
+          {t("common.accessDenied.title")}
+        </h1>
 
         <p className="text-muted-foreground max-w-md">
-          This app is for personal use only. If you believe you should have
-          access, contact the owner.
+          {t("common.accessDenied.description")}
         </p>
 
         <Button variant="outline" onClick={() => router.push("/login")}>
-          Back to Login
+          {t("common.accessDenied.backToLogin")}
         </Button>
       </motion.div>
     </div>

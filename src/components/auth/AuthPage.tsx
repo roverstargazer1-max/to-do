@@ -12,25 +12,28 @@ import { OAuthProviderRow } from "@/components/auth/OAuthProviderRow";
 import { AuthShell } from "@/components/auth/AuthShell";
 import { PrivacyPolicyLink } from "@/components/ui/privacy-policy-link";
 import { TERMS_URL } from "@/lib/links";
-import {
-  SIGNUP_DISABLED_MESSAGE,
-  isSignupDisabledError,
-} from "@/lib/auth/format-auth-error";
+import { isSignupDisabledError } from "@/lib/auth/format-auth-error";
+import { useTranslation } from "@/lib/i18n/useTranslation";
+import type { TranslationKey } from "@/lib/i18n/dictionaries/en";
 
 export type AuthMode = "sign-in" | "sign-up";
 
 const MODE_COPY: Record<
   AuthMode,
-  { heading: string; toggleLabel: string; toggleTarget: AuthMode }
+  {
+    headingKey: TranslationKey;
+    toggleKey: TranslationKey;
+    toggleTarget: AuthMode;
+  }
 > = {
   "sign-in": {
-    heading: "Welcome back",
-    toggleLabel: "New here? Create an account",
+    headingKey: "auth.heading.signIn",
+    toggleKey: "auth.toggle.toSignUp",
     toggleTarget: "sign-up",
   },
   "sign-up": {
-    heading: "Create your account",
-    toggleLabel: "Already have an account? Sign in",
+    headingKey: "auth.heading.signUp",
+    toggleKey: "auth.toggle.toSignIn",
     toggleTarget: "sign-in",
   },
 };
@@ -44,6 +47,7 @@ function AuthPageContent({ initialMode }: { initialMode: AuthMode }) {
   const [view, setView] = useState<"password" | "magic-link" | "reset">(
     "password",
   );
+  const { t } = useTranslation();
 
   useEffect(() => {
     if (loading || !user || isGuestMode) return;
@@ -79,7 +83,7 @@ function AuthPageContent({ initialMode }: { initialMode: AuthMode }) {
   if (loading || (user && !isGuestMode)) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <p className="text-muted-foreground">Loading...</p>
+        <p className="text-muted-foreground">{t("auth.loading")}</p>
       </div>
     );
   }
@@ -96,27 +100,28 @@ function AuthPageContent({ initialMode }: { initialMode: AuthMode }) {
       footer={
         <div className="px-4">
           <p className="text-[11px] leading-relaxed text-muted-foreground text-center">
-            By continuing, you agree to our{" "}
+            {t("auth.legal.agree")}
             <a
               href={TERMS_URL}
               target="_blank"
               rel="noopener noreferrer"
               className="underline underline-offset-2 hover:text-foreground"
             >
-              Terms of Service
-            </a>{" "}
-            and <PrivacyPolicyLink />. Guest data is stored locally and will be
-            lost if cleared.
+              {t("auth.legal.terms")}
+            </a>
+            {t("auth.legal.and")}
+            <PrivacyPolicyLink />
+            {t("auth.legal.guestNote")}
           </p>
         </div>
       }
     >
       <div className="text-center space-y-1.5">
         <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
-          {copy.heading}
+          {t(copy.headingKey)}
         </h1>
         <p className="text-[13px] font-medium text-muted-foreground/80 lowercase tracking-wide">
-          Work quietly. Own everything.
+          {t("auth.tagline")}
         </p>
         <button
           type="button"
@@ -126,7 +131,7 @@ function AuthPageContent({ initialMode }: { initialMode: AuthMode }) {
           }}
           className="text-sm font-medium text-muted-foreground hover:text-foreground underline-offset-4 hover:underline transition-colors pt-1"
         >
-          {copy.toggleLabel}
+          {t(copy.toggleKey)}
         </button>
       </div>
 
@@ -136,8 +141,8 @@ function AuthPageContent({ initialMode }: { initialMode: AuthMode }) {
           className="text-sm text-destructive font-medium text-center bg-destructive-surface p-3 rounded-lg w-full"
         >
           {isSignupDisabledError(error)
-            ? SIGNUP_DISABLED_MESSAGE
-            : "Authentication failed. Please try again."}
+            ? t("auth.error.signupDisabled")
+            : t("auth.error.authFailed")}
         </p>
       )}
 
@@ -164,7 +169,7 @@ function AuthPageContent({ initialMode }: { initialMode: AuthMode }) {
         </div>
         <div className="relative flex justify-center text-xs uppercase">
           <span className="bg-card px-3 text-muted-foreground font-medium">
-            Or continue with
+            {t("auth.action.orContinueWith")}
           </span>
         </div>
       </div>
@@ -177,7 +182,7 @@ function AuthPageContent({ initialMode }: { initialMode: AuthMode }) {
         onClick={handleGuestSignIn}
         className="w-full h-11 text-base font-medium transition-all"
       >
-        Continue as guest
+        {t("auth.action.continueAsGuest")}
       </Button>
     </AuthShell>
   );
@@ -185,14 +190,17 @@ function AuthPageContent({ initialMode }: { initialMode: AuthMode }) {
 
 export function AuthPage({ initialMode }: { initialMode: AuthMode }) {
   return (
-    <Suspense
-      fallback={
-        <div className="min-h-screen flex items-center justify-center">
-          <p className="text-muted-foreground">Loading...</p>
-        </div>
-      }
-    >
+    <Suspense fallback={<AuthLoadingFallback />}>
       <AuthPageContent initialMode={initialMode} />
     </Suspense>
+  );
+}
+
+function AuthLoadingFallback() {
+  const { t } = useTranslation();
+  return (
+    <div className="min-h-screen flex items-center justify-center">
+      <p className="text-muted-foreground">{t("auth.loading")}</p>
+    </div>
   );
 }

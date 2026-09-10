@@ -14,13 +14,20 @@ import {
   SECTION_ORDER,
   type ChangelogEntry,
 } from "@/lib/changelog-cache";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 
 interface ChangelogPopupProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
-function EntryView({ entry }: { entry: ChangelogEntry }) {
+function EntryView({
+  entry,
+  noChangesLabel,
+}: {
+  entry: ChangelogEntry;
+  noChangesLabel: string;
+}) {
   const visibleSections = SECTION_ORDER.filter(
     (k) => (entry.sections[k]?.length ?? 0) > 0,
   );
@@ -57,7 +64,7 @@ function EntryView({ entry }: { entry: ChangelogEntry }) {
         </div>
       ) : (
         <p className="text-[13px] leading-relaxed text-foreground/90 font-medium italic">
-          No user-facing changes in this build.
+          {noChangesLabel}
         </p>
       )}
     </div>
@@ -66,6 +73,7 @@ function EntryView({ entry }: { entry: ChangelogEntry }) {
 
 export function ChangelogPopup({ open, onOpenChange }: ChangelogPopupProps) {
   const { entries: displayEntries, loading } = useChangelogEntries(open);
+  const { t } = useTranslation();
 
   return (
     <ResponsiveDialog open={open} onOpenChange={onOpenChange}>
@@ -73,12 +81,12 @@ export function ChangelogPopup({ open, onOpenChange }: ChangelogPopupProps) {
         <ResponsiveDialogHeader className="p-6 pb-3 border-b border-border/80 shrink-0">
           <ResponsiveDialogTitle className="flex items-center gap-2.5 text-[24px] font-semibold tracking-[-0.02em] text-foreground">
             <Sparkles className="h-5 w-5 text-muted-foreground" />
-            What&apos;s New
+            {t("changelog.title")}
           </ResponsiveDialogTitle>
           <ResponsiveDialogDescription className="text-[11px] font-semibold tracking-[0.01em] text-foreground pt-1">
             {displayEntries.length > 0
               ? `Kagelin v${displayEntries[0].version}`
-              : "Recent changes"}
+              : t("changelog.recentChanges")}
           </ResponsiveDialogDescription>
         </ResponsiveDialogHeader>
 
@@ -90,11 +98,15 @@ export function ChangelogPopup({ open, onOpenChange }: ChangelogPopupProps) {
           )}
           {!loading &&
             displayEntries.map((entry) => (
-              <EntryView key={entry.version} entry={entry} />
+              <EntryView
+                key={entry.version}
+                entry={entry}
+                noChangesLabel={t("changelog.noChanges")}
+              />
             ))}
           {!loading && displayEntries.length === 0 && (
             <p className="text-[13px] text-muted-foreground text-center py-8 font-medium">
-              No changelog entries found.
+              {t("changelog.noEntries")}
             </p>
           )}
         </div>

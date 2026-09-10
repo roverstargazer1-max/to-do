@@ -22,6 +22,7 @@ import { IconCell } from "@/components/ui/IconCell";
 import { PROJECT_COLORS } from "@/lib/constants/colors";
 import { useMediaQuery } from "@/lib/hooks/useMediaQuery";
 import type { Project } from "@/lib/types/task";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 
 const EditProjectSchema = z.object({
   name: z.string().min(1, "Name is required").max(50, "Name is too long"),
@@ -41,6 +42,7 @@ export function EditProjectDialog({
   open,
   onOpenChange,
 }: EditProjectDialogProps) {
+  const { t } = useTranslation();
   const {
     register,
     handleSubmit,
@@ -49,7 +51,12 @@ export function EditProjectDialog({
     reset,
     formState: { errors, isValid, isDirty },
   } = useForm<EditProjectInput>({
-    resolver: zodResolver(EditProjectSchema),
+    resolver: zodResolver(EditProjectSchema, {
+      error: (issue) =>
+        issue.code === "too_small"
+          ? t("common.project.editNameError")
+          : undefined,
+    }),
     mode: "onChange",
     defaultValues: {
       name: "",
@@ -98,9 +105,11 @@ export function EditProjectDialog({
           className="flex flex-col h-auto max-h-[90dvh]"
         >
           <ResponsiveDialogHeader className="sr-only">
-            <ResponsiveDialogTitle>Edit Project</ResponsiveDialogTitle>
+            <ResponsiveDialogTitle>
+              {t("common.sidebar.editProject")}
+            </ResponsiveDialogTitle>
             <ResponsiveDialogDescription>
-              Update project name and color.
+              {t("common.project.editDescription")}
             </ResponsiveDialogDescription>
           </ResponsiveDialogHeader>
 
@@ -109,8 +118,8 @@ export function EditProjectDialog({
             <input
               {...register("name")}
               id="edit-project-name"
-              aria-label="Project name"
-              placeholder="Project name..."
+              aria-label={t("common.project.editNameLabel")}
+              placeholder={t("common.project.editNamePlaceholder")}
               autoFocus={isFinePointer}
               className={cn(
                 "w-full text-xl font-semibold tracking-tight bg-transparent border-0 outline-none",
@@ -158,7 +167,7 @@ export function EditProjectDialog({
                       shouldDirty: true,
                     })
                   }
-                  ariaLabel="Project color"
+                  ariaLabel={t("common.project.colorLabel")}
                 />
               </div>
             </div>
@@ -181,7 +190,9 @@ export function EditProjectDialog({
               onClick={() => trigger("success")}
               disabled={!isValid || !isDirty || updateProject.isPending}
               aria-label={
-                updateProject.isPending ? "Saving project" : "Save project"
+                updateProject.isPending
+                  ? t("common.project.saving")
+                  : t("common.project.save")
               }
             >
               <Save

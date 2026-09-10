@@ -9,17 +9,19 @@ import {
 } from "@/components/ui/responsive-dialog";
 import { Keyboard } from "lucide-react";
 import { getPlatformKey } from "@/lib/utils/platform";
+import { useTranslation } from "@/lib/i18n/useTranslation";
+import type { TranslationKey } from "@/lib/i18n/dictionaries/en";
 
 interface Shortcut {
   keys: string[];
-  description: string;
+  descriptionKey: TranslationKey;
   // How the keys combine. Omit for a chord (press together, e.g. ⌘+B).
   // "alt": either key works (e.g. j/↓). "sequence": pressed one after another (e.g. g g).
   keyRelation?: "alt" | "sequence";
 }
 
 interface ShortcutGroup {
-  title: string;
+  titleKey: TranslationKey;
   shortcuts: Shortcut[];
 }
 
@@ -37,94 +39,107 @@ const getShortcuts = (
   isBoardViewOnTasks: boolean,
 ): ShortcutGroup[] => [
   {
-    title: "Navigation",
+    titleKey: "shortcuts.groupNavigation",
     shortcuts: [
-      { keys: ["1"], description: "Go to Tasks" },
-      { keys: ["2"], description: "Go to Habits" },
-      { keys: ["3"], description: "Go to Calendar" },
-      { keys: ["4"], description: "Go to Stats" },
-      { keys: ["5"], description: "Go to Focus" },
-      { keys: ["6"], description: "Go to Settings" },
-      { keys: [platformKey, "b"], description: "Toggle Sidebar" },
-      { keys: ["Esc"], description: "Close Focus/Dialogs" },
+      { keys: ["1"], descriptionKey: "shortcuts.goToTasks" },
+      { keys: ["2"], descriptionKey: "shortcuts.goToHabits" },
+      { keys: ["3"], descriptionKey: "shortcuts.goToCalendar" },
+      { keys: ["4"], descriptionKey: "shortcuts.goToStats" },
+      { keys: ["5"], descriptionKey: "shortcuts.goToFocus" },
+      { keys: ["6"], descriptionKey: "shortcuts.goToSettings" },
+      { keys: [platformKey, "b"], descriptionKey: "shortcuts.toggleSidebar" },
+      { keys: ["Esc"], descriptionKey: "shortcuts.closeFocusDialogs" },
     ],
   },
   {
-    title: "Actions",
+    titleKey: "shortcuts.groupActions",
     shortcuts: [
-      { keys: ["n"], description: "New Task" },
+      { keys: ["n"], descriptionKey: "shortcuts.newTask" },
       // h is claimed by board-view horizontal navigation on the tasks page,
       // so New Habit doesn't bind there — see
       // .scratch/vim-keyboard-navigation/issues/01-board-view-2d-navigation.md.
       ...(isBoardViewOnTasks
         ? []
-        : [{ keys: ["h"], description: "Create Habit" }]),
-      { keys: ["e"], description: "New Event" },
-      { keys: ["p"], description: "New Project" },
-      { keys: ["a"], description: "Archived Projects" },
-      { keys: ["c"], description: "Toggle Completed Tasks" },
-      { keys: [platformKey, "Enter"], description: "Save Task" },
-      { keys: [platformKey, "K"], description: "Search / Command Menu" },
-      { keys: ["T"], description: "Switch Theme" },
-      { keys: ["f"], description: "Focus Mode" },
-      { keys: ["Shift", "h"], description: "Show Shortcuts" },
+        : [
+            {
+              keys: ["h"],
+              descriptionKey: "shortcuts.createHabit",
+            } satisfies Shortcut,
+          ]),
+      { keys: ["e"], descriptionKey: "shortcuts.newEvent" },
+      { keys: ["p"], descriptionKey: "shortcuts.newProject" },
+      { keys: ["w"], descriptionKey: "shortcuts.newWorkspace" },
+      { keys: ["a"], descriptionKey: "shortcuts.archivedProjects" },
+      { keys: ["c"], descriptionKey: "shortcuts.toggleCompleted" },
+      { keys: [platformKey, "Enter"], descriptionKey: "shortcuts.saveTask" },
+      {
+        keys: [platformKey, "K"],
+        descriptionKey: "shortcuts.searchCommandMenu",
+      },
+      { keys: ["T"], descriptionKey: "shortcuts.switchTheme" },
+      { keys: ["f"], descriptionKey: "shortcuts.focusMode" },
+      { keys: ["Shift", "h"], descriptionKey: "shortcuts.showShortcuts" },
     ],
   },
   {
-    title: "View",
+    titleKey: "shortcuts.groupView",
     shortcuts: [
-      { keys: ["Shift", "1"], description: "List View" },
-      { keys: ["Shift", "2"], description: "Board View" },
+      { keys: ["Shift", "1"], descriptionKey: "shortcuts.listView" },
+      { keys: ["Shift", "2"], descriptionKey: "shortcuts.boardView" },
     ],
   },
   {
-    title: "Task List (Vim)",
+    titleKey: "shortcuts.groupVim",
     shortcuts: [
-      { keys: ["j", "↓"], description: "Select Next Task", keyRelation: "alt" },
+      {
+        keys: ["j", "↓"],
+        descriptionKey: "shortcuts.selectNextTask",
+        keyRelation: "alt",
+      },
       {
         keys: ["k", "↑"],
-        description: "Select Previous Task",
+        descriptionKey: "shortcuts.selectPreviousTask",
         keyRelation: "alt",
       },
       {
         keys: ["h", "←"],
-        description: "Select Column Left (Board)",
+        descriptionKey: "shortcuts.selectColumnLeft",
         keyRelation: "alt",
       },
       {
         keys: ["l", "→"],
-        description: "Select Column Right (Board)",
+        descriptionKey: "shortcuts.selectColumnRight",
         keyRelation: "alt",
       },
       {
         keys: ["g", "g"],
-        description: "Jump to First Task",
+        descriptionKey: "shortcuts.jumpToFirstTask",
         keyRelation: "sequence",
       },
-      { keys: ["G"], description: "Jump to Last Task" },
+      { keys: ["G"], descriptionKey: "shortcuts.jumpToLastTask" },
       {
         keys: ["Enter", "o"],
-        description: "Open Selected",
+        descriptionKey: "shortcuts.openSelected",
         keyRelation: "alt",
       },
       {
         keys: ["Space", "x"],
-        description: "Toggle Completion",
+        descriptionKey: "shortcuts.toggleCompletion",
         keyRelation: "alt",
       },
       {
         keys: ["d", "Backspace"],
-        description: "Delete Selected",
+        descriptionKey: "shortcuts.deleteSelected",
         keyRelation: "alt",
       },
-      { keys: ["u"], description: "Undo" },
+      { keys: ["u"], descriptionKey: "shortcuts.undo" },
       {
         keys: ["y", "y"],
-        description: "Yank Selected Task",
+        descriptionKey: "shortcuts.yankSelectedTask",
         keyRelation: "sequence",
       },
-      { keys: ["p"], description: "Paste Yanked Task" },
-      { keys: ["Esc"], description: "Clear Selection" },
+      { keys: ["p"], descriptionKey: "shortcuts.pasteYankedTask" },
+      { keys: ["Esc"], descriptionKey: "shortcuts.clearSelection" },
     ],
   },
 ];
@@ -142,6 +157,7 @@ export function ShortcutsHelp({
 }: ShortcutsHelpProps) {
   const platformKey = getPlatformKey();
   const shortcuts = getShortcuts(platformKey, isBoardViewOnTasks);
+  const { t } = useTranslation();
 
   return (
     <ResponsiveDialog open={open} onOpenChange={onOpenChange}>
@@ -149,19 +165,19 @@ export function ShortcutsHelp({
         <ResponsiveDialogHeader className="p-6 pb-2 border-b border-border/80">
           <ResponsiveDialogTitle className="flex items-center gap-2.5 text-[24px] font-semibold tracking-[-0.02em] text-foreground">
             <Keyboard className="h-5 w-5 text-muted-foreground/70" />
-            Keyboard Shortcuts
+            {t("shortcuts.title")}
           </ResponsiveDialogTitle>
           <ResponsiveDialogDescription className="text-[11px] uppercase tracking-[0.02em] text-muted-foreground font-medium pt-1">
-            Refine your workflow with Kagelin
+            {t("shortcuts.subtitle")}
           </ResponsiveDialogDescription>
         </ResponsiveDialogHeader>
 
         <div className="max-h-[60vh] overflow-y-auto scrollbar-hide p-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-8">
             {shortcuts.map((group) => (
-              <div key={group.title} className="space-y-4">
+              <div key={group.titleKey} className="space-y-4">
                 <h3 className="text-[18px] font-medium tracking-[-0.01em] text-foreground pb-2 border-b border-border/80">
-                  {group.title}
+                  {t(group.titleKey)}
                 </h3>
                 <div className="space-y-3.5">
                   {group.shortcuts.map((shortcut, i) => (
@@ -170,7 +186,7 @@ export function ShortcutsHelp({
                       className="flex items-center justify-between text-[15px] font-medium tracking-[0.01em]"
                     >
                       <span className="text-foreground/90 font-medium">
-                        {shortcut.description}
+                        {t(shortcut.descriptionKey)}
                       </span>
                       <div className="flex items-center gap-1.5">
                         {shortcut.keys.map((key, i) => (

@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { useHaptic } from "@/lib/hooks/useHaptic";
 import { useTimeFormat } from "@/lib/hooks/useTimeFormat";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 
 interface SegmentedTimePickerProps {
   value: Date;
@@ -21,6 +22,7 @@ export function SegmentedTimePicker({
 }: SegmentedTimePickerProps) {
   const { trigger } = useHaptic();
   const { timeFormat: defaultTimeFormat } = useTimeFormat();
+  const { t } = useTranslation();
 
   // Resolve effective time format: prop > store default (12h)
   const effectiveFormat = timeFormatProp ?? defaultTimeFormat ?? "12h";
@@ -253,7 +255,7 @@ export function SegmentedTimePicker({
               inputMode="numeric"
               pattern="[0-9]*"
               className="absolute inset-0 w-full h-full opacity-0 cursor-pointer rounded-lg focus:outline-none"
-              aria-label="Adjust Hours"
+              aria-label={t("common.timepicker.adjustHours")}
               data-vaul-no-drag
               onFocus={() => handleFocus("h")}
               onBlur={() => setActiveSegment(null)}
@@ -304,7 +306,7 @@ export function SegmentedTimePicker({
               inputMode="numeric"
               pattern="[0-9]*"
               className="absolute inset-0 w-full h-full opacity-0 cursor-pointer rounded-lg focus:outline-none"
-              aria-label="Adjust Minutes"
+              aria-label={t("common.timepicker.adjustMinutes")}
               data-vaul-no-drag
               onFocus={() => handleFocus("m")}
               onBlur={() => setActiveSegment(null)}
@@ -335,7 +337,7 @@ export function SegmentedTimePicker({
             onKeyDown={(e) => handleKeyDown(e, "p")}
             onWheel={(e) => handleWheel(e, "p")}
             data-vaul-no-drag
-            aria-label="Toggle AM PM"
+            aria-label={t("common.timepicker.toggleAmpm")}
             className={cn(
               "relative w-14 h-9 flex items-center justify-center rounded-md transition-all duration-300 outline-none uppercase font-bold tracking-[0.05em] text-[10px] self-center border touch-none",
               activeSegment === "p"

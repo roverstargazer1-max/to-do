@@ -25,6 +25,7 @@ import { Button } from "@/components/ui/button";
 import { LogOut } from "lucide-react";
 import { useHaptic } from "@/lib/hooks/useHaptic";
 import { useBackNavigation } from "@/lib/hooks/useBackNavigation";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 
 interface SignOutConfirmationProps {
   isOpen: boolean;
@@ -39,6 +40,7 @@ export function SignOutConfirmation({
 }: SignOutConfirmationProps) {
   const isDesktop = useMediaQuery("(min-width: 768px)");
   const { trigger } = useHaptic();
+  const { t } = useTranslation();
 
   // Handle back navigation on mobile to close drawer instead of navigating away
   useBackNavigation(isOpen && !isDesktop, onClose);
@@ -50,11 +52,10 @@ export function SignOutConfirmation({
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2">
               <LogOut className="h-5 w-5" />
-              Sign Out
+              {t("common.dialog.signOutTitle")}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to sign out? You will need to log in again
-              to access your tasks.
+              {t("common.dialog.signOutDescription")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -62,7 +63,7 @@ export function SignOutConfirmation({
               onClick={() => trigger("tick")}
               className="hover:bg-accent/60 transition-colors"
             >
-              Cancel
+              {t("common.cancel")}
             </AlertDialogCancel>
             <AlertDialogAction
               variant="destructive"
@@ -71,7 +72,7 @@ export function SignOutConfirmation({
                 onConfirm();
               }}
             >
-              Sign Out
+              {t("common.dialog.signOutConfirm")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -85,11 +86,10 @@ export function SignOutConfirmation({
         <DrawerHeader className="text-left">
           <DrawerTitle className="flex items-center gap-2">
             <LogOut className="h-5 w-5" />
-            Sign Out
+            {t("common.dialog.signOutTitle")}
           </DrawerTitle>
           <DrawerDescription>
-            Are you sure you want to sign out? You will need to log in again to
-            access your tasks.
+            {t("common.dialog.signOutDescription")}
           </DrawerDescription>
         </DrawerHeader>
         <DrawerFooter className="pt-2">
@@ -101,7 +101,7 @@ export function SignOutConfirmation({
             variant="destructive"
             className="w-full active:scale-95 transition-transform"
           >
-            Sign Out
+            {t("common.dialog.signOutConfirm")}
           </Button>
           <DrawerClose asChild>
             <Button
@@ -109,7 +109,7 @@ export function SignOutConfirmation({
               className="w-full"
               onClick={() => trigger("tick")}
             >
-              Cancel
+              {t("common.cancel")}
             </Button>
           </DrawerClose>
         </DrawerFooter>

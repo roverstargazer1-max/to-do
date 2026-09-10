@@ -10,11 +10,13 @@ import {
   BANNER_SLOT_CARD_CLASS,
 } from "@/components/bannerSlot";
 import { cn } from "@/lib/utils";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 
 export function OfflineIndicator() {
   const isOnline = useIsOnline();
   const isMobile = useIsMobile();
   const prefersReducedMotion = usePrefersReducedMotion();
+  const { t } = useTranslation();
   // Mobile enters from above the header, desktop rises from the bottom of the content column
   const offscreenY = isMobile ? -16 : 16;
 
@@ -49,7 +51,7 @@ export function OfflineIndicator() {
             </div>
             <div className="flex items-center gap-1.5 md:flex-col md:items-start md:gap-0 md:leading-tight">
               <span className="text-[13px] font-medium tracking-[0.01em]">
-                You are offline
+                {t("common.offline.title")}
               </span>
               <span
                 aria-hidden="true"
@@ -58,7 +60,7 @@ export function OfflineIndicator() {
                 ·
               </span>
               <span className="text-[11px] text-muted-foreground font-normal tracking-[0.02em]">
-                Changes will sync when back online
+                {t("common.offline.description")}
               </span>
             </div>
           </div>

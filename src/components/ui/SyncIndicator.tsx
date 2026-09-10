@@ -3,6 +3,7 @@
 import { useIsFetching, useIsMutating } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/components/AuthProvider";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 
 const LINGER_MS = 150;
 
@@ -25,6 +26,7 @@ export function SyncIndicator() {
 function SyncIndicatorContent() {
   const isFetching = useIsFetching();
   const isMutating = useIsMutating();
+  const { t } = useTranslation();
   const isSyncing = isFetching > 0 || isMutating > 0;
 
   const [visible, setVisible] = useState(false);
@@ -54,7 +56,7 @@ function SyncIndicatorContent() {
     <div
       className="flex items-center gap-1.5 transition-opacity duration-300"
       role="status"
-      aria-label="Syncing"
+      aria-label={t("common.syncing")}
       style={{
         opacity: visible ? 1 : 0,
         pointerEvents: visible ? "auto" : "none",
@@ -62,7 +64,7 @@ function SyncIndicatorContent() {
     >
       <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
       <span className="text-xs hidden sm:inline font-medium text-muted-foreground">
-        Syncing...
+        {t("common.syncingStatus")}
       </span>
     </div>
   );

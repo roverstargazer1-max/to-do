@@ -4,7 +4,6 @@ import { useAuth } from "@/components/AuthProvider";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useTransition } from "react";
 import TaskList from "@/components/tasks/TaskList";
-import { format } from "date-fns";
 import { TasksPageHeader } from "@/components/tasks/TasksPageHeader";
 import { useUiStore } from "@/lib/store/uiStore";
 import { useTaskActions } from "@/components/TaskActionsProvider";
@@ -14,15 +13,20 @@ import { useMediaQuery } from "@/lib/hooks/useMediaQuery";
 import { SplitViewLayout } from "@/components/tasks/SplitViewLayout";
 import { PwaInstallHint } from "@/components/home/PwaInstallHint";
 import type { SortOption, GroupOption } from "@/lib/types/sorting";
+import { useTranslation } from "@/lib/i18n/useTranslation";
+import { useDateFormatter } from "@/lib/i18n/useDateFormatter";
+import type { TranslationKey } from "@/lib/i18n/dictionaries/en";
 
-function getGreeting(): string {
+function getGreeting(t: (key: TranslationKey) => string): string {
   const hour = new Date().getHours();
-  if (hour < 12) return "Good morning";
-  if (hour < 17) return "Good afternoon";
-  return "Good evening";
+  if (hour < 12) return t("common.home.greetingMorning");
+  if (hour < 17) return t("common.home.greetingAfternoon");
+  return t("common.home.greetingEvening");
 }
 
 export function HomeClient() {
+  const { t } = useTranslation();
+  const { formatLongWeekdayMonthDay } = useDateFormatter();
   const { user, loading } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -62,7 +66,7 @@ export function HomeClient() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <p className="text-muted-foreground">Loading...</p>
+        <p className="text-muted-foreground">{t("common.loading")}</p>
       </div>
     );
   }
@@ -72,7 +76,7 @@ export function HomeClient() {
   }
 
   const today = new Date();
-  const greeting = getGreeting();
+  const greeting = getGreeting(t);
 
   return (
     <div className="flex flex-col h-[calc(100dvh-124px)] md:h-[calc(100dvh-16px)] overflow-hidden">
@@ -81,11 +85,11 @@ export function HomeClient() {
       <div className="px-4 md:px-6 pt-4 pb-4 flex flex-col md:flex-row md:items-start justify-between gap-4 md:gap-0">
         <div>
           <p className="text-sm text-muted-foreground flex items-center gap-2">
-            {format(today, "EEEE, MMMM d")}
+            {formatLongWeekdayMonthDay(today)}
             {filter && (
               <span className="flex items-center gap-1.5 before:content-['•'] before:text-muted-foreground">
                 <span className="capitalize text-primary font-medium">
-                  {filter === "p1" ? "High Priority" : filter}
+                  {filter === "p1" ? t("common.home.highPriority") : filter}
                 </span>
                 <button
                   type="button"
@@ -94,8 +98,8 @@ export function HomeClient() {
                     router.push("/");
                   }}
                   className="bg-secondary/40 hover:bg-secondary/60 border border-border/50 p-0.5 rounded-full transition-colors"
-                  title="Clear filter"
-                  aria-label="Clear filter"
+                  title={t("common.home.clearFilter")}
+                  aria-label={t("common.home.clearFilter")}
                 >
                   <PlusIcon className="h-3.5 w-3.5 rotate-45" />
                 </button>

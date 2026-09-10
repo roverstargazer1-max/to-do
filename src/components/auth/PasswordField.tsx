@@ -3,6 +3,7 @@
 import { AuthPasswordField } from "@/components/auth/AuthPasswordField";
 import { PasswordBreachWarning } from "@/components/auth/PasswordBreachWarning";
 import { MIN_PASSWORD_LENGTH } from "@/lib/auth/password-policy";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 
 export function PasswordField({
   id,
@@ -31,6 +32,7 @@ export function PasswordField({
   breached: boolean;
   children?: React.ReactNode;
 }) {
+  const { t } = useTranslation();
   return (
     <AuthPasswordField
       id={id}
@@ -46,7 +48,7 @@ export function PasswordField({
     >
       {passwordTooShort && (
         <p className="text-xs text-muted-foreground">
-          Password must be at least {MIN_PASSWORD_LENGTH} characters.
+          {t("auth.password.tooShort", { min: MIN_PASSWORD_LENGTH })}
         </p>
       )}
       <PasswordBreachWarning breached={breached} />

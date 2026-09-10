@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { AlertTriangle } from "lucide-react";
 import { slideUp } from "@/lib/motion";
 import * as Sentry from "@sentry/nextjs";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 
 export default function ErrorBoundary({
   error,
@@ -15,6 +16,7 @@ export default function ErrorBoundary({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  const { t } = useTranslation();
   const router = useRouter();
 
   useEffect(() => {
@@ -31,18 +33,17 @@ export default function ErrorBoundary({
           </div>
         </div>
 
-        <h1 className="text-3xl font-semibold">Something went wrong</h1>
+        <h1 className="text-3xl font-semibold">{t("common.error.title")}</h1>
 
         <p className="text-muted-foreground max-w-md">
-          Kagelin hit an unexpected error. Your data is safe — try again, or
-          head back home if it keeps happening.
+          {t("common.error.description")}
         </p>
 
         <div className="flex items-center justify-center gap-3">
           <Button variant="outline" onClick={() => router.push("/")}>
-            Go home
+            {t("common.error.goHome")}
           </Button>
-          <Button onClick={() => reset()}>Try again</Button>
+          <Button onClick={() => reset()}>{t("common.error.tryAgain")}</Button>
         </div>
       </motion.div>
     </div>

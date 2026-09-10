@@ -24,6 +24,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { useHaptic } from "@/lib/hooks/useHaptic";
 import { useBackNavigation } from "@/lib/hooks/useBackNavigation";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 
 interface DeleteConfirmationDialogProps {
   isOpen: boolean;
@@ -38,12 +39,18 @@ export function DeleteConfirmationDialog({
   isOpen,
   onClose,
   onConfirm,
-  title = "Delete Task",
-  description = "Are you sure you want to delete this task? This action cannot be undone.",
-  confirmLabel = "Delete",
+  title,
+  description,
+  confirmLabel,
 }: DeleteConfirmationDialogProps) {
   const isDesktop = useMediaQuery("(min-width: 768px)");
   const { trigger } = useHaptic();
+  const { t } = useTranslation();
+
+  const resolvedTitle = title ?? t("common.dialog.deleteTitle");
+  const resolvedDescription =
+    description ?? t("common.dialog.deleteDescription");
+  const resolvedConfirmLabel = confirmLabel ?? t("common.dialog.delete");
 
   // Handle back navigation on mobile to close drawer instead of navigating away
   useBackNavigation(isOpen && !isDesktop, onClose);
@@ -64,19 +71,21 @@ export function DeleteConfirmationDialog({
       <AlertDialog open={isOpen} onOpenChange={onClose}>
         <AlertDialogContent aria-describedby="delete-dialog-description">
           <AlertDialogHeader>
-            <AlertDialogTitle>{title}</AlertDialogTitle>
+            <AlertDialogTitle>{resolvedTitle}</AlertDialogTitle>
             <AlertDialogDescription id="delete-dialog-description">
-              {description}
+              {resolvedDescription}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={handleCancel}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel onClick={handleCancel}>
+              {t("common.cancel")}
+            </AlertDialogCancel>
             <AlertDialogAction
               variant="destructive"
               onClick={handleConfirm}
               className="px-6"
             >
-              {confirmLabel}
+              {resolvedConfirmLabel}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -88,8 +97,8 @@ export function DeleteConfirmationDialog({
     <Drawer open={isOpen} onOpenChange={onClose} repositionInputs={false}>
       <DrawerContent>
         <DrawerHeader className="text-left">
-          <DrawerTitle>{title}</DrawerTitle>
-          <DrawerDescription>{description}</DrawerDescription>
+          <DrawerTitle>{resolvedTitle}</DrawerTitle>
+          <DrawerDescription>{resolvedDescription}</DrawerDescription>
         </DrawerHeader>
         <DrawerFooter className="pt-2">
           <Button
@@ -97,11 +106,11 @@ export function DeleteConfirmationDialog({
             variant="destructive"
             className="w-full"
           >
-            {confirmLabel}
+            {resolvedConfirmLabel}
           </Button>
           <DrawerClose asChild>
             <Button variant="outline" className="w-full" onClick={handleCancel}>
-              Cancel
+              {t("common.cancel")}
             </Button>
           </DrawerClose>
         </DrawerFooter>

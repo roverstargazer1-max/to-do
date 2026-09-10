@@ -1,8 +1,9 @@
 import { notify } from "@/lib/notify";
+import { tr } from "@/lib/i18n/tr";
 
 export function handleMutationError(err: unknown) {
   if (err instanceof TypeError && err.message === "Failed to fetch") {
-    notify.error("Network Error. Changes could not be saved.");
+    notify.error(tr("common.errors.network"));
     return;
   }
 
@@ -14,13 +15,13 @@ export function handleMutationError(err: unknown) {
       msg.includes("not authenticated") ||
       msg.includes("unauthorized")
     ) {
-      notify.error("Authentication error. Please log in again.");
+      notify.error(tr("common.errors.auth"));
       return;
     }
 
-    notify.error(err.message || "An error occurred.");
+    notify.error(err.message || tr("common.errors.generic"));
     return;
   }
 
-  notify.error("An unexpected error occurred.");
+  notify.error(tr("common.errors.unexpected"));
 }

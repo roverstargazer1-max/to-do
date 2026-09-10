@@ -11,6 +11,7 @@ import { AUTH_LINK_CLASS } from "@/components/auth/authLinkClass";
 import { AuthEmailField } from "@/components/auth/AuthEmailField";
 import { AuthConfirmationCard } from "@/components/auth/AuthConfirmationCard";
 import { useTurnstileCaptcha } from "@/lib/hooks/useTurnstileCaptcha";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 
 export function MagicLinkAuth({
   onSwitchToPassword,
@@ -21,6 +22,7 @@ export function MagicLinkAuth({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
+  const { t } = useTranslation();
   const {
     siteKey,
     captchaToken,
@@ -45,12 +47,12 @@ export function MagicLinkAuth({
         captchaToken,
       );
       if (signInError) {
-        setError(signInError.message || "Failed to send magic link");
+        setError(signInError.message || t("auth.error.magicLinkFailed"));
       } else {
         setSent(true);
       }
     } catch (err) {
-      setError("An unexpected error occurred");
+      setError(t("auth.error.unexpected"));
       console.error(err);
     } finally {
       resetCaptcha();
@@ -82,7 +84,7 @@ export function MagicLinkAuth({
                   onClick={onSwitchToPassword}
                   className={AUTH_LINK_CLASS}
                 >
-                  Use a password instead
+                  {t("auth.password.usePassword")}
                 </button>
               )}
             </AuthEmailField>
@@ -104,26 +106,26 @@ export function MagicLinkAuth({
               {loading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Continuing...
+                  {t("auth.action.continuing")}
                 </>
               ) : (
-                "Continue"
+                t("auth.action.continue")
               )}
             </Button>
           </motion.form>
         ) : (
           <AuthConfirmationCard
             motionKey="success-message"
-            title="Check your email"
+            title={t("auth.confirm.checkEmail")}
             descriptionMaxWidthClassName="max-w-[240px]"
             description={
               <>
-                We&apos;ve sent a magic link to{" "}
-                <span className="font-medium text-foreground">{email}</span>.
-                Click it to sign in.
+                {t("auth.confirm.magicLinkPrefix")}
+                <span className="font-medium text-foreground">{email}</span>
+                {t("auth.confirm.magicLinkSuffix")}
               </>
             }
-            actionLabel="Didn't get the email? Try again"
+            actionLabel={t("auth.action.retryEmail")}
             onAction={() => setSent(false)}
           />
         )}

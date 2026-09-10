@@ -31,6 +31,7 @@ import {
 } from "@/lib/changelog-cache";
 import { useUiStore } from "@/lib/store/uiStore";
 import { SyncIndicator } from "@/components/ui/SyncIndicator";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 
 const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || "0.0.0";
 
@@ -91,6 +92,7 @@ export const Header = React.memo(function Header({
   const lastDismissedVersion = useUiStore((s) => s.lastDismissedVersion);
   const setChangelogOpen = useUiStore((s) => s.setChangelogOpen);
   const [serverVersion, setServerVersion] = useState<string | null>(null);
+  const { t } = useTranslation();
 
   const isTasksPage = pathname === "/";
 
@@ -128,7 +130,7 @@ export const Header = React.memo(function Header({
             type="button"
             onClick={() => setChangelogOpen(true)}
             className="flex items-center gap-1 rounded-lg px-2 py-1.5 text-foreground/70 hover:bg-accent/40 active:scale-95 transition-all"
-            aria-label="What's New — new version available"
+            aria-label={t("common.header.whatsNewAria")}
           >
             <Sparkles className="h-4 w-4 shrink-0" strokeWidth={2.25} />
             <span className="h-1.5 w-1.5 rounded-full bg-brand animate-pulse" />
@@ -153,7 +155,9 @@ export const Header = React.memo(function Header({
                 onPointerDown={() => trigger("toggle")}
               >
                 <MoreVertical className="h-5 w-5" />
-                <span className="sr-only">More options</span>
+                <span className="sr-only">
+                  {t("common.header.moreOptions")}
+                </span>
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
@@ -164,7 +168,7 @@ export const Header = React.memo(function Header({
                 }}
               >
                 <Search className="h-4 w-4 mr-2 text-foreground/70" />
-                Search
+                {t("common.search")}
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               {isTasksPage && (
@@ -179,7 +183,7 @@ export const Header = React.memo(function Header({
                       className="h-4 w-4 mr-2 text-foreground/70"
                       strokeWidth={2.5}
                     />
-                    Completed Tasks
+                    {t("common.header.completedTasks")}
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                 </>
@@ -191,7 +195,7 @@ export const Header = React.memo(function Header({
                 }}
               >
                 <SettingsIcon className="h-4 w-4 mr-2" />
-                Settings
+                {t("common.nav.settings")}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

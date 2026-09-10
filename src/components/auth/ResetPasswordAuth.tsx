@@ -9,6 +9,7 @@ import { AuthConfirmationCard } from "@/components/auth/AuthConfirmationCard";
 import { useTurnstileCaptcha } from "@/lib/hooks/useTurnstileCaptcha";
 import { Loader2 } from "lucide-react";
 import { SUPPORT_EMAIL } from "@/lib/links";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 
 // Same confirmation copy whether or not the email is registered — Supabase's
 // own resetPasswordForEmail gives no signal to distinguish the two, and
@@ -21,6 +22,7 @@ export function ResetPasswordAuth({
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [requested, setRequested] = useState(false);
+  const { t } = useTranslation();
   const {
     siteKey,
     captchaToken,
@@ -50,26 +52,26 @@ export function ResetPasswordAuth({
     return (
       <AuthConfirmationCard
         motionKey="reset-requested"
-        title="Check your inbox"
+        title={t("auth.confirm.checkInbox")}
         descriptionMaxWidthClassName="max-w-[320px]"
         description={
           <>
-            {"If "}
+            {t("auth.confirm.resetAccountPrefix")}
             <span className="font-medium text-foreground">{email}</span>
-            {" has an account, we've sent a link to reset the password."}
+            {t("auth.confirm.resetAccountSuffix")}
             <br />
             <br />
-            {"Didn't request this? You can ignore the email, or "}
+            {t("auth.confirm.resetNotRequestedPrefix")}
             <a
               href={`mailto:${SUPPORT_EMAIL}`}
               className="underline underline-offset-2 hover:text-foreground"
             >
-              contact support
+              {t("auth.confirm.contactSupport")}
             </a>
-            .
+            {t("auth.confirm.resetNotRequestedSuffix")}
           </>
         }
-        actionLabel="Back to sign in"
+        actionLabel={t("auth.action.backToSignIn")}
         onAction={onBackToSignIn}
       />
     );
@@ -99,10 +101,10 @@ export function ResetPasswordAuth({
         {loading ? (
           <>
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            Sending...
+            {t("auth.action.sending")}
           </>
         ) : (
-          "Send reset link"
+          t("auth.action.sendResetLink")
         )}
       </Button>
 
@@ -111,7 +113,7 @@ export function ResetPasswordAuth({
         onClick={onBackToSignIn}
         className="w-full text-sm text-muted-foreground hover:text-foreground underline-offset-4 hover:underline transition-colors"
       >
-        Back to sign in
+        {t("auth.action.backToSignIn")}
       </button>
     </form>
   );

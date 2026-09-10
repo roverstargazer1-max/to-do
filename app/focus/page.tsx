@@ -21,12 +21,14 @@ import { usePiP } from "@/components/providers/PiPProvider";
 import { useFullscreen } from "@/lib/hooks/useFullscreen";
 import { Minimize2, Target, PictureInPicture2 } from "lucide-react";
 import { useTodayFocusSessions } from "@/lib/hooks/useTodayFocusSessions";
+import { useTranslation } from "@/lib/i18n/useTranslation";
+import type { TranslationKey } from "@/lib/i18n/dictionaries/en";
 import { useEffect } from "react";
 
-const MODE_LABELS: Record<TimerMode, string> = {
-  focus: "Focus",
-  shortBreak: "Short Break",
-  longBreak: "Long Break",
+const MODE_LABEL_KEYS: Record<TimerMode, TranslationKey> = {
+  focus: "focus.mode.focus",
+  shortBreak: "focus.mode.shortBreak",
+  longBreak: "focus.mode.longBreak",
 };
 
 const sideControlCls = cn(
@@ -38,6 +40,7 @@ export default function FocusPage() {
   const anchoredBack = useAnchoredBack();
   const { state, settings, start, pause, stop, skip } = useTimer();
   const { trigger, isPhone } = useHaptic();
+  const { t } = useTranslation();
   const { isPiPSupported, isPiPActive, openPiP, closePiP } = usePiP();
   const { isFullscreen } = useFullscreen();
   // Sourced from the server focus_logs so every device shows the same count.
@@ -109,9 +112,7 @@ export default function FocusPage() {
             buttonVariants({ variant: "ghost", size: "icon" }),
             "absolute bottom-4 left-4 h-14 w-14 rounded-full active:scale-95 transition-seijaku cursor-pointer",
           )}
-          title={
-            isPiPActive ? "Close Picture-in-Picture" : "Open Picture-in-Picture"
-          }
+          title={isPiPActive ? t("focus.pip.close") : t("focus.pip.open")}
         >
           <PictureInPicture2 className="h-6 w-6" strokeWidth={2.25} />
         </motion.button>
@@ -129,7 +130,7 @@ export default function FocusPage() {
             className="flex flex-col items-center text-center"
           >
             <div className="type-ui font-medium uppercase tracking-widest text-muted-foreground/80">
-              {MODE_LABELS[state.mode]}
+              {t(MODE_LABEL_KEYS[state.mode])}
             </div>
 
             <div className="mt-2">
@@ -150,18 +151,21 @@ export default function FocusPage() {
             <div className="flex flex-col items-center gap-2 mb-10">
               <p className="type-ui text-xs font-medium uppercase tracking-wider text-muted-foreground">
                 {state.mode === "focus"
-                  ? `Session ${state.completedSessions + 1} of ${
-                      settings.sessionsBeforeLongBreak
-                    }`
+                  ? t("focus.session.of", {
+                      current: state.completedSessions + 1,
+                      total: settings.sessionsBeforeLongBreak,
+                    })
                   : state.mode === "longBreak"
-                    ? "Cycle Complete"
-                    : `Break after Session ${state.completedSessions}`}
+                    ? t("focus.session.cycleComplete")
+                    : t("focus.session.breakAfter", {
+                        current: state.completedSessions,
+                      })}
               </p>
 
               <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-secondary/30 border border-secondary/50">
                 <Target className="h-3 w-3 text-primary" strokeWidth={2.25} />
                 <span className="type-ui text-[10px] font-semibold text-primary/90">
-                  {todaySessionsCount} TODAY
+                  {t("focus.session.today", { count: todaySessionsCount })}
                 </span>
               </div>
             </div>
@@ -223,18 +227,17 @@ export default function FocusPage() {
               <Minimize2 className="h-10 w-10 text-primary animate-pulse" />
             </div>
             <h2 className="text-2xl font-semibold tracking-tight mb-2">
-              Viewing in PiP
+              {t("focus.pip.viewingTitle")}
             </h2>
             <p className="text-muted-foreground max-w-[280px]">
-              The timer is running in a floating window. You can browse other
-              pages in Kagelin.
+              {t("focus.pip.viewingDescription")}
             </p>
             <Button
               variant="outline"
               className="mt-8 rounded-full px-6"
               onClick={closePiP}
             >
-              Return to main view
+              {t("focus.pip.return")}
             </Button>
           </motion.div>
         )}
