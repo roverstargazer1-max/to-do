@@ -8,6 +8,7 @@ import { useEffect, useState } from "react";
 import packageJson from "../../../package.json";
 const { version } = packageJson;
 import type { Project } from "@/lib/types/task";
+import type { Workspace } from "@/lib/types/workspace";
 import {
   SIDEBAR_COLLAPSE,
   Sidebar,
@@ -41,12 +42,16 @@ import {
   EllipsisVertical,
   Pencil,
   Sparkles,
+  Frame,
 } from "lucide-react";
-import { useCompletedTasks } from "@/components/CompletedTasksProvider";
 import { useProjects } from "@/lib/hooks/useProjects";
 import { useProjectActions } from "@/components/ProjectActionsProvider";
+import { useWorkspaces } from "@/lib/hooks/useWorkspaces";
+import { useWorkspaceActions } from "@/components/workspace/WorkspaceActionsProvider";
 import { useUiStore } from "@/lib/store/uiStore";
 import { useHaptic } from "@/lib/hooks/useHaptic";
+import { useTranslation } from "@/lib/i18n/useTranslation";
+import type { TranslationKey } from "@/lib/i18n/dictionaries/en";
 import { ArchivedProjectsDialog } from "@/components/projects/ArchivedProjectsDialog";
 import {
   Drawer,
@@ -65,35 +70,79 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 
-const mainNavItems = [
-  { label: "All Tasks", icon: CheckSquare, path: "/", isAction: false },
-  { label: "Habits", icon: Layers, path: "/habits", isAction: false },
-  { label: "Calendar", icon: Calendar, path: "/calendar", isAction: false },
-  { label: "Stats", icon: BarChart3, path: "/stats", isAction: false },
+const mainNavItems: {
+  labelKey: TranslationKey;
+  icon: typeof CheckSquare;
+  path: string;
+  id: string;
+}[] = [
+  {
+    labelKey: "common.nav.allTasks",
+    icon: CheckSquare,
+    path: "/",
+    id: "all-tasks",
+  },
+  {
+    labelKey: "common.nav.habits",
+    icon: Layers,
+    path: "/habits",
+    id: "habits",
+  },
+  {
+    labelKey: "common.nav.calendar",
+    icon: Calendar,
+    path: "/calendar",
+    id: "calendar",
+  },
+  {
+    labelKey: "common.nav.stats",
+    icon: BarChart3,
+    path: "/stats",
+    id: "stats",
+  },
 ];
 
-const secondaryNavItems = [
-  { label: "Focus", icon: Timer, path: "/focus", isAction: false },
-  { label: "Settings", icon: Settings, path: "/settings", isAction: false },
+const secondaryNavItems: {
+  labelKey: TranslationKey;
+  icon: typeof CheckSquare;
+  path: string;
+  id: string;
+}[] = [
+  { labelKey: "common.nav.focus", icon: Timer, path: "/focus", id: "focus" },
+  {
+    labelKey: "common.nav.settings",
+    icon: Settings,
+    path: "/settings",
+    id: "settings",
+  },
 ];
 
 export function AppSidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { isMobile, setOpenMobile } = useSidebar();
-  const { openSheet } = useCompletedTasks();
+  const { isMobile } = useSidebar();
   const { data: projects } = useProjects();
   const { openCreateProject, openEditProject, openDeleteProject } =
     useProjectActions();
+  const { data: workspaces } = useWorkspaces();
+  const { openCreateWorkspace, openRenameWorkspace, openDeleteWorkspace } =
+    useWorkspaceActions();
   const isProjectsOpen = useUiStore((state) => state.isProjectsOpen);
   const toggleProjectsOpen = useUiStore((state) => state.toggleProjectsOpen);
+  const isWorkspacesOpen = useUiStore((state) => state.isWorkspacesOpen);
+  const toggleWorkspacesOpen = useUiStore(
+    (state) => state.toggleWorkspacesOpen,
+  );
   const hasChangelogUpdate = useUiStore((state) => state.hasChangelogUpdate);
   const setChangelogOpen = useUiStore((state) => state.setChangelogOpen);
   const { trigger } = useHaptic();
+  const { t } = useTranslation();
 
   const [mobileActionProject, setMobileActionProject] =
     useState<Project | null>(null);
+  const [mobileActionWorkspace, setMobileActionWorkspace] =
+    useState<Workspace | null>(null);
   const [isArchivedOpen, setIsArchivedOpen] = useState(false);
 
   const currentProjectId = searchParams.get("project");
@@ -146,47 +195,38 @@ export function AppSidebar() {
                 {mainNavItems
                   .filter((item) => {
                     if (isMobile) {
-                      return (
-                        item.label !== "Stats" && item.label !== "Calendar"
-                      );
+                      return item.id !== "stats" && item.id !== "calendar";
                     }
                     return true;
                   })
                   .map((item) => {
                     const Icon = item.icon;
                     const isActive =
-                      item.label === "All Tasks"
+                      item.id === "all-tasks"
                         ? pathname === item.path &&
                           (!currentProjectId || currentProjectId === "all")
-                        : pathname === item.path && !item.isAction;
+                        : pathname === item.path;
                     return (
-                      <SidebarMenuItem key={item.label}>
+                      <SidebarMenuItem key={item.id}>
                         <SidebarMenuButton
                           asChild
                           isActive={isActive}
-                          tooltip={item.label}
+                          tooltip={t(item.labelKey)}
                         >
                           <Link
                             href={
-                              item.label === "All Tasks"
+                              item.id === "all-tasks"
                                 ? "/?project=all"
                                 : item.path
                             }
-                            onClick={(e) => {
-                              if (item.isAction) {
-                                trigger("toggle");
-                                e.preventDefault();
-                                openSheet();
-                                if (isMobile) setOpenMobile(false);
-                              } else {
-                                handleMobileRouteIntent();
-                              }
+                            onClick={() => {
+                              handleMobileRouteIntent();
                             }}
                           >
                             <div className="flex items-center justify-center w-5 h-5 shrink-0">
                               <Icon className="h-4 w-4" strokeWidth={2.25} />
                             </div>
-                            <span>{item.label}</span>
+                            <span>{t(item.labelKey)}</span>
                           </Link>
                         </SidebarMenuButton>
                       </SidebarMenuItem>
@@ -208,7 +248,7 @@ export function AppSidebar() {
               }}
             >
               <FolderKanban strokeWidth={2.25} />
-              <span className="flex-1">Projects</span>
+              <span className="flex-1">{t("common.sidebar.projects")}</span>
               <ChevronDown
                 className={`h-4 w-4 shrink-0 transition-transform ${
                   isProjectsOpen ? "" : "-rotate-90"
@@ -216,7 +256,7 @@ export function AppSidebar() {
               />
               <button
                 type="button"
-                title="Add Project"
+                title={t("common.sidebar.addProject")}
                 className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md text-sidebar-foreground outline-none ring-sidebar-ring transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2"
                 onClick={(e) => {
                   e.stopPropagation();
@@ -243,7 +283,7 @@ export function AppSidebar() {
                       <SidebarMenuButton
                         asChild
                         isActive={currentProjectId === "inbox"}
-                        tooltip="Inbox"
+                        tooltip={t("common.sidebar.inbox")}
                       >
                         <Link
                           href="/?project=inbox"
@@ -254,7 +294,7 @@ export function AppSidebar() {
                           <div className="flex items-center justify-center w-5 h-5 shrink-0">
                             <Inbox className="h-4 w-4" strokeWidth={2.25} />
                           </div>
-                          <span>Inbox</span>
+                          <span>{t("common.sidebar.inbox")}</span>
                         </Link>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
@@ -306,7 +346,9 @@ export function AppSidebar() {
                                   className="h-4 w-4"
                                   strokeWidth={2.25}
                                 />
-                                <span className="sr-only">More</span>
+                                <span className="sr-only">
+                                  {t("common.sidebar.more")}
+                                </span>
                               </SidebarMenuAction>
                             </DropdownMenuTrigger>
                             {!isMobile && (
@@ -327,7 +369,7 @@ export function AppSidebar() {
                                     className="h-4 w-4"
                                     strokeWidth={2.25}
                                   />
-                                  <span>Edit Project</span>
+                                  <span>{t("common.sidebar.editProject")}</span>
                                 </DropdownMenuItem>
                                 <DropdownMenuItem
                                   onClick={(e) => {
@@ -338,7 +380,9 @@ export function AppSidebar() {
                                   className="flex items-center gap-2"
                                 >
                                   <Trash2 className="h-4 w-4" />
-                                  <span>Delete Project</span>
+                                  <span>
+                                    {t("common.sidebar.deleteProject")}
+                                  </span>
                                 </DropdownMenuItem>
                               </DropdownMenuContent>
                             )}
@@ -353,7 +397,7 @@ export function AppSidebar() {
                           trigger("toggle");
                           setIsArchivedOpen(true);
                         }}
-                        tooltip="Archived Projects"
+                        tooltip={t("common.sidebar.archivedProjects")}
                       >
                         <div className="flex items-center justify-center w-5 h-5 shrink-0">
                           <ArchiveRestore
@@ -361,9 +405,142 @@ export function AppSidebar() {
                             strokeWidth={2.25}
                           />
                         </div>
-                        <span className="truncate">Archived Projects</span>
+                        <span className="truncate">
+                          {t("common.sidebar.archivedProjects")}
+                        </span>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
+                  </SidebarMenu>
+                </SidebarGroupContent>
+              </div>
+            </div>
+          </SidebarGroup>
+
+          {/* Workspaces Section — the canvas feature's sidebar entry */}
+          <SidebarGroup>
+            <SidebarGroupLabel
+              className="cursor-pointer text-sidebar-foreground [&_svg]:opacity-100"
+              onClick={() => {
+                trigger("toggle");
+                toggleWorkspacesOpen();
+              }}
+            >
+              <Frame strokeWidth={2.25} />
+              <span className="flex-1">{t("common.nav.workspaces")}</span>
+              <ChevronDown
+                className={`h-4 w-4 shrink-0 transition-transform ${
+                  isWorkspacesOpen ? "" : "-rotate-90"
+                }`}
+              />
+              <button
+                type="button"
+                title={t("common.sidebar.addWorkspace")}
+                className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md text-sidebar-foreground outline-none ring-sidebar-ring transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  trigger("toggle");
+                  openCreateWorkspace();
+                }}
+              >
+                <Plus className="h-5 w-5 md:h-4 md:w-4" />
+              </button>
+            </SidebarGroupLabel>
+            <div
+              className={cn(
+                "grid transition-[grid-template-rows,opacity] duration-300 ease-seijaku",
+                isWorkspacesOpen
+                  ? "grid-rows-[1fr] opacity-100"
+                  : "grid-rows-[0fr] opacity-0",
+              )}
+            >
+              <div className="overflow-hidden">
+                <SidebarGroupContent>
+                  <SidebarMenu className="pl-2 group-data-[collapsible=icon]:pl-0">
+                    {workspaces?.map((workspace) => (
+                      <SidebarMenuItem key={workspace.id} className="relative">
+                        <SidebarMenuButton
+                          asChild
+                          isActive={pathname === `/workspaces/${workspace.id}`}
+                          tooltip={workspace.name}
+                          className="peer"
+                        >
+                          <Link
+                            href={`/workspaces/${workspace.id}`}
+                            onClick={() => {
+                              handleMobileRouteIntent();
+                            }}
+                          >
+                            <div className="flex items-center justify-center w-5 h-5 shrink-0">
+                              <Frame className="h-4 w-4" strokeWidth={2.25} />
+                            </div>
+                            <span className="truncate">{workspace.name}</span>
+                          </Link>
+                        </SidebarMenuButton>
+
+                        {/* Workspace Actions */}
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <SidebarMenuAction
+                              showOnHover={!isMobile}
+                              className="peer-data-[active=true]/menu-button:text-sidebar-accent-foreground group-data-[collapsible=icon]:hidden"
+                              onClick={(e) => {
+                                if (isMobile) {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  trigger("toggle");
+                                  setMobileActionWorkspace(workspace);
+                                }
+                              }}
+                            >
+                              <EllipsisVertical
+                                className="h-4 w-4"
+                                strokeWidth={2.25}
+                              />
+                              <span className="sr-only">
+                                {t("common.sidebar.more")}
+                              </span>
+                            </SidebarMenuAction>
+                          </DropdownMenuTrigger>
+                          {!isMobile && (
+                            <DropdownMenuContent
+                              side="right"
+                              align="start"
+                              className="w-48"
+                            >
+                              <DropdownMenuItem
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  trigger("toggle");
+                                  openRenameWorkspace(workspace);
+                                }}
+                                className="flex items-center gap-2"
+                              >
+                                <Pencil
+                                  className="h-4 w-4"
+                                  strokeWidth={2.25}
+                                />
+                                <span>
+                                  {t("common.sidebar.renameWorkspace")}
+                                </span>
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  trigger("thud");
+                                  openDeleteWorkspace(workspace);
+                                }}
+                                className="flex items-center gap-2"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                                <span>
+                                  {t("common.sidebar.deleteWorkspace")}
+                                </span>
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          )}
+                        </DropdownMenu>
+                      </SidebarMenuItem>
+                    ))}
                   </SidebarMenu>
                 </SidebarGroupContent>
               </div>
@@ -378,11 +555,11 @@ export function AppSidebar() {
                     const Icon = item.icon;
                     const isActive = pathname === item.path;
                     return (
-                      <SidebarMenuItem key={item.label}>
+                      <SidebarMenuItem key={item.id}>
                         <SidebarMenuButton
                           asChild
                           isActive={isActive}
-                          tooltip={item.label}
+                          tooltip={t(item.labelKey)}
                         >
                           <Link
                             href={item.path}
@@ -393,7 +570,7 @@ export function AppSidebar() {
                             <div className="flex items-center justify-center w-5 h-5 shrink-0">
                               <Icon className="h-4 w-4" strokeWidth={2.25} />
                             </div>
-                            <span>{item.label}</span>
+                            <span>{t(item.labelKey)}</span>
                           </Link>
                         </SidebarMenuButton>
                       </SidebarMenuItem>
@@ -412,7 +589,7 @@ export function AppSidebar() {
                 <SidebarMenuButton
                   asChild
                   isActive={pathname === "/focus"}
-                  tooltip="Focus"
+                  tooltip={t("common.nav.focus")}
                 >
                   <Link
                     href="/focus"
@@ -423,7 +600,7 @@ export function AppSidebar() {
                     <div className="flex items-center justify-center w-5 h-5 shrink-0">
                       <Timer className="h-4 w-4" strokeWidth={2.25} />
                     </div>
-                    <span>Focus</span>
+                    <span>{t("common.nav.focus")}</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
@@ -431,7 +608,7 @@ export function AppSidebar() {
                 <SidebarMenuButton
                   asChild
                   isActive={pathname === "/settings"}
-                  tooltip="Settings"
+                  tooltip={t("common.nav.settings")}
                 >
                   <Link
                     href="/settings"
@@ -442,7 +619,7 @@ export function AppSidebar() {
                     <div className="flex items-center justify-center w-5 h-5 shrink-0">
                       <Settings className="h-4 w-4" strokeWidth={2.25} />
                     </div>
-                    <span>Settings</span>
+                    <span>{t("common.nav.settings")}</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
@@ -454,14 +631,14 @@ export function AppSidebar() {
               <SidebarMenuItem>
                 <SidebarMenuButton
                   onClick={() => setChangelogOpen(true)}
-                  tooltip="What's New"
+                  tooltip={t("common.sidebar.whatsNew")}
                   className="text-foreground/70"
                 >
                   <div className="relative flex items-center justify-center w-5 h-5 shrink-0">
                     <Sparkles className="h-4 w-4" strokeWidth={2.25} />
                     <span className="absolute -top-1 -right-1 h-1.5 w-1.5 rounded-full bg-brand animate-pulse" />
                   </div>
-                  <span>What&apos;s New</span>
+                  <span>{t("common.sidebar.whatsNew")}</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             </SidebarMenu>
@@ -490,11 +667,11 @@ export function AppSidebar() {
                 <div className="flex flex-col gap-1.5">
                   <div className="flex items-center gap-2 w-full">
                     <span className="text-[10px] font-bold text-muted-foreground/60 uppercase tracking-widest leading-none">
-                      Build
+                      {t("common.sidebar.build")}
                     </span>
                     {version.includes("preview") && (
                       <span className="px-1.5 py-0.5 rounded-md bg-brand/10 text-brand text-[9px] font-bold uppercase tracking-widest border border-brand/20 leading-none">
-                        Preview
+                        {t("common.sidebar.preview")}
                       </span>
                     )}
                   </div>
@@ -506,11 +683,11 @@ export function AppSidebar() {
                 <>
                   <div className="flex items-center gap-2 w-full">
                     <span className="text-[10px] font-bold text-muted-foreground/60 uppercase tracking-widest leading-none">
-                      Build
+                      {t("common.sidebar.build")}
                     </span>
                     {version.includes("preview") && (
                       <span className="px-1.5 py-0.5 rounded-md bg-brand/10 text-brand text-[9px] font-bold uppercase tracking-widest border border-brand/20 leading-none">
-                        Preview
+                        {t("common.sidebar.preview")}
                       </span>
                     )}
                   </div>
@@ -536,7 +713,9 @@ export function AppSidebar() {
         <DrawerContent>
           <DrawerHeader className="text-left">
             <DrawerTitle>{mobileActionProject?.name}</DrawerTitle>
-            <DrawerDescription>What would you like to do?</DrawerDescription>
+            <DrawerDescription>
+              {t("common.sidebar.actionPrompt")}
+            </DrawerDescription>
           </DrawerHeader>
           <DrawerFooter className="pt-2">
             <DrawerClose asChild>
@@ -549,7 +728,7 @@ export function AppSidebar() {
                   if (mobileActionProject) openEditProject(mobileActionProject);
                 }}
               >
-                Edit Project
+                {t("common.sidebar.editProject")}
               </Button>
             </DrawerClose>
             <DrawerClose asChild>
@@ -563,7 +742,7 @@ export function AppSidebar() {
                     openDeleteProject(mobileActionProject);
                 }}
               >
-                Delete Project
+                {t("common.sidebar.deleteProject")}
               </Button>
             </DrawerClose>
             <DrawerClose asChild>
@@ -572,7 +751,61 @@ export function AppSidebar() {
                 className="w-full"
                 onClick={() => trigger("tick")}
               >
-                Cancel
+                {t("common.cancel")}
+              </Button>
+            </DrawerClose>
+          </DrawerFooter>
+        </DrawerContent>
+      </Drawer>
+
+      {/* Mobile Workspace Action Drawer */}
+      <Drawer
+        open={!!mobileActionWorkspace}
+        onOpenChange={(open) => !open && setMobileActionWorkspace(null)}
+      >
+        <DrawerContent>
+          <DrawerHeader className="text-left">
+            <DrawerTitle>{mobileActionWorkspace?.name}</DrawerTitle>
+            <DrawerDescription>
+              {t("common.sidebar.actionPrompt")}
+            </DrawerDescription>
+          </DrawerHeader>
+          <DrawerFooter className="pt-2">
+            <DrawerClose asChild>
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={() => {
+                  trigger("toggle");
+                  setMobileActionWorkspace(null);
+                  if (mobileActionWorkspace)
+                    openRenameWorkspace(mobileActionWorkspace);
+                }}
+              >
+                {t("common.sidebar.renameWorkspace")}
+              </Button>
+            </DrawerClose>
+            <DrawerClose asChild>
+              <Button
+                variant="destructive"
+                className="w-full"
+                onClick={() => {
+                  trigger("thud");
+                  setMobileActionWorkspace(null);
+                  if (mobileActionWorkspace)
+                    openDeleteWorkspace(mobileActionWorkspace);
+                }}
+              >
+                {t("common.sidebar.deleteWorkspace")}
+              </Button>
+            </DrawerClose>
+            <DrawerClose asChild>
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={() => trigger("tick")}
+              >
+                {t("common.cancel")}
               </Button>
             </DrawerClose>
           </DrawerFooter>

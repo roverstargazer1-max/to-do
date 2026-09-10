@@ -16,6 +16,7 @@ import {
 import { useBackAnchor } from "@/lib/hooks/useBackAnchor";
 import { AUTH_STANDALONE_ROUTES, isAdminRoute } from "@/lib/auth/auth-routes";
 import { PiPProvider } from "@/components/providers/PiPProvider";
+import { LanguageSync } from "@/components/providers/LanguageSync";
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 import { AppSidebar as SidebarComponent } from "@/components/layout/AppSidebar";
 import { MobileNav as MobileNavComponent } from "@/components/layout/MobileNav";
@@ -30,12 +31,14 @@ import {
   HabitActionsProvider,
   useHabitActions,
 } from "@/components/habits/HabitActionsProvider";
+import { WorkspaceActionsProvider } from "@/components/workspace/WorkspaceActionsProvider";
 import { GlobalHotkeys } from "@/components/layout/GlobalHotkeys";
 import { useMigrationStrategy } from "@/lib/hooks/useMigrationStrategy";
 import { LoaderOverlay } from "@/components/ui/loader-overlay";
 
 import { cn } from "@/lib/utils";
 import { useUiStore } from "@/lib/store/uiStore";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 import { purgeLegacyStorage } from "@/lib/storage-cleanup";
 import {
   prefetchChangelog,
@@ -104,6 +107,14 @@ const ProjectDialogs = dynamic(
   () =>
     import("@/components/projects/ProjectDialogs").then(
       (mod) => mod.ProjectDialogs,
+    ),
+  { ssr: false },
+);
+
+const WorkspaceDialogs = dynamic(
+  () =>
+    import("@/components/workspace/WorkspaceDialogs").then(
+      (mod) => mod.WorkspaceDialogs,
     ),
   { ssr: false },
 );
@@ -233,6 +244,7 @@ function GlobalOverlays({
         onOpenChange={closeCreateProject}
       />
       <ProjectDialogs />
+      <WorkspaceDialogs />
       <CommandMenu open={commandOpen} onOpenChange={onCommandOpenChange} />
       <ShortcutsHelp
         open={isShortcutsHelpOpen}
@@ -354,7 +366,8 @@ function AppShellContent({ children }: AppShellProps) {
               pathname === "/calendar" ||
                 isFocus ||
                 pathname === "/" ||
-                pathname === "/habits"
+                pathname === "/habits" ||
+                pathname.startsWith("/workspaces")
                 ? "overflow-hidden"
                 : "overflow-y-auto overflow-x-hidden scrollbar-hide",
               !hideMobileNav &&
@@ -404,6 +417,7 @@ function AppShellContent({ children }: AppShellProps) {
 export default function AppShell({ children }: AppShellProps) {
   const { user, loading } = useAuth();
   const { isMigrating } = useMigrationStrategy();
+  const { t } = useTranslation();
   const pathname = usePathname();
   // Admin routes are self-contained pages with their own nav — they never
   // need the app sidebar/header shell.
@@ -420,16 +434,23 @@ export default function AppShell({ children }: AppShellProps) {
     <ProjectActionsProvider>
       <TaskActionsProvider>
         <HabitActionsProvider>
-          <PiPProvider>
-            {loading || !user || isBareRoute ? (
-              <>{children}</>
-            ) : (
-              <AppShellContent>{children}</AppShellContent>
-            )}
-          </PiPProvider>
+          <WorkspaceActionsProvider>
+            <PiPProvider>
+              {/* Mounted outside AppShellContent so bare/auth routes get
+                  the language sync too (spec D-06). */}
+              <LanguageSync />
+              {loading || !user || isBareRoute ? (
+                <>{children}</>
+              ) : (
+                <AppShellContent>{children}</AppShellContent>
+              )}
+            </PiPProvider>
+          </WorkspaceActionsProvider>
         </HabitActionsProvider>
       </TaskActionsProvider>
-      {isMigrating && <LoaderOverlay message="Migrating guest data..." />}
+      {isMigrating && (
+        <LoaderOverlay message={t("common.migratingGuestData")} />
+      )}
     </ProjectActionsProvider>
   );
 }

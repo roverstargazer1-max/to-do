@@ -2,7 +2,6 @@
 
 import { useState, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { format } from "date-fns";
 import {
   Download,
   Upload,
@@ -37,6 +36,9 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { useHaptic } from "@/lib/hooks/useHaptic";
+import { useDateFormatter } from "@/lib/i18n/useDateFormatter";
+import { useTranslation } from "@/lib/i18n/useTranslation";
+import { tr } from "@/lib/i18n/tr";
 import { useUiStore } from "@/lib/store/uiStore";
 import {
   createBackupZip,
@@ -50,6 +52,7 @@ import {
   type WebDAVCredentials,
 } from "@/lib/backup/webdav-sync";
 import { mockStore } from "@/lib/mock/mock-store";
+import { guestWorkspaceStore } from "@/lib/workspace/guest-store";
 import { useLocationHistoryStore } from "@/lib/store/locationHistoryStore";
 import type { BackupData } from "@/lib/backup/types";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -89,16 +92,18 @@ function CloudSyncCard({
   onSyncUpload,
   onSyncDownload,
 }: CloudSyncCardProps) {
+  const { t } = useTranslation();
+
   return (
     <TabsContent value="cloud" className="mt-0 outline-none">
       <Card className={SETTINGS_CARD_CLASS}>
         <CardHeader className="pb-3 px-4 pt-5">
           <CardTitle className="flex items-center gap-2 text-base font-medium tracking-tight">
             <Cloud className="h-4 w-4 text-brand" strokeWidth={2.25} />
-            WebDAV Backup
+            {t("settings.backup.webdav.title")}
           </CardTitle>
           <CardDescription className="text-xs text-muted-foreground/80 lowercase">
-            Keep a copy on a WebDAV server you control.
+            {t("settings.backup.webdav.description")}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-5 px-4 pb-5 pt-0">
@@ -108,7 +113,7 @@ function CloudSyncCard({
                 htmlFor="webdav-url"
                 className="text-[11px] uppercase tracking-wider text-muted-foreground/60"
               >
-                Server URL
+                {t("settings.backup.webdav.serverUrl")}
               </Label>
               <Input
                 id="webdav-url"
@@ -129,11 +134,11 @@ function CloudSyncCard({
                   htmlFor="webdav-user"
                   className="text-[11px] uppercase tracking-wider text-muted-foreground/60"
                 >
-                  Username
+                  {t("settings.backup.webdav.username")}
                 </Label>
                 <Input
                   id="webdav-user"
-                  placeholder="name"
+                  placeholder={t("settings.backup.webdav.usernamePlaceholder")}
                   value={credentials.username}
                   onChange={(e) =>
                     onCredentialsChange((prev) => ({
@@ -149,7 +154,7 @@ function CloudSyncCard({
                   htmlFor="webdav-pass"
                   className="text-[11px] uppercase tracking-wider text-muted-foreground/60"
                 >
-                  Password
+                  {t("settings.backup.webdav.password")}
                 </Label>
                 <Input
                   id="webdav-pass"
@@ -187,7 +192,7 @@ function CloudSyncCard({
               ) : (
                 <Server className="h-3.5 w-3.5" strokeWidth={2.25} />
               )}
-              Test Connection
+              {t("settings.backup.webdav.test")}
             </Button>
             {(credentials.serverUrl || credentials.username) && (
               <Button
@@ -195,8 +200,8 @@ function CloudSyncCard({
                 size="icon"
                 onClick={onResetCredentials}
                 className="h-9 w-9"
-                title="Forget credentials"
-                aria-label="Forget credentials"
+                title={t("settings.backup.webdav.forget")}
+                aria-label={t("settings.backup.webdav.forget")}
               >
                 <Trash2 className="h-4 w-4" />
               </Button>
@@ -230,13 +235,12 @@ function CloudSyncCard({
               ) : (
                 <Download className="h-4 w-4" strokeWidth={2.25} />
               )}
-              Restore
+              {t("settings.backup.webdav.restore")}
             </Button>
           </div>
 
           <p className="text-[11px] text-muted-foreground text-center leading-relaxed">
-            Your credentials are used only for this session — they aren&apos;t
-            stored, and re-entering them is required after a reload.
+            {t("settings.backup.webdav.credentialsNote")}
           </p>
         </CardContent>
       </Card>
@@ -244,13 +248,8 @@ function CloudSyncCard({
   );
 }
 
-const BACKUP_REMINDER_FREQUENCY_OPTIONS = [
-  { value: "7", label: "Weekly" },
-  { value: "14", label: "Biweekly" },
-  { value: "30", label: "Monthly" },
-];
-
 function BackupRemindersCard() {
+  const { t } = useTranslation();
   const { trigger } = useHaptic();
   const backupReminderEnabled = useUiStore((s) => s.backupReminderEnabled);
   const setBackupReminderEnabled = useUiStore(
@@ -263,23 +262,28 @@ function BackupRemindersCard() {
     (s) => s.setBackupReminderFrequencyDays,
   );
 
+  const frequencyOptions = [
+    { value: "7", label: t("settings.backup.reminders.weekly") },
+    { value: "14", label: t("settings.backup.reminders.biweekly") },
+    { value: "30", label: t("settings.backup.reminders.monthly") },
+  ];
+
   return (
     <Card className={SETTINGS_CARD_CLASS}>
       <CardHeader className="pb-3 px-4 pt-5">
         <CardTitle className="flex items-center gap-2 text-base font-medium tracking-tight">
           <BellRing className="h-4 w-4 text-brand" strokeWidth={2.25} />
-          Backup Reminders
+          {t("settings.backup.reminders.title")}
         </CardTitle>
         <CardDescription className="text-xs text-muted-foreground/80 lowercase">
-          Get nudged to export a backup, since your data is stored on this
-          device only.
+          {t("settings.backup.reminders.description")}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3 px-4 pb-5 pt-0">
         <ToggleRow
           icon={BellRing}
-          title="Remind me to back up"
-          description="Periodic nudge to export your local data"
+          title={t("settings.backup.reminders.toggleTitle")}
+          description={t("settings.backup.reminders.toggleDescription")}
           checked={backupReminderEnabled}
           onChange={(checked) => {
             trigger("toggle");
@@ -296,12 +300,14 @@ function BackupRemindersCard() {
         >
           <SelectTrigger
             className="w-full h-10 bg-background/30 border-border/40"
-            aria-label="Reminder frequency"
+            aria-label={t("settings.backup.reminders.frequencyAria")}
           >
-            <SelectValue placeholder="Frequency" />
+            <SelectValue
+              placeholder={t("settings.backup.reminders.frequencyPlaceholder")}
+            />
           </SelectTrigger>
           <SelectContent>
-            {BACKUP_REMINDER_FREQUENCY_OPTIONS.map((opt) => (
+            {frequencyOptions.map((opt) => (
               <SelectItem key={opt.value} value={opt.value}>
                 {opt.label}
               </SelectItem>
@@ -313,7 +319,13 @@ function BackupRemindersCard() {
   );
 }
 
-function buildGuestBackupData(): BackupData {
+/**
+ * A Guest's whole data set, workspace canvas included (ticket 09): the
+ * IndexedDB workspace store is read alongside the mockStore blob, row ids
+ * preserved verbatim per Backup convention. Async because the canvas lives
+ * in IndexedDB, not synchronous localStorage.
+ */
+async function buildGuestBackupData(): Promise<BackupData> {
   return {
     metadata: {
       version: 1,
@@ -327,20 +339,41 @@ function buildGuestBackupData(): BackupData {
     focus_logs: mockStore.getFocusLogs(),
     events: mockStore.getEvents(),
     location_history: useLocationHistoryStore.getState().locations,
+    workspaces: await guestWorkspaceStore.listWorkspaces(),
+    workspace_nodes: await guestWorkspaceStore.listAllNodes(),
   };
 }
 
-function formatBackupDate(exportedAt: string): string {
-  return format(new Date(exportedAt), "MMM d, yyyy 'at' h:mm a");
+/**
+ * One fixed restore path for the guest canvas (ticket 09, ADR 0015): sections
+ * absent from a pre-workspace backup restore as an empty canvas — no merge,
+ * no conflict model, overwrite-on-backup.
+ */
+async function restoreGuestWorkspaceBackup(data: BackupData): Promise<void> {
+  await guestWorkspaceStore.restoreBackup(
+    data.workspaces ?? [],
+    data.workspace_nodes ?? [],
+  );
 }
 
 export function BackupSyncSettings() {
   const { trigger } = useHaptic();
   const { isGuestMode, user } = useAuth();
   const { exportData, importData } = useAccountData();
+  const { formatMonthDayYear, formatClock } = useDateFormatter();
+  const { t } = useTranslation();
   const supabase = createClient();
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Locale-aware replacement for the legacy
+  // `format(date, "MMM d, yyyy 'at' h:mm a")` (ticket 03): the dictionary
+  // key supplies the locale connector between the Intl date and time.
+  const formatBackupDate = (exportedAt: string): string =>
+    t("settings.backup.exportedAtFormat", {
+      date: formatMonthDayYear(new Date(exportedAt)),
+      time: formatClock(new Date(exportedAt), "12h"),
+    });
 
   const [isExporting, setIsExporting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
@@ -372,6 +405,9 @@ export function BackupSyncSettings() {
       queryClient.invalidateQueries({ queryKey: ["calendar-events"] }),
       queryClient.invalidateQueries({ queryKey: ["calendar-tasks"] }),
       queryClient.invalidateQueries({ queryKey: ["heatmap-data"] }),
+      // The restored canvas reads fresh: both workspace query families.
+      queryClient.invalidateQueries({ queryKey: ["workspaces"] }),
+      queryClient.invalidateQueries({ queryKey: ["workspace-nodes"] }),
     ]);
   };
 
@@ -385,16 +421,16 @@ export function BackupSyncSettings() {
 
     setIsExporting(true);
     try {
-      const blob = await createBackupZip(buildGuestBackupData());
+      const blob = await createBackupZip(await buildGuestBackupData());
       downloadBackup(blob);
 
       localStorage.setItem("kanso_last_backup_date", new Date().toISOString());
 
-      notify.success("Backup downloaded successfully");
+      notify.success(tr("settings.backup.toast.exported"));
       trigger("success");
     } catch (err) {
       console.error("Export failed:", err);
-      notify.error("Failed to create backup");
+      notify.error(tr("settings.backup.toast.exportFailed"));
       trigger("thud");
     } finally {
       setIsExporting(false);
@@ -420,13 +456,16 @@ export function BackupSyncSettings() {
 
     setIsImporting(true);
     trigger("toggle");
-    const loadingToastId = notify.loading(`Importing ${file.name}...`);
+    const loadingToastId = notify.loading(
+      tr("settings.backup.toast.importing", { name: file.name }),
+    );
 
     try {
       const backupData = await parseBackupZip(file);
 
       // Single write so large restores don't repeatedly stringify a growing payload.
       mockStore.restoreBackup(backupData);
+      await restoreGuestWorkspaceBackup(backupData);
       useLocationHistoryStore.setState({
         locations: backupData.location_history ?? [],
       });
@@ -434,7 +473,10 @@ export function BackupSyncSettings() {
       await invalidateDataQueries();
 
       notify.success(
-        `Restored ${backupData.tasks.length} tasks, ${backupData.projects.length} projects`,
+        tr("settings.backup.toast.imported", {
+          tasks: backupData.tasks.length,
+          projects: backupData.projects.length,
+        }),
         {
           id: loadingToastId,
         },
@@ -442,7 +484,9 @@ export function BackupSyncSettings() {
       trigger("success");
     } catch (err) {
       console.error("Import failed:", err);
-      notify.error("Failed to import backup", { id: loadingToastId });
+      notify.error(tr("settings.backup.toast.importFailed"), {
+        id: loadingToastId,
+      });
       trigger("thud");
     } finally {
       setIsImporting(false);
@@ -456,7 +500,7 @@ export function BackupSyncSettings() {
     trigger("toggle");
     setWebdavCredentials({ serverUrl: "", username: "", password: "" });
     setConnectionStatus("idle");
-    notify.success("Credentials cleared");
+    notify.success(tr("settings.backup.toast.credentialsCleared"));
   };
 
   const handleTestConnection = async () => {
@@ -465,7 +509,7 @@ export function BackupSyncSettings() {
       !webdavCredentials.username ||
       !webdavCredentials.password
     ) {
-      notify.error("Please fill in all WebDAV fields");
+      notify.error(tr("settings.backup.toast.fillAllFields"));
       return;
     }
 
@@ -478,16 +522,18 @@ export function BackupSyncSettings() {
 
       if (result.success) {
         setConnectionStatus("success");
-        notify.success("Connected successfully");
+        notify.success(tr("settings.backup.toast.connected"));
         trigger("success");
       } else {
         setConnectionStatus("error");
-        notify.error(result.error || "Connection failed");
+        notify.error(
+          result.error || tr("settings.backup.toast.connectionFailed"),
+        );
         trigger("thud");
       }
     } catch {
       setConnectionStatus("error");
-      notify.error("Connection test failed");
+      notify.error(tr("settings.backup.toast.connectionTestFailed"));
       trigger("thud");
     } finally {
       setIsTestingConnection(false);
@@ -496,7 +542,7 @@ export function BackupSyncSettings() {
 
   const handleSyncUpload = async () => {
     if (!webdavCredentials.serverUrl) {
-      notify.error("Configure WebDAV settings first");
+      notify.error(tr("settings.backup.toast.configureFirst"));
       return;
     }
 
@@ -505,7 +551,7 @@ export function BackupSyncSettings() {
 
     try {
       const backupData: BackupData = isGuestMode
-        ? buildGuestBackupData()
+        ? await buildGuestBackupData()
         : await collectCloudBackup(supabase);
 
       const blob = await createBackupZip(backupData);
@@ -516,14 +562,14 @@ export function BackupSyncSettings() {
           "kanso_last_backup_date",
           new Date().toISOString(),
         );
-        notify.success("Backed up to server");
+        notify.success(tr("settings.backup.toast.backedUp"));
         trigger("success");
       } else {
-        notify.error(result.error || "Back up failed");
+        notify.error(result.error || tr("settings.backup.toast.backUpFailed"));
         trigger("thud");
       }
     } catch {
-      notify.error("Back up failed");
+      notify.error(tr("settings.backup.toast.backUpFailed"));
       trigger("thud");
     } finally {
       setIsSyncing(false);
@@ -532,7 +578,7 @@ export function BackupSyncSettings() {
 
   const handleSyncDownload = async () => {
     if (!webdavCredentials.serverUrl) {
-      notify.error("Configure WebDAV settings first");
+      notify.error(tr("settings.backup.toast.configureFirst"));
       return;
     }
 
@@ -545,11 +591,13 @@ export function BackupSyncSettings() {
       if (result.success && result.data) {
         setPendingRestore(result.data);
       } else {
-        notify.error(result.error || "Download failed");
+        notify.error(
+          result.error || tr("settings.backup.toast.downloadFailed"),
+        );
         trigger("thud");
       }
     } catch {
-      notify.error("Download failed");
+      notify.error(tr("settings.backup.toast.downloadFailed"));
       trigger("thud");
     } finally {
       setIsSyncing(false);
@@ -566,6 +614,7 @@ export function BackupSyncSettings() {
     try {
       if (isGuestMode) {
         mockStore.restoreBackup(data);
+        await restoreGuestWorkspaceBackup(data);
       } else {
         if (!user) return;
         await replaceCloudBackup(supabase, user.id, data);
@@ -576,10 +625,10 @@ export function BackupSyncSettings() {
 
       await invalidateDataQueries();
 
-      notify.success("Data restored from server");
+      notify.success(tr("settings.backup.toast.restored"));
       trigger("success");
     } catch {
-      notify.error("Restore failed");
+      notify.error(tr("settings.backup.toast.restoreFailed"));
       trigger("thud");
     } finally {
       setIsSyncing(false);
@@ -594,7 +643,7 @@ export function BackupSyncSettings() {
         accept=".zip,application/zip"
         onChange={handleFileChange}
         className="hidden"
-        aria-label="Import backup file"
+        aria-label={t("settings.backup.importFileAria")}
       />
 
       <Tabs defaultValue="local" className="space-y-4">
@@ -605,7 +654,7 @@ export function BackupSyncSettings() {
             className="rounded-md gap-2 text-[13px] font-medium tracking-tight data-[state=active]:bg-brand data-[state=active]:text-brand-foreground data-[state=active]:shadow-none transition-all h-9 border border-transparent data-[state=active]:border-brand/20"
           >
             <HardDrive className="h-3.5 w-3.5" />
-            Local Storage
+            {t("settings.backup.tab.local")}
           </TabsTrigger>
           <TabsTrigger
             value="cloud"
@@ -613,7 +662,7 @@ export function BackupSyncSettings() {
             className="rounded-md gap-2 text-[13px] font-medium tracking-tight data-[state=active]:bg-brand data-[state=active]:text-brand-foreground data-[state=active]:shadow-none transition-all h-9 border border-transparent data-[state=active]:border-brand/20"
           >
             <Cloud className="h-3.5 w-3.5" />
-            WebDAV
+            {t("settings.backup.tab.webdav")}
           </TabsTrigger>
         </TabsList>
 
@@ -630,11 +679,14 @@ export function BackupSyncSettings() {
                     className="h-4 w-4 text-brand"
                     strokeWidth={2.25}
                   />
-                  Local Backup
+                  {t("settings.backup.local.title")}
                 </CardTitle>
                 <CardDescription className="text-xs text-muted-foreground/80 lowercase">
-                  Export your {isGuestMode ? "local" : "cloud"} data to a ZIP
-                  file or restore from a backup.
+                  {t(
+                    isGuestMode
+                      ? "settings.backup.local.descriptionGuest"
+                      : "settings.backup.local.descriptionCloud",
+                  )}
                 </CardDescription>
               </CardHeader>
               <CardContent className="flex gap-3 px-4 pb-5 pt-0">
@@ -652,7 +704,7 @@ export function BackupSyncSettings() {
                   ) : (
                     <Download className="h-4 w-4" strokeWidth={2.25} />
                   )}
-                  Export
+                  {t("settings.backup.export")}
                 </Button>
                 <Button
                   variant="outline"
@@ -668,7 +720,7 @@ export function BackupSyncSettings() {
                   ) : (
                     <Upload className="h-4 w-4" strokeWidth={2.25} />
                   )}
-                  Import
+                  {t("settings.backup.import")}
                 </Button>
               </CardContent>
               <Separator className="bg-border/20 mx-4" />
@@ -682,7 +734,7 @@ export function BackupSyncSettings() {
                     setShowExternalImport(true);
                   }}
                 >
-                  Import from other apps
+                  {t("settings.backup.importOtherApps")}
                 </Button>
               </div>
             </Card>
@@ -712,13 +764,15 @@ export function BackupSyncSettings() {
         isOpen={pendingRestore !== null}
         onClose={() => setPendingRestore(null)}
         onConfirm={runSyncDownload}
-        title="Replace your data?"
+        title={t("settings.backup.replace.title")}
         description={
           pendingRestore
-            ? `This backup was taken ${formatBackupDate(pendingRestore.metadata.exportedAt)}. Restoring overwrites everything in your account with it — anything not in that backup is lost. This cannot be undone.`
-            : "Restoring overwrites everything in your account with the backup on the server. Anything not in that backup is lost. This cannot be undone."
+            ? t("settings.backup.replace.descriptionWithDate", {
+                date: formatBackupDate(pendingRestore.metadata.exportedAt),
+              })
+            : t("settings.backup.replace.description")
         }
-        confirmLabel="Replace"
+        confirmLabel={t("settings.backup.replace.confirm")}
       />
     </div>
   );

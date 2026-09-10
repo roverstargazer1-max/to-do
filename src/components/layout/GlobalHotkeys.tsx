@@ -7,6 +7,7 @@ import { useTaskActions } from "@/components/TaskActionsProvider";
 import { useCompletedTasks } from "@/components/CompletedTasksProvider";
 import { useHabitActions } from "@/components/habits/HabitActionsProvider";
 import { useProjectActions } from "@/components/ProjectActionsProvider";
+import { useWorkspaceActions } from "@/components/workspace/WorkspaceActionsProvider";
 import { useUiStore } from "@/lib/store/uiStore";
 import { useCalendarStore } from "@/lib/calendar/store";
 import { useIsAnyModalOpen } from "@/lib/hooks/useIsAnyModalOpen";
@@ -31,6 +32,7 @@ export function GlobalHotkeys({
   const { openSheet: openCompletedSheet } = useCompletedTasks();
   const { openAddHabit } = useHabitActions();
   const { openCreateProject } = useProjectActions();
+  const { openCreateWorkspace } = useWorkspaceActions();
   const { openCreateEvent } = useCalendarStore();
   const setViewMode = useUiStore((state) => state.setViewMode);
   const setArchivedProjectsOpen = useUiStore(
@@ -76,6 +78,9 @@ export function GlobalHotkeys({
 
   // New Project (p)
   useHotkeys("p", () => openCreateProject(), newProjectHotkeyOptions);
+
+  // New Workspace (w) — same create-dialog convention as n/h/e/p
+  useHotkeys("w", () => openCreateWorkspace(), options);
 
   // Archived Projects (a)
   useHotkeys("a", () => setArchivedProjectsOpen(true), options);

@@ -29,6 +29,7 @@ import {
   SettingsIcon,
   SunIcon,
   SearchX,
+  Frame,
 } from "lucide-react";
 import { EmptyState } from "@/components/ui/EmptyState";
 
@@ -44,6 +45,7 @@ import {
 } from "@/components/ui/command";
 import { useTaskActions } from "@/components/TaskActionsProvider";
 import { useProjectActions } from "@/components/ProjectActionsProvider";
+import { useWorkspaceActions } from "@/components/workspace/WorkspaceActionsProvider";
 import { useHabitActions } from "@/components/habits/HabitActionsProvider";
 import { useCompletedTasks } from "@/components/CompletedTasksProvider";
 import { useAuth } from "@/components/AuthProvider";
@@ -61,6 +63,7 @@ import type { Habit } from "@/lib/types/habit";
 import { useQueryClient } from "@tanstack/react-query";
 import { notify } from "@/lib/notify";
 import { getPlatformKey } from "@/lib/utils/platform";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 
 interface CommandMenuProps {
   open: boolean;
@@ -91,6 +94,7 @@ function CommandSearchResults({
   const { data: tasks = [] } = useTasks();
   const { data: habits = [] } = useHabits();
   const events = useCalendarEventsList();
+  const { t } = useTranslation();
 
   // Mapped independently of `search` — cmdk filters these items client-side,
   // so re-deriving them on every keystroke would be wasted work.
@@ -164,9 +168,13 @@ function CommandSearchResults({
 
   return (
     <>
-      <CommandGroup heading="Tasks">{taskItems}</CommandGroup>
-      <CommandGroup heading="Habits">{habitItems}</CommandGroup>
-      <CommandGroup heading="Events">{eventItems}</CommandGroup>
+      <CommandGroup heading={t("command.groupTasks")}>{taskItems}</CommandGroup>
+      <CommandGroup heading={t("command.groupHabits")}>
+        {habitItems}
+      </CommandGroup>
+      <CommandGroup heading={t("command.groupEvents")}>
+        {eventItems}
+      </CommandGroup>
     </>
   );
 }
@@ -178,6 +186,7 @@ export function CommandMenu({ open, onOpenChange }: CommandMenuProps) {
   const { setTheme, resolvedTheme } = useTheme();
   const { openAddTask } = useTaskActions();
   const { openCreateProject } = useProjectActions();
+  const { openCreateWorkspace } = useWorkspaceActions();
   const { openAddHabit, openEditHabit } = useHabitActions();
   const { openCreateEvent, setDate } = useCalendarStore();
   const { openSheet: openCompletedSheet } = useCompletedTasks();
@@ -195,6 +204,7 @@ export function CommandMenu({ open, onOpenChange }: CommandMenuProps) {
   const setSelectedTaskId = useUiStore((state) => state.setSelectedTaskId);
   const [copied, setCopied] = React.useState(false);
   const [search, setSearch] = React.useState("");
+  const { t } = useTranslation();
 
   // Handle back navigation to close command menu instead of navigating away
   useBackNavigation(open, () => onOpenChange(false));
@@ -214,15 +224,15 @@ export function CommandMenu({ open, onOpenChange }: CommandMenuProps) {
           <div className="flex items-center gap-2.5">
             <CommandIcon className="h-5 w-5 text-muted-foreground/70" />
             <h2 className="text-[24px] font-semibold tracking-[-0.02em] text-foreground">
-              Command Menu
+              {t("command.title")}
             </h2>
           </div>
           <p className="text-[11px] uppercase tracking-[0.02em] text-muted-foreground font-medium pt-1">
-            Quick Actions & Navigation
+            {t("command.subtitle")}
           </p>
         </div>
         <CommandInput
-          placeholder="Type a command or search..."
+          placeholder={t("command.searchPlaceholder")}
           value={search}
           onValueChange={setSearch}
         />
@@ -230,45 +240,52 @@ export function CommandMenu({ open, onOpenChange }: CommandMenuProps) {
           <CommandEmpty>
             <EmptyState
               icon={SearchX}
-              title="No results found"
-              description="Try a different search term."
+              title={t("command.emptyTitle")}
+              description={t("command.emptyDescription")}
               className="py-8 gap-3"
             />
           </CommandEmpty>
 
-          <CommandGroup heading="Actions">
+          <CommandGroup heading={t("command.groupActions")}>
             <CommandItem onSelect={() => runCommand(() => openAddTask())}>
               <PlusIcon className="mr-2 h-5 w-5" />
-              <span>New Task</span>
+              <span>{t("command.newTask")}</span>
               <CommandShortcut>N</CommandShortcut>
             </CommandItem>
             <CommandItem onSelect={() => runCommand(() => openAddHabit())}>
               <PlusIcon className="mr-2 h-5 w-5" />
-              <span>New Habit</span>
+              <span>{t("command.newHabit")}</span>
               <CommandShortcut>H</CommandShortcut>
             </CommandItem>
             <CommandItem onSelect={() => runCommand(() => openCreateEvent())}>
               <CalendarPlus className="mr-2 h-5 w-5" />
-              <span>New Event</span>
+              <span>{t("command.newEvent")}</span>
               <CommandShortcut>E</CommandShortcut>
             </CommandItem>
             <CommandItem onSelect={() => runCommand(() => openCreateProject())}>
               <FolderPlus className="mr-2 h-5 w-5" />
-              <span>New Project</span>
+              <span>{t("command.newProject")}</span>
               <CommandShortcut>P</CommandShortcut>
+            </CommandItem>
+            <CommandItem
+              onSelect={() => runCommand(() => openCreateWorkspace())}
+            >
+              <Frame className="mr-2 h-5 w-5" />
+              <span>{t("command.newWorkspace")}</span>
+              <CommandShortcut>W</CommandShortcut>
             </CommandItem>
             <CommandItem
               onSelect={() => runCommand(() => setArchivedProjectsOpen(true))}
             >
               <ArchiveRestore className="mr-2 h-5 w-5" />
-              <span>Archived Projects</span>
+              <span>{t("command.archivedProjects")}</span>
               <CommandShortcut>A</CommandShortcut>
             </CommandItem>
             <CommandItem
               onSelect={() => runCommand(() => openCompletedSheet())}
             >
               <CheckCircle2 className="mr-2 h-5 w-5" />
-              <span>Show Completed Tasks</span>
+              <span>{t("command.showCompleted")}</span>
               <CommandShortcut>C</CommandShortcut>
             </CommandItem>
             {user && !isGuestMode && (
@@ -276,12 +293,12 @@ export function CommandMenu({ open, onOpenChange }: CommandMenuProps) {
                 onSelect={() =>
                   runCommand(() => {
                     queryClient.invalidateQueries();
-                    notify.success("Syncing...");
+                    notify.success(t("command.syncing"));
                   })
                 }
               >
                 <RefreshCw className="mr-2 h-5 w-5" />
-                <span>Sync Now</span>
+                <span>{t("command.syncNow")}</span>
               </CommandItem>
             )}
             <CommandItem
@@ -294,12 +311,12 @@ export function CommandMenu({ open, onOpenChange }: CommandMenuProps) {
             >
               <Monitor className="mr-2 h-5 w-5" />
               <span>
-                {isPiPActive ? "Close PiP Window" : "Open PiP Window"}
+                {isPiPActive ? t("command.closePip") : t("command.openPip")}
               </span>
             </CommandItem>
             <CommandItem onSelect={() => runCommand(() => toggleSidebar())}>
               <Columns className="mr-2 h-5 w-5" />
-              <span>Toggle Sidebar</span>
+              <span>{t("command.toggleSidebar")}</span>
               <CommandShortcut>{getPlatformKey()}+B</CommandShortcut>
             </CommandItem>
           </CommandGroup>
@@ -316,14 +333,14 @@ export function CommandMenu({ open, onOpenChange }: CommandMenuProps) {
 
           <CommandSeparator />
 
-          <CommandGroup heading="Focus Sessions">
+          <CommandGroup heading={t("command.groupFocus")}>
             <CommandItem
               onSelect={() =>
                 runCommand(() => router.push("/focus?duration=25"))
               }
             >
               <Clock className="mr-2 h-5 w-5" />
-              <span>Pomodoro (25m)</span>
+              <span>{t("command.pomodoro")}</span>
               <CommandShortcut>F</CommandShortcut>
             </CommandItem>
             <CommandItem
@@ -332,20 +349,20 @@ export function CommandMenu({ open, onOpenChange }: CommandMenuProps) {
               }
             >
               <Clock className="mr-2 h-5 w-5" />
-              <span>Deep Work (50m)</span>
+              <span>{t("command.deepWork")}</span>
             </CommandItem>
             <CommandItem
               onSelect={() => runCommand(() => router.push("/focus"))}
             >
               <Clock className="mr-2 h-5 w-5" />
-              <span>Focus Session</span>
+              <span>{t("command.focusSession")}</span>
               <CommandShortcut>5</CommandShortcut>
             </CommandItem>
           </CommandGroup>
 
           <CommandSeparator />
 
-          <CommandGroup heading="View Options">
+          <CommandGroup heading={t("command.groupView")}>
             <CommandItem
               onSelect={() =>
                 runCommand(() => {
@@ -355,7 +372,7 @@ export function CommandMenu({ open, onOpenChange }: CommandMenuProps) {
               }
             >
               <ListFilter className="mr-2 h-5 w-5" />
-              <span>Sort by Date</span>
+              <span>{t("command.sortByDate")}</span>
             </CommandItem>
             <CommandItem
               onSelect={() =>
@@ -366,7 +383,7 @@ export function CommandMenu({ open, onOpenChange }: CommandMenuProps) {
               }
             >
               <ListFilter className="mr-2 h-5 w-5" />
-              <span>Sort by Priority</span>
+              <span>{t("command.sortByPriority")}</span>
             </CommandItem>
             <CommandItem
               onSelect={() =>
@@ -377,7 +394,7 @@ export function CommandMenu({ open, onOpenChange }: CommandMenuProps) {
               }
             >
               <Layers className="mr-2 h-5 w-5" />
-              <span>Group by Project</span>
+              <span>{t("command.groupByProject")}</span>
             </CommandItem>
             <CommandItem
               onSelect={() =>
@@ -388,7 +405,7 @@ export function CommandMenu({ open, onOpenChange }: CommandMenuProps) {
               }
             >
               <Layers className="mr-2 h-5 w-5" />
-              <span>Ungroup Tasks</span>
+              <span>{t("command.ungroupTasks")}</span>
             </CommandItem>
             <CommandItem
               onSelect={() =>
@@ -402,57 +419,63 @@ export function CommandMenu({ open, onOpenChange }: CommandMenuProps) {
               ) : (
                 <SunIcon className="mr-2 h-5 w-5" />
               )}
-              <span>Toggle Dark Mode</span>
+              <span>{t("command.toggleDarkMode")}</span>
               <CommandShortcut>T</CommandShortcut>
             </CommandItem>
           </CommandGroup>
 
           <CommandSeparator />
 
-          <CommandGroup heading="Navigation">
+          <CommandGroup heading={t("command.groupNavigation")}>
             <CommandItem onSelect={() => runCommand(() => router.push("/"))}>
               <HomeIcon className="mr-2 h-5 w-5" />
-              <span>Home</span>
+              <span>{t("common.nav.home")}</span>
               <CommandShortcut>1</CommandShortcut>
             </CommandItem>
             <CommandItem
               onSelect={() => runCommand(() => router.push("/habits"))}
             >
               <Layers className="mr-2 h-5 w-5" />
-              <span>Habits</span>
+              <span>{t("common.nav.habits")}</span>
               <CommandShortcut>2</CommandShortcut>
             </CommandItem>
             <CommandItem
               onSelect={() => runCommand(() => router.push("/calendar"))}
             >
               <CalendarIcon className="mr-2 h-5 w-5" />
-              <span>Calendar</span>
+              <span>{t("common.nav.calendar")}</span>
               <CommandShortcut>3</CommandShortcut>
             </CommandItem>
             <CommandItem
               onSelect={() => runCommand(() => router.push("/stats"))}
             >
               <LayoutGridIcon className="mr-2 h-5 w-5" />
-              <span>Statistics</span>
+              <span>{t("common.nav.statistics")}</span>
               <CommandShortcut>4</CommandShortcut>
+            </CommandItem>
+            <CommandItem
+              onSelect={() => runCommand(() => router.push("/workspaces"))}
+            >
+              <Frame className="mr-2 h-5 w-5" />
+              <span>{t("common.nav.workspaces")}</span>
             </CommandItem>
           </CommandGroup>
 
           <CommandSeparator />
 
-          <CommandGroup heading="Account">
+          <CommandGroup heading={t("command.groupAccount")}>
             <CommandItem
               onSelect={() => runCommand(() => router.push("/settings"))}
             >
               <SettingsIcon className="mr-2 h-5 w-5" />
-              <span>Settings</span>
+              <span>{t("common.nav.settings")}</span>
               <CommandShortcut>6</CommandShortcut>
             </CommandItem>
             <CommandItem
               onSelect={() => runCommand(() => setShortcutsHelpOpen(true))}
             >
               <Keyboard className="mr-2 h-5 w-5" />
-              <span>Keyboard Shortcuts</span>
+              <span>{t("command.keyboardShortcuts")}</span>
               <CommandShortcut>Shift+H</CommandShortcut>
             </CommandItem>
             {user && (
@@ -470,7 +493,7 @@ export function CommandMenu({ open, onOpenChange }: CommandMenuProps) {
                 ) : (
                   <Copy className="mr-2 h-5 w-5" />
                 )}
-                <span>Copy My User ID</span>
+                <span>{t("command.copyUserId")}</span>
               </CommandItem>
             )}
             <CommandItem
@@ -478,7 +501,7 @@ export function CommandMenu({ open, onOpenChange }: CommandMenuProps) {
               className="sumi-red-action"
             >
               <LogOut className="mr-2 h-5 w-5" />
-              <span>Sign Out</span>
+              <span>{t("command.signOut")}</span>
             </CommandItem>
           </CommandGroup>
         </CommandList>
