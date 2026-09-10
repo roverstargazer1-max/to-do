@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+﻿import type { ReactNode } from "react";
 import { render } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { describe, expect, it, beforeEach, vi } from "vitest";
@@ -178,6 +178,8 @@ describe("TaskList DnD layout shift protection", () => {
       selector({
         isProjectsOpen: true,
         toggleProjectsOpen: vi.fn(),
+        isWorkspacesOpen: true,
+        toggleWorkspacesOpen: vi.fn(),
         sortBy: "date",
         groupBy: "none",
         viewMode: "list",

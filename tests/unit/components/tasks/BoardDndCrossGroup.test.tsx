@@ -1,4 +1,4 @@
-/**
+﻿/**
  * TDD regression test for cross-group snap-back in TaskBoard.
  *
  * Root cause (identified via debug session dnd-cross-group-snap-back-context.md):
@@ -250,6 +250,8 @@ describe("TaskBoard — cross-group snap-back regression", () => {
         setStatsPeriod: vi.fn(),
         isProjectsOpen: true,
         toggleProjectsOpen: vi.fn(),
+        isWorkspacesOpen: true,
+        toggleWorkspacesOpen: vi.fn(),
         timeFormat: "system",
         setTimeFormat: vi.fn(),
         hapticsEnabled: false,

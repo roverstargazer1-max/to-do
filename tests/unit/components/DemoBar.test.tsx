@@ -21,6 +21,22 @@ vi.mock("@/lib/notify", () => ({
   notify: { success: vi.fn(), error: vi.fn() },
 }));
 
+// Guest workspaces live in IndexedDB (ADR 0018); jsdom has none. Confirming
+// Start fresh drops the workspace key too (ticket 09), so the persistence
+// layer is mocked to a plain map like the other guest-store tests.
+vi.mock("idb-keyval", () => {
+  const backing = new Map<string, unknown>();
+  return {
+    get: vi.fn(async (key: string) => backing.get(key)),
+    set: vi.fn(async (key: string, value: unknown) => {
+      backing.set(key, value);
+    }),
+    del: vi.fn(async (key: string) => {
+      backing.delete(key);
+    }),
+  };
+});
+
 // Forces the AlertDialog (desktop) branch of the shared confirm dialog rather
 // than the Drawer (mobile) branch — either renders the same confirm flow.
 vi.mock("@/lib/hooks/useMediaQuery", () => ({

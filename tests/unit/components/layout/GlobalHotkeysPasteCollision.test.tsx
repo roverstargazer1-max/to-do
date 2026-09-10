@@ -36,6 +36,9 @@ vi.mock("@/components/ProjectActionsProvider", () => ({
     isCreateProjectOpen: false,
   }),
 }));
+vi.mock("@/components/workspace/WorkspaceActionsProvider", () => ({
+  useWorkspaceActions: () => ({ openCreateWorkspace: vi.fn() }),
+}));
 vi.mock("@/lib/calendar/store", () => ({
   useCalendarStore: () => ({
     openCreateEvent: vi.fn(),

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Regression test for residual DnD race condition.
  *
  * Symptom: On drop, surrounding tasks briefly push back to their original
@@ -254,6 +254,8 @@ describe("TaskList drop race condition (residual snap-back)", () => {
       selector({
         isProjectsOpen: true,
         toggleProjectsOpen: vi.fn(),
+        isWorkspacesOpen: true,
+        toggleWorkspacesOpen: vi.fn(),
         sortBy: "custom",
         groupBy: "none",
         viewMode: "list",
