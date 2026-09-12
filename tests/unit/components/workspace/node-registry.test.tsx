@@ -195,6 +195,30 @@ describe("node-kind registry", () => {
         }),
       ).kind,
     ).toBe("focus");
+    // The doc kind's reference pair is null on both sides.
+    expect(
+      resolveNodeKind(
+        makeRow({
+          id: "node-d",
+          kind: "doc",
+          entity_type: null,
+          entity_id: null,
+        }),
+      ).kind,
+    ).toBe("doc");
+  });
+
+  it("degrades a doc row that carries an entity pair — the doc kind references nothing", () => {
+    expect(
+      resolveNodeKind(
+        makeRow({
+          id: "node-d-invalid",
+          kind: "doc",
+          entity_type: "doc" as unknown as null,
+          entity_id: "doc-1" as unknown as null,
+        }),
+      ).kind,
+    ).toBe(UNKNOWN_NODE_KIND);
   });
 
   it("degrades a focus row that carries an entity pair — the focus kind references nothing", () => {
@@ -256,7 +280,15 @@ describe("node-kind registry", () => {
 
   it("derives the React Flow render routing from the registration", () => {
     expect(Object.keys(workspaceNodeTypes).sort()).toEqual(
-      [UNKNOWN_NODE_KIND, "event", "focus", "group", "habit", "task"].sort(),
+      [
+        UNKNOWN_NODE_KIND,
+        "doc",
+        "event",
+        "focus",
+        "group",
+        "habit",
+        "task",
+      ].sort(),
     );
   });
 

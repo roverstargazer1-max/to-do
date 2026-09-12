@@ -13,6 +13,7 @@ describe("QuickAddMenu", () => {
     onAddHabit: vi.fn(),
     onAddEvent: vi.fn(),
     onAddFocus: vi.fn(),
+    onAddDoc: vi.fn(),
     onFitView: vi.fn(),
   };
 
@@ -29,6 +30,7 @@ describe("QuickAddMenu", () => {
     expect(screen.getByTestId("quick-add-habit")).toBeDefined();
     expect(screen.getByTestId("quick-add-event")).toBeDefined();
     expect(screen.getByTestId("quick-add-focus")).toBeDefined();
+    expect(screen.getByTestId("quick-add-doc")).toBeDefined();
     expect(screen.getByTestId("quick-add-fit-view")).toBeDefined();
   });
 
@@ -99,6 +101,14 @@ describe("QuickAddMenu", () => {
 
     fireEvent.click(screen.getByTestId("quick-add-focus"));
     expect(defaultProps.onAddFocus).toHaveBeenCalled();
+    expect(defaultProps.onClose).toHaveBeenCalled();
+  });
+
+  it("invokes onAddDoc when clicking add doc item", () => {
+    render(<QuickAddMenu {...defaultProps} />);
+
+    fireEvent.click(screen.getByTestId("quick-add-doc"));
+    expect(defaultProps.onAddDoc).toHaveBeenCalled();
     expect(defaultProps.onClose).toHaveBeenCalled();
   });
 

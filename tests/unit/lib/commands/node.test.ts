@@ -18,6 +18,7 @@ vi.mock("@/lib/mutations/workspace", () => ({
     createGroup: vi.fn(),
     ungroup: vi.fn(),
     updateGroupTitle: vi.fn(),
+    updateDocNode: vi.fn(),
   },
 }));
 
@@ -459,6 +460,65 @@ describe("nodeCommands", () => {
         "group-1",
         "New Title",
       );
+    });
+  });
+
+  describe("updateDocNode", () => {
+    it("updates title and content in cache and calls mutation", async () => {
+      const docNode = makeNode({
+        id: "doc-1",
+        kind: "doc",
+        entity_type: null,
+        entity_id: null,
+        display_config: { title: "Old Title", content: "Old Content" },
+      });
+      queryClient.setQueryData(workspaceKeys.nodes.list("ws-1", false), [
+        docNode,
+      ]);
+      vi.mocked(workspaceMutations.updateDocNode).mockResolvedValue(undefined);
+
+      await nodeCommands.updateDocNode(
+        { queryClient, isGuestMode: false },
+        {
+          workspaceId: "ws-1",
+          nodeId: "doc-1",
+          title: "New Title",
+          content: "New Content",
+        },
+      );
+
+      const cached = queryClient.getQueryData<WorkspaceNode[]>(
+        workspaceKeys.nodes.list("ws-1", false),
+      );
+      expect(cached?.[0].display_config).toEqual({
+        title: "New Title",
+        content: "New Content",
+      });
+      expect(workspaceMutations.updateDocNode).toHaveBeenCalledWith("doc-1", {
+        title: "New Title",
+        content: "New Content",
+      });
+    });
+
+    it("invalidates cache and rethrows on mutation failure", async () => {
+      vi.mocked(workspaceMutations.updateDocNode).mockRejectedValue(
+        new Error("Network Error"),
+      );
+
+      await expect(
+        nodeCommands.updateDocNode(
+          { queryClient, isGuestMode: false },
+          {
+            workspaceId: "ws-1",
+            nodeId: "doc-1",
+            title: "Failed Title",
+          },
+        ),
+      ).rejects.toThrow("Network Error");
+
+      expect(invalidateSpy).toHaveBeenCalledWith({
+        queryKey: workspaceKeys.nodes.all,
+      });
     });
   });
 });
