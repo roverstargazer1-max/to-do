@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Calendar, Flag, X } from "lucide-react";
 import { useTasks } from "@/lib/hooks/useTasks";
+import { useSubtasks } from "@/lib/hooks/useSubtasks";
 import { useAuth } from "@/components/AuthProvider";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -19,6 +20,7 @@ import {
   formatDueDate,
   priorityTextClasses,
 } from "@/components/tasks/task-utils";
+import { StepProgressBadge } from "@/components/tasks/StepProgressBadge";
 import type {
   TaskNodeCommands,
   WorkspaceNodeComponentProps,
@@ -46,6 +48,7 @@ export function TaskNode({ data, spec }: WorkspaceNodeComponentProps) {
   const testKey = taskId ?? row.id;
   const { data: tasks = [], isLoading } = useTasks({ showCompleted: true });
   const task = tasks.find((t) => t.id === taskId);
+  const { data: subtasks = [] } = useSubtasks(taskId);
 
   // The registry's command binding: the same taskCommands.toggle the
   // tasks-page hook executes, routed through the single registration.
@@ -109,51 +112,103 @@ export function TaskNode({ data, spec }: WorkspaceNodeComponentProps) {
             <Skeleton className="h-4 flex-1" />
           </div>
         ) : task ? (
-          <div className="flex items-start gap-2.5 px-3 py-2.5">
-            <Checkbox
-              checked={task.is_completed}
-              onCheckedChange={() =>
-                toggle.mutate({
-                  id: task.id,
-                  is_completed: !task.is_completed,
-                })
-              }
-              disabled={toggle.isPending}
-              data-testid={`task-node-toggle-${task.id}`}
-              aria-label={t("workspace.node.toggleTaskAria")}
-              className="nodrag h-4 w-4 mt-0.5"
-            />
-            <div className="flex flex-col gap-0.5 min-w-0 flex-1">
-              <p className="text-sm font-medium leading-snug break-words text-foreground">
-                <span
-                  className={cn(task.is_completed && "task-ink-completed-text")}
-                  data-animate="false"
-                >
-                  {task.content}
-                </span>
-              </p>
-              {(task.due_date || task.priority < 4) && (
-                <div className="flex items-center gap-2.5 flex-wrap">
-                  {task.due_date && (
-                    <span className="text-[11px] text-muted-foreground/80 flex items-center gap-1 font-medium uppercase tracking-wider">
-                      <Calendar className="h-3 w-3" strokeWidth={2.25} />
-                      {formatDueDate(task.due_date)}
-                    </span>
-                  )}
-                  {task.priority < 4 && (
+          <div className="flex flex-col">
+            <div
+              className={cn(
+                "flex items-start gap-2.5 px-3 pt-2.5 cursor-pointer select-none",
+                subtasks.length > 0 ? "pb-1.5" : "pb-2.5",
+              )}
+            >
+              <Checkbox
+                checked={task.is_completed}
+                onCheckedChange={() =>
+                  toggle.mutate({
+                    id: task.id,
+                    is_completed: !task.is_completed,
+                  })
+                }
+                disabled={toggle.isPending}
+                data-testid={`task-node-toggle-${task.id}`}
+                aria-label={t("workspace.node.toggleTaskAria")}
+                className="nodrag h-4 w-4 mt-0.5"
+              />
+              <div className="flex flex-col gap-0.5 min-w-0 flex-1">
+                <p className="text-sm font-medium leading-snug break-words text-foreground">
+                  <span
+                    className={cn(
+                      task.is_completed && "task-ink-completed-text",
+                    )}
+                    data-animate="false"
+                  >
+                    {task.content}
+                  </span>
+                </p>
+                {(task.due_date ||
+                  task.priority < 4 ||
+                  subtasks.length > 0) && (
+                  <div className="flex items-center gap-2.5 flex-wrap">
+                    {task.due_date && (
+                      <span className="text-[11px] text-muted-foreground/80 flex items-center gap-1 font-medium uppercase tracking-wider">
+                        <Calendar className="h-3 w-3" strokeWidth={2.25} />
+                        {formatDueDate(task.due_date)}
+                      </span>
+                    )}
+                    {task.priority < 4 && (
+                      <span
+                        className={cn(
+                          "flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider",
+                          priorityTextClasses[task.priority as 1 | 2 | 3 | 4],
+                        )}
+                      >
+                        <Flag className="h-3 w-3" strokeWidth={2.5} />P
+                        {task.priority}
+                      </span>
+                    )}
+                    {subtasks.length > 0 && (
+                      <StepProgressBadge subtasks={subtasks} />
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {subtasks.length > 0 && (
+              <div
+                className="pl-8 pr-3 pb-2.5 pt-0.5 flex flex-col gap-1.5 max-h-[160px] overflow-y-auto nowheel"
+                data-testid={`task-node-subtasks-${testKey}`}
+              >
+                {subtasks.map((subtask) => (
+                  <div
+                    key={subtask.id}
+                    className="flex items-start gap-2 text-xs group/subtask select-none"
+                  >
+                    <Checkbox
+                      checked={subtask.is_completed}
+                      onCheckedChange={() =>
+                        toggle.mutate({
+                          id: subtask.id,
+                          is_completed: !subtask.is_completed,
+                        })
+                      }
+                      disabled={toggle.isPending}
+                      data-testid={`task-node-subtask-toggle-${subtask.id}`}
+                      aria-label={subtask.content}
+                      className="nodrag h-3.5 w-3.5 mt-0.5 rounded-[3px] shrink-0"
+                    />
                     <span
                       className={cn(
-                        "flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider",
-                        priorityTextClasses[task.priority as 1 | 2 | 3 | 4],
+                        "leading-snug break-words text-foreground/90 flex-1 min-w-0 transition-colors",
+                        subtask.is_completed &&
+                          "task-ink-completed-text text-muted-foreground/60 line-through",
                       )}
+                      data-animate="false"
                     >
-                      <Flag className="h-3 w-3" strokeWidth={2.5} />P
-                      {task.priority}
+                      {subtask.content}
                     </span>
-                  )}
-                </div>
-              )}
-            </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         ) : (
           <NodeOrphanBody lostLabel={t("workspace.canvas.addTask")} />
