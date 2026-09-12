@@ -258,4 +258,161 @@ describe("guestWorkspaceStore", () => {
       expect(await guestWorkspaceStore.listAllNodes()).toEqual([]);
     });
   });
+
+  describe("grouping and size persistence", () => {
+    const insertNode = async (
+      id: string,
+      workspaceId: string,
+      overrides: Partial<WorkspaceNode> = {},
+    ) => {
+      return guestWorkspaceStore.addNode({
+        id,
+        workspaceId,
+        kind: overrides.kind ?? "task",
+        entityType: overrides.entity_type ?? "task",
+        entityId: overrides.entity_id ?? `task-${id}`,
+        positionX: overrides.position_x ?? 0,
+        positionY: overrides.position_y ?? 0,
+        width: overrides.width ?? null,
+        height: overrides.height ?? null,
+        groupId: overrides.group_id ?? null,
+        displayConfig:
+          (overrides.display_config as Record<string, unknown>) ?? null,
+      });
+    };
+
+    it("updateNodeSize persists width and height", async () => {
+      await guestWorkspaceStore.createWorkspace({ id: "ws-1", name: "One" });
+      await insertNode("n-1", "ws-1");
+
+      await guestWorkspaceStore.updateNodeSize("n-1", {
+        width: 350,
+        height: 220,
+      });
+
+      const nodes = await guestWorkspaceStore.listNodes("ws-1");
+      expect(nodes[0].width).toBe(350);
+      expect(nodes[0].height).toBe(220);
+    });
+
+    it("createGroup persists container and updates member coordinates to relative", async () => {
+      await guestWorkspaceStore.createWorkspace({ id: "ws-1", name: "One" });
+      await insertNode("n-1", "ws-1", { position_x: 100, position_y: 100 });
+      await insertNode("n-2", "ws-1", { position_x: 200, position_y: 150 });
+
+      const groupNode: WorkspaceNode = {
+        id: "g-1",
+        workspace_id: "ws-1",
+        user_id: "guest",
+        kind: "group",
+        entity_type: null,
+        entity_id: null,
+        position_x: 80,
+        position_y: 80,
+        width: 400,
+        height: 300,
+        group_id: null,
+        display_config: { title: "Sprint" },
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+
+      await guestWorkspaceStore.createGroup({
+        groupNode,
+        members: [
+          { id: "n-1", position_x: 20, position_y: 20, group_id: "g-1" },
+          { id: "n-2", position_x: 120, position_y: 70, group_id: "g-1" },
+        ],
+      });
+
+      const nodes = await guestWorkspaceStore.listNodes("ws-1");
+      const group = nodes.find((n) => n.id === "g-1")!;
+      const member1 = nodes.find((n) => n.id === "n-1")!;
+      const member2 = nodes.find((n) => n.id === "n-2")!;
+
+      expect(group).toBeDefined();
+      expect(group.kind).toBe("group");
+      expect(member1.group_id).toBe("g-1");
+      expect(member1.position_x).toBe(20);
+      expect(member2.group_id).toBe("g-1");
+      expect(member2.position_x).toBe(120);
+    });
+
+    it("ungroup removes container and restores members to absolute coordinates", async () => {
+      await guestWorkspaceStore.createWorkspace({ id: "ws-1", name: "One" });
+      await insertNode("g-1", "ws-1", {
+        kind: "group",
+        entity_type: null,
+        entity_id: null,
+        position_x: 80,
+        position_y: 80,
+        width: 400,
+        height: 300,
+        display_config: { title: "Sprint" },
+      });
+      await insertNode("n-1", "ws-1", {
+        group_id: "g-1",
+        position_x: 20,
+        position_y: 20,
+      });
+
+      await guestWorkspaceStore.ungroup({
+        groupId: "g-1",
+        members: [{ id: "n-1", position_x: 100, position_y: 100 }],
+      });
+
+      const nodes = await guestWorkspaceStore.listNodes("ws-1");
+      expect(nodes.find((n) => n.id === "g-1")).toBeUndefined();
+      const member = nodes.find((n) => n.id === "n-1")!;
+      expect(member.group_id).toBeNull();
+      expect(member.position_x).toBe(100);
+      expect(member.position_y).toBe(100);
+    });
+
+    it("updateGroupTitle updates display_config.title", async () => {
+      await guestWorkspaceStore.createWorkspace({ id: "ws-1", name: "One" });
+      await insertNode("g-1", "ws-1", {
+        kind: "group",
+        entity_type: null,
+        entity_id: null,
+        position_x: 0,
+        position_y: 0,
+        width: 300,
+        height: 200,
+        display_config: { title: "Old Title" },
+      });
+
+      await guestWorkspaceStore.updateGroupTitle("g-1", "Renamed Title");
+
+      const nodes = await guestWorkspaceStore.listNodes("ws-1");
+      expect((nodes[0].display_config as { title: string })?.title).toBe(
+        "Renamed Title",
+      );
+    });
+
+    it("auto-dissolves group container when its last member is removed", async () => {
+      await guestWorkspaceStore.createWorkspace({ id: "ws-1", name: "One" });
+      await insertNode("g-1", "ws-1", {
+        kind: "group",
+        entity_type: null,
+        entity_id: null,
+        position_x: 0,
+        position_y: 0,
+        width: 300,
+        height: 200,
+        display_config: { title: "Solo Group" },
+      });
+      await insertNode("n-1", "ws-1", { group_id: "g-1" });
+
+      // Before removal, there are 2 nodes (group + member)
+      expect((await guestWorkspaceStore.listNodes("ws-1")).length).toBe(2);
+
+      // Removing the only member
+      await guestWorkspaceStore.removeNode("n-1");
+
+      const nodes = await guestWorkspaceStore.listNodes("ws-1");
+      // Both the member and the auto-dissolved empty group container are gone
+      expect(nodes.length).toBe(0);
+    });
+  });
 });

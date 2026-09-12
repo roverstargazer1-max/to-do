@@ -37,10 +37,22 @@ export interface WorkspaceNode {
   position_y: number;
   width: number | null;
   height: number | null;
-  /** Kind-specific display options (collapsed/expanded, etc.). */
+  /**
+   * The group container this node belongs to, if any: points to a
+   * `workspace_nodes` row with `kind: 'group'`.
+   * Stored coordinates are relative to the group's top-left corner.
+   */
+  group_id?: string | null;
+  /** Kind-specific display options (collapsed/expanded, title, etc.). */
   display_config: Record<string, unknown> | null;
   created_at: string;
   updated_at: string;
+}
+
+/** Display configuration specific to group container nodes. */
+export interface GroupDisplayConfig {
+  title?: string;
+  color?: string;
 }
 
 /**
@@ -69,12 +81,13 @@ export interface WorkspaceEdge {
   updated_at: string;
 }
 
-/** Known phase-1 node kinds. Anything else renders the placeholder. */
+/** Known node kinds. Anything else renders the placeholder. */
 export const WORKSPACE_NODE_KINDS = [
   "task",
   "habit",
   "event",
   "focus",
+  "group",
 ] as const;
 
 export type WorkspaceNodeKind = (typeof WORKSPACE_NODE_KINDS)[number];
@@ -102,7 +115,74 @@ export interface AddNodeInput {
   position: NodePosition;
   width?: number | null;
   height?: number | null;
+  groupId?: string | null;
+  parentId?: string | null;
   displayConfig?: Record<string, unknown> | null;
+}
+
+/** `node.resize` input: a row-level size PATCH. */
+export interface ResizeNodeInput {
+  workspaceId: string;
+  nodeId: string;
+  width: number;
+  height: number;
+}
+
+/**
+ * Input for creating a visual group container around multiple member nodes.
+ */
+export interface CreateGroupInput {
+  workspaceId: string;
+  group: {
+    id?: string;
+    position: NodePosition;
+    width: number;
+    height: number;
+    title?: string;
+  };
+  members: Array<{
+    id: string;
+    /** Relative position within the group container */
+    position: NodePosition;
+  }>;
+}
+
+/**
+ * Input for dissolving a group container back into independent canvas nodes.
+ */
+export interface UngroupInput {
+  workspaceId: string;
+  groupId: string;
+}
+
+/**
+ * Input for renaming a group container.
+ */
+export interface RenameGroupInput {
+  workspaceId: string;
+  groupId: string;
+  title: string;
+}
+
+/**
+ * Input for moving a node into a group container.
+ */
+export interface AddToGroupInput {
+  workspaceId: string;
+  nodeId: string;
+  groupId: string;
+  /** Relative position within the target group container */
+  position: NodePosition;
+}
+
+/**
+ * Input for moving a node out of a group container to the canvas root.
+ */
+export interface RemoveFromGroupInput {
+  workspaceId: string;
+  nodeId: string;
+  /** Absolute canvas position */
+  position: NodePosition;
 }
 
 /** `node.move` input: final position only — a row-level position PATCH. */

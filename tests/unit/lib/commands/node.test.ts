@@ -14,6 +14,10 @@ vi.mock("@/lib/mutations/workspace", () => ({
     addNode: vi.fn(),
     updateNodePosition: vi.fn(),
     removeNode: vi.fn(),
+    updateNodeSize: vi.fn(),
+    createGroup: vi.fn(),
+    ungroup: vi.fn(),
+    updateGroupTitle: vi.fn(),
   },
 }));
 
@@ -58,6 +62,10 @@ describe("nodeCommands", () => {
     vi.mocked(workspaceMutations.addNode).mockReset();
     vi.mocked(workspaceMutations.updateNodePosition).mockReset();
     vi.mocked(workspaceMutations.removeNode).mockReset();
+    vi.mocked(workspaceMutations.updateNodeSize).mockReset();
+    vi.mocked(workspaceMutations.createGroup).mockReset();
+    vi.mocked(workspaceMutations.ungroup).mockReset();
+    vi.mocked(workspaceMutations.updateGroupTitle).mockReset();
   });
 
   describe("add", () => {
@@ -219,6 +227,238 @@ describe("nodeCommands", () => {
       ).rejects.toThrow("boom");
 
       expect(publishDomainEvent).not.toHaveBeenCalled();
+    });
+
+    it("auto-dissolves empty group when its last member is removed", async () => {
+      const groupNode = makeNode({
+        id: "group-1",
+        kind: "group",
+        entity_type: null,
+        entity_id: null,
+      });
+      const memberNode = makeNode({
+        id: "member-1",
+        group_id: "group-1",
+      });
+
+      // Pre-seed query cache with group and 1 member
+      queryClient.setQueryData(workspaceKeys.nodes.list("ws-1", false), [
+        groupNode,
+        memberNode,
+      ]);
+
+      vi.mocked(workspaceMutations.removeNode).mockResolvedValue(undefined);
+
+      await nodeCommands.remove(
+        { queryClient, isGuestMode: false },
+        { id: "member-1", workspace_id: "ws-1" },
+      );
+
+      expect(workspaceMutations.removeNode).toHaveBeenCalledWith("member-1");
+      expect(publishDomainEvent).toHaveBeenCalledWith({
+        type: "node.removed",
+        workspaceId: "ws-1",
+        nodeId: "member-1",
+      });
+      expect(publishDomainEvent).toHaveBeenCalledWith({
+        type: "node.removed",
+        workspaceId: "ws-1",
+        nodeId: "group-1",
+      });
+    });
+  });
+
+  describe("resize", () => {
+    it("persists width and height patch and publishes node.resized", async () => {
+      vi.mocked(workspaceMutations.updateNodeSize).mockResolvedValue(undefined);
+
+      await nodeCommands.resize(
+        { queryClient, isGuestMode: false },
+        {
+          workspaceId: "ws-1",
+          nodeId: "node-1",
+          width: 320,
+          height: 180,
+        },
+      );
+
+      expect(workspaceMutations.updateNodeSize).toHaveBeenCalledWith("node-1", {
+        width: 320,
+        height: 180,
+      });
+      expect(publishDomainEvent).toHaveBeenCalledWith({
+        type: "node.resized",
+        workspaceId: "ws-1",
+        nodeId: "node-1",
+      });
+    });
+
+    it("invalidates and throws when resize fails", async () => {
+      vi.mocked(workspaceMutations.updateNodeSize).mockRejectedValue(
+        new Error("resize failed"),
+      );
+
+      await expect(
+        nodeCommands.resize(
+          { queryClient, isGuestMode: false },
+          {
+            workspaceId: "ws-1",
+            nodeId: "node-1",
+            width: 300,
+            height: 200,
+          },
+        ),
+      ).rejects.toThrow("resize failed");
+
+      expect(publishDomainEvent).not.toHaveBeenCalled();
+      await vi.waitFor(() => {
+        expect(invalidateSpy).toHaveBeenCalledWith({
+          queryKey: workspaceKeys.nodes.all,
+        });
+      });
+    });
+  });
+
+  describe("createGroup", () => {
+    it("creates a container node, reparents members, and publishes node.added + node.grouped", async () => {
+      vi.mocked(workspaceMutations.createGroup).mockResolvedValue(undefined);
+
+      const result = await nodeCommands.createGroup(
+        { queryClient, isGuestMode: false },
+        {
+          workspaceId: "ws-1",
+          group: {
+            id: "group-1",
+            title: "Sprint Goals",
+            position: { x: 100, y: 100 },
+            width: 500,
+            height: 400,
+          },
+          members: [
+            { id: "node-1", position: { x: 20, y: 40 } },
+            { id: "node-2", position: { x: 250, y: 40 } },
+          ],
+        },
+      );
+
+      expect(result.id).toBe("group-1");
+      expect(result.kind).toBe("group");
+      expect(result.display_config).toEqual({ title: "Sprint Goals" });
+
+      expect(workspaceMutations.createGroup).toHaveBeenCalledWith({
+        groupNode: expect.objectContaining({
+          id: "group-1",
+          kind: "group",
+          position_x: 100,
+          position_y: 100,
+          width: 500,
+          height: 400,
+        }),
+        members: [
+          { id: "node-1", position_x: 20, position_y: 40, group_id: "group-1" },
+          {
+            id: "node-2",
+            position_x: 250,
+            position_y: 40,
+            group_id: "group-1",
+          },
+        ],
+      });
+
+      expect(publishDomainEvent).toHaveBeenCalledWith({
+        type: "node.added",
+        workspaceId: "ws-1",
+        nodeId: "group-1",
+      });
+      expect(publishDomainEvent).toHaveBeenCalledWith({
+        type: "node.grouped",
+        workspaceId: "ws-1",
+        nodeId: "node-1",
+        groupId: "group-1",
+      });
+      expect(publishDomainEvent).toHaveBeenCalledWith({
+        type: "node.grouped",
+        workspaceId: "ws-1",
+        nodeId: "node-2",
+        groupId: "group-1",
+      });
+    });
+  });
+
+  describe("ungroup", () => {
+    it("dissolves the container, restores member absolute coordinates, and publishes events", async () => {
+      const groupNode = makeNode({
+        id: "group-1",
+        kind: "group",
+        position_x: 100,
+        position_y: 100,
+      });
+      const member1 = makeNode({
+        id: "node-1",
+        group_id: "group-1",
+        position_x: 20,
+        position_y: 40,
+      });
+
+      queryClient.setQueryData(workspaceKeys.nodes.list("ws-1", false), [
+        groupNode,
+        member1,
+      ]);
+
+      vi.mocked(workspaceMutations.ungroup).mockResolvedValue(undefined);
+
+      await nodeCommands.ungroup(
+        { queryClient, isGuestMode: false },
+        {
+          workspaceId: "ws-1",
+          groupId: "group-1",
+        },
+      );
+
+      expect(workspaceMutations.ungroup).toHaveBeenCalledWith({
+        groupId: "group-1",
+        members: [
+          {
+            id: "node-1",
+            position_x: 120, // 100 + 20
+            position_y: 140, // 100 + 40
+          },
+        ],
+      });
+
+      expect(publishDomainEvent).toHaveBeenCalledWith({
+        type: "node.removed",
+        workspaceId: "ws-1",
+        nodeId: "group-1",
+      });
+      expect(publishDomainEvent).toHaveBeenCalledWith({
+        type: "node.ungrouped",
+        workspaceId: "ws-1",
+        nodeId: "node-1",
+        groupId: "group-1",
+      });
+    });
+  });
+
+  describe("renameGroup", () => {
+    it("updates group title in store", async () => {
+      vi.mocked(workspaceMutations.updateGroupTitle).mockResolvedValue(
+        undefined,
+      );
+
+      await nodeCommands.renameGroup(
+        { queryClient, isGuestMode: false },
+        {
+          workspaceId: "ws-1",
+          groupId: "group-1",
+          title: "New Title",
+        },
+      );
+
+      expect(workspaceMutations.updateGroupTitle).toHaveBeenCalledWith(
+        "group-1",
+        "New Title",
+      );
     });
   });
 });

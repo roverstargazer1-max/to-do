@@ -39,6 +39,12 @@ import type {
   WorkspaceNode,
   AddNodeInput,
   MoveNodeInput,
+  ResizeNodeInput,
+  CreateGroupInput,
+  UngroupInput,
+  RenameGroupInput,
+  AddToGroupInput,
+  RemoveFromGroupInput,
 } from "@/lib/types/workspace";
 
 export interface NodeCommandContext {
@@ -119,14 +125,343 @@ export const nodeCommands = {
   },
 
   /**
+   * `node.resize` — persist a node's final size as a row-level PATCH,
+   * executed through the `node.resize` mutation. Quiet on success,
+   * invalidate-and-rethrow on failure.
+   */
+  resize: async (
+    ctx: NodeCommandContext,
+    input: ResizeNodeInput,
+  ): Promise<void> => {
+    try {
+      await workspaceMutations.updateNodeSize(input.nodeId, {
+        width: input.width,
+        height: input.height,
+      });
+
+      publishDomainEvent({
+        type: "node.resized",
+        workspaceId: input.workspaceId,
+        nodeId: input.nodeId,
+      });
+    } catch (err) {
+      invalidateNodeCaches(ctx.queryClient);
+      throw err;
+    }
+  },
+
+  /**
+   * `node.createGroup` — create a visual container node around multiple member nodes.
+   * Member coordinates are converted to parent-relative offsets and saved together.
+   */
+  createGroup: async (
+    ctx: NodeCommandContext,
+    input: CreateGroupInput,
+  ): Promise<WorkspaceNode> => {
+    const groupId = input.group.id ?? crypto.randomUUID();
+    const groupNode: WorkspaceNode = {
+      id: groupId,
+      workspace_id: input.workspaceId,
+      user_id: ctx.isGuestMode ? "guest" : "",
+      kind: "group",
+      entity_type: null,
+      entity_id: null,
+      position_x: input.group.position.x,
+      position_y: input.group.position.y,
+      width: input.group.width,
+      height: input.group.height,
+      group_id: null,
+      display_config: { title: input.group.title ?? "组" },
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    const members = input.members.map((m) => ({
+      id: m.id,
+      position_x: m.position.x,
+      position_y: m.position.y,
+      group_id: groupId,
+    }));
+
+    // Optimistic cache update
+    ctx.queryClient.setQueryData<WorkspaceNode[]>(
+      workspaceKeys.nodes.list(input.workspaceId, ctx.isGuestMode),
+      (old) => {
+        if (!old) return [groupNode];
+        const memberMap = new Map(members.map((m) => [m.id, m]));
+        const updated = old.map((n) => {
+          const m = memberMap.get(n.id);
+          if (m) {
+            return {
+              ...n,
+              position_x: m.position_x,
+              position_y: m.position_y,
+              group_id: groupId,
+            };
+          }
+          return n;
+        });
+        return [...updated, groupNode];
+      },
+    );
+
+    try {
+      await workspaceMutations.createGroup({
+        groupNode,
+        members,
+      });
+
+      publishDomainEvent({
+        type: "node.added",
+        workspaceId: input.workspaceId,
+        nodeId: groupId,
+      });
+
+      for (const m of members) {
+        publishDomainEvent({
+          type: "node.grouped",
+          workspaceId: input.workspaceId,
+          nodeId: m.id,
+          groupId,
+        });
+      }
+
+      return groupNode;
+    } catch (err) {
+      invalidateNodeCaches(ctx.queryClient);
+      throw err;
+    }
+  },
+
+  /**
+   * `node.ungroup` — dissolve a group container.
+   * Member relative coordinates are converted back to canvas-absolute positions.
+   */
+  ungroup: async (
+    ctx: NodeCommandContext,
+    input: UngroupInput,
+  ): Promise<void> => {
+    const cachedNodes = ctx.queryClient.getQueryData<WorkspaceNode[]>(
+      workspaceKeys.nodes.list(input.workspaceId, ctx.isGuestMode),
+    );
+    const groupNode = cachedNodes?.find((n) => n.id === input.groupId);
+    const groupX = groupNode?.position_x ?? 0;
+    const groupY = groupNode?.position_y ?? 0;
+
+    const memberNodes =
+      cachedNodes?.filter((n) => n.group_id === input.groupId) ?? [];
+    const members = memberNodes.map((m) => ({
+      id: m.id,
+      position_x: groupX + m.position_x,
+      position_y: groupY + m.position_y,
+    }));
+
+    // Optimistic cache update
+    ctx.queryClient.setQueryData<WorkspaceNode[]>(
+      workspaceKeys.nodes.list(input.workspaceId, ctx.isGuestMode),
+      (old) => {
+        if (!old) return [];
+        const memberMap = new Map(members.map((m) => [m.id, m]));
+        return old
+          .filter((n) => n.id !== input.groupId)
+          .map((n) => {
+            const m = memberMap.get(n.id);
+            if (m) {
+              return {
+                ...n,
+                position_x: m.position_x,
+                position_y: m.position_y,
+                group_id: null,
+              };
+            }
+            return n;
+          });
+      },
+    );
+
+    try {
+      await workspaceMutations.ungroup({
+        groupId: input.groupId,
+        members,
+      });
+
+      publishDomainEvent({
+        type: "node.removed",
+        workspaceId: input.workspaceId,
+        nodeId: input.groupId,
+      });
+
+      for (const m of members) {
+        publishDomainEvent({
+          type: "node.ungrouped",
+          workspaceId: input.workspaceId,
+          nodeId: m.id,
+          groupId: input.groupId,
+        });
+      }
+    } catch (err) {
+      invalidateNodeCaches(ctx.queryClient);
+      throw err;
+    }
+  },
+
+  /**
+   * `node.renameGroup` — update group container title.
+   */
+  renameGroup: async (
+    ctx: NodeCommandContext,
+    input: RenameGroupInput,
+  ): Promise<void> => {
+    ctx.queryClient.setQueryData<WorkspaceNode[]>(
+      workspaceKeys.nodes.list(input.workspaceId, ctx.isGuestMode),
+      (old) =>
+        old?.map((n) =>
+          n.id === input.groupId
+            ? {
+                ...n,
+                display_config: {
+                  ...(n.display_config ?? {}),
+                  title: input.title,
+                },
+              }
+            : n,
+        ),
+    );
+
+    try {
+      await workspaceMutations.updateGroupTitle(input.groupId, input.title);
+    } catch (err) {
+      invalidateNodeCaches(ctx.queryClient);
+      throw err;
+    }
+  },
+
+  /**
+   * `node.addToGroup` — attach an existing node into a group container.
+   * Optimistically sets group_id and relative position in React Query cache,
+   * writes to database/guest-store, and publishes `node.grouped`.
+   */
+  addToGroup: async (
+    ctx: NodeCommandContext,
+    input: AddToGroupInput,
+  ): Promise<void> => {
+    // Optimistic cache update
+    ctx.queryClient.setQueryData<WorkspaceNode[]>(
+      workspaceKeys.nodes.list(input.workspaceId, ctx.isGuestMode),
+      (old) =>
+        old?.map((n) =>
+          n.id === input.nodeId
+            ? {
+                ...n,
+                group_id: input.groupId,
+                position_x: input.position.x,
+                position_y: input.position.y,
+              }
+            : n,
+        ),
+    );
+
+    try {
+      await workspaceMutations.updateNodeGroup({
+        nodeId: input.nodeId,
+        groupId: input.groupId,
+        position: input.position,
+      });
+
+      publishDomainEvent({
+        type: "node.grouped",
+        workspaceId: input.workspaceId,
+        nodeId: input.nodeId,
+        groupId: input.groupId,
+      });
+    } catch (err) {
+      invalidateNodeCaches(ctx.queryClient);
+      throw err;
+    }
+  },
+
+  /**
+   * `node.removeFromGroup` — detach an existing node from a group container
+   * into an independent canvas root node at its absolute position.
+   * Optimistically clears group_id and sets absolute position in React Query cache,
+   * writes to database/guest-store, and publishes `node.ungrouped`.
+   */
+  removeFromGroup: async (
+    ctx: NodeCommandContext,
+    input: RemoveFromGroupInput,
+  ): Promise<void> => {
+    const cachedNodes = ctx.queryClient.getQueryData<WorkspaceNode[]>(
+      workspaceKeys.nodes.list(input.workspaceId, ctx.isGuestMode),
+    );
+    const target = cachedNodes?.find((n) => n.id === input.nodeId);
+    const previousGroupId = target?.group_id ?? "";
+
+    // Optimistic cache update
+    ctx.queryClient.setQueryData<WorkspaceNode[]>(
+      workspaceKeys.nodes.list(input.workspaceId, ctx.isGuestMode),
+      (old) =>
+        old?.map((n) =>
+          n.id === input.nodeId
+            ? {
+                ...n,
+                group_id: null,
+                position_x: input.position.x,
+                position_y: input.position.y,
+              }
+            : n,
+        ),
+    );
+
+    try {
+      await workspaceMutations.updateNodeGroup({
+        nodeId: input.nodeId,
+        groupId: null,
+        position: input.position,
+      });
+
+      publishDomainEvent({
+        type: "node.ungrouped",
+        workspaceId: input.workspaceId,
+        nodeId: input.nodeId,
+        groupId: previousGroupId,
+      });
+    } catch (err) {
+      invalidateNodeCaches(ctx.queryClient);
+      throw err;
+    }
+  },
+
+  /**
    * `node.remove` — remove a node from the canvas. Removing a node never
    * touches the referenced entity; re-adding it later is possible.
+   * If a group container is removed, members revert to absolute coords.
+   * If removing a member leaves its group empty (0 members), the group dissolves.
    */
   remove: async (
     ctx: NodeCommandContext,
     node: { id: string; workspace_id: string },
   ): Promise<void> => {
+    const cachedNodes = ctx.queryClient.getQueryData<WorkspaceNode[]>(
+      workspaceKeys.nodes.list(node.workspace_id, ctx.isGuestMode),
+    );
+    const target = cachedNodes?.find((n) => n.id === node.id);
+    const groupId = target?.group_id;
+
     await workspaceMutations.removeNode(node.id);
+
+    // If removing the last member dissolved the group, publish group removal
+    if (groupId) {
+      const remaining = cachedNodes?.filter(
+        (n) => n.group_id === groupId && n.id !== node.id,
+      );
+      if (remaining && remaining.length === 0) {
+        publishDomainEvent({
+          type: "node.removed",
+          workspaceId: node.workspace_id,
+          nodeId: groupId,
+        });
+      }
+    }
 
     invalidateNodeCaches(ctx.queryClient);
     invalidateEdgeCaches(ctx.queryClient);

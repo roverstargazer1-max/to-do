@@ -121,6 +121,7 @@ export const workspaceMutations = {
     positionY: number;
     width: number | null;
     height: number | null;
+    groupId?: string | null;
     displayConfig: Record<string, unknown> | null;
   }): Promise<WorkspaceNode> => {
     if (isGuest()) {
@@ -141,6 +142,7 @@ export const workspaceMutations = {
         position_y: input.positionY,
         width: input.width,
         height: input.height,
+        group_id: input.groupId ?? null,
         display_config: input.displayConfig,
       })
       .select("*")
@@ -232,16 +234,201 @@ export const workspaceMutations = {
     if (error) throw new Error(error.message);
   },
 
+  /** Row-level size PATCH — width, height, and updated_at move. */
+  updateNodeSize: async (
+    id: string,
+    size: { width: number; height: number },
+  ): Promise<void> => {
+    if (isGuest()) {
+      return guestWorkspaceStore.updateNodeSize(id, size);
+    }
+    const supabase = createClient();
+    const { error } = await supabase
+      .from("workspace_nodes")
+      .update({
+        width: size.width,
+        height: size.height,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", id);
+    if (error) throw new Error(error.message);
+  },
+
+  /**
+   * Create a group container node and update its members with relative coords.
+   */
+  createGroup: async (input: {
+    groupNode: WorkspaceNode;
+    members: Array<{
+      id: string;
+      position_x: number;
+      position_y: number;
+      group_id: string;
+    }>;
+  }): Promise<void> => {
+    if (isGuest()) {
+      return guestWorkspaceStore.createGroup(input);
+    }
+    const supabase = createClient();
+    const { error: insertError } = await supabase
+      .from("workspace_nodes")
+      .insert(input.groupNode);
+    if (insertError) throw new Error(insertError.message);
+
+    for (const member of input.members) {
+      const { error: updateError } = await supabase
+        .from("workspace_nodes")
+        .update({
+          position_x: member.position_x,
+          position_y: member.position_y,
+          group_id: member.group_id,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", member.id);
+      if (updateError) throw new Error(updateError.message);
+    }
+  },
+
+  /**
+   * Dissolve a group container, restoring members to absolute coords and deleting the group node.
+   */
+  ungroup: async (input: {
+    groupId: string;
+    members: Array<{
+      id: string;
+      position_x: number;
+      position_y: number;
+    }>;
+  }): Promise<void> => {
+    if (isGuest()) {
+      return guestWorkspaceStore.ungroup(input);
+    }
+    const supabase = createClient();
+    for (const member of input.members) {
+      const { error: updateError } = await supabase
+        .from("workspace_nodes")
+        .update({
+          position_x: member.position_x,
+          position_y: member.position_y,
+          group_id: null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", member.id);
+      if (updateError) throw new Error(updateError.message);
+    }
+
+    const { error: deleteError } = await supabase
+      .from("workspace_nodes")
+      .delete()
+      .eq("id", input.groupId);
+    if (deleteError) throw new Error(deleteError.message);
+  },
+
+  /**
+   * Update the title of a group container node in display_config.
+   */
+  updateGroupTitle: async (id: string, title: string): Promise<void> => {
+    if (isGuest()) {
+      return guestWorkspaceStore.updateGroupTitle(id, title);
+    }
+    const supabase = createClient();
+    const { data: current } = await supabase
+      .from("workspace_nodes")
+      .select("display_config")
+      .eq("id", id)
+      .single();
+    const displayConfig = {
+      ...((current?.display_config as Record<string, unknown>) ?? {}),
+      title,
+    };
+    const { error } = await supabase
+      .from("workspace_nodes")
+      .update({
+        display_config: displayConfig,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", id);
+    if (error) throw new Error(error.message);
+  },
+
+  /**
+   * Move a single node into or out of a group container with its new coordinates.
+   */
+  updateNodeGroup: async (input: {
+    nodeId: string;
+    groupId: string | null;
+    position: { x: number; y: number };
+  }): Promise<void> => {
+    if (isGuest()) {
+      return guestWorkspaceStore.updateNodeGroup(input);
+    }
+    const supabase = createClient();
+    const { error } = await supabase
+      .from("workspace_nodes")
+      .update({
+        group_id: input.groupId,
+        position_x: input.position.x,
+        position_y: input.position.y,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", input.nodeId);
+    if (error) throw new Error(error.message);
+  },
+
   /** Removing a node never touches the referenced entity — layout only. */
   removeNode: async (id: string): Promise<void> => {
     if (isGuest()) {
       return guestWorkspaceStore.removeNode(id);
     }
     const supabase = createClient();
+    const { data: target } = await supabase
+      .from("workspace_nodes")
+      .select("kind, group_id, position_x, position_y")
+      .eq("id", id)
+      .single();
+
+    if (target?.kind === "group") {
+      const members = await fetchAllRows<{
+        id: string;
+        position_x: number;
+        position_y: number;
+      }>((from, to) =>
+        supabase
+          .from("workspace_nodes")
+          .select("id, position_x, position_y")
+          .eq("group_id", id)
+          .range(from, to),
+      );
+      for (const m of members) {
+        await supabase
+          .from("workspace_nodes")
+          .update({
+            position_x: target.position_x + m.position_x,
+            position_y: target.position_y + m.position_y,
+            group_id: null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", m.id);
+      }
+    }
+
     const { error } = await supabase
       .from("workspace_nodes")
       .delete()
       .eq("id", id);
     if (error) throw new Error(error.message);
+
+    if (target?.group_id) {
+      const { count } = await supabase
+        .from("workspace_nodes")
+        .select("*", { count: "exact", head: true })
+        .eq("group_id", target.group_id);
+      if (count === 0) {
+        await supabase
+          .from("workspace_nodes")
+          .delete()
+          .eq("id", target.group_id);
+      }
+    }
   },
 };

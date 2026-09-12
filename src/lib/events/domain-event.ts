@@ -95,8 +95,27 @@ export interface NodeRemovedEvent extends NodeEventEntityRef {
   readonly type: "node.removed";
 }
 
+export interface NodeResizedEvent extends NodeEventEntityRef {
+  readonly type: "node.resized";
+}
+
+export interface NodeGroupedEvent extends NodeEventEntityRef {
+  readonly type: "node.grouped";
+  readonly groupId: string;
+}
+
+export interface NodeUngroupedEvent extends NodeEventEntityRef {
+  readonly type: "node.ungrouped";
+  readonly groupId: string;
+}
+
 export type NodeDomainEvent =
-  NodeAddedEvent | NodeMovedEvent | NodeRemovedEvent;
+  | NodeAddedEvent
+  | NodeMovedEvent
+  | NodeRemovedEvent
+  | NodeResizedEvent
+  | NodeGroupedEvent
+  | NodeUngroupedEvent;
 
 /**
  * Edge events — facts about the arrangement's connections (ADR 0021).

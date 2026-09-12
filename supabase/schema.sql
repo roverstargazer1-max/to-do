@@ -1425,7 +1425,10 @@ CREATE TABLE IF NOT EXISTS public.workspace_nodes (
   CONSTRAINT workspace_nodes_reference_pair_check CHECK (
     (entity_type IS NULL AND entity_id IS NULL)
     OR (entity_type IS NOT NULL AND entity_id IS NOT NULL)
-  )
+  ),
+
+  -- Group membership: points to the group container node's UUID.
+  group_id TEXT
 );
 
 CREATE INDEX IF NOT EXISTS workspace_nodes_workspace_id_idx
@@ -1436,6 +1439,8 @@ CREATE INDEX IF NOT EXISTS workspace_nodes_user_id_idx
 -- reverse lookup cheap for future node cleanup paths.
 CREATE INDEX IF NOT EXISTS workspace_nodes_entity_ref_idx
   ON public.workspace_nodes (entity_type, entity_id) WHERE entity_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS workspace_nodes_group_id_idx
+  ON public.workspace_nodes (group_id) WHERE group_id IS NOT NULL;
 
 -- Updated At Triggers
 DROP TRIGGER IF EXISTS workspaces_updated_at ON public.workspaces;

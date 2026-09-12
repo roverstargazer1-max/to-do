@@ -40,7 +40,10 @@ async function loadData(): Promise<GuestWorkspaceData> {
   // failing the read.
   cache = {
     workspaces: stored?.workspaces ?? [],
-    nodes: stored?.nodes ?? [],
+    nodes: (stored?.nodes ?? []).map((n) => ({
+      ...n,
+      group_id: n.group_id ?? null,
+    })),
     edges: stored?.edges ?? [],
   };
   return cache;
@@ -180,6 +183,7 @@ export const guestWorkspaceStore = {
     positionY: number;
     width: number | null;
     height: number | null;
+    groupId?: string | null;
     displayConfig: Record<string, unknown> | null;
   }): Promise<WorkspaceNode> {
     const data = await loadData();
@@ -194,6 +198,7 @@ export const guestWorkspaceStore = {
       position_y: input.positionY,
       width: input.width,
       height: input.height,
+      group_id: input.groupId ?? null,
       display_config: input.displayConfig,
       created_at: nowIso(),
       updated_at: nowIso(),
@@ -217,18 +222,151 @@ export const guestWorkspaceStore = {
     await persistData();
   },
 
+  /** Row-level size PATCH — width, height, and updated_at move. */
+  async updateNodeSize(
+    id: string,
+    size: { width: number; height: number },
+  ): Promise<void> {
+    const data = await loadData();
+    const node = data.nodes.find((n) => n.id === id);
+    if (!node) throw new Error("Node not found");
+    node.width = size.width;
+    node.height = size.height;
+    node.updated_at = nowIso();
+    await persistData();
+  },
+
+  /**
+   * Atomic creation of a group container and assignment of member relative coords.
+   */
+  async createGroup(input: {
+    groupNode: WorkspaceNode;
+    members: Array<{
+      id: string;
+      position_x: number;
+      position_y: number;
+      group_id: string;
+    }>;
+  }): Promise<void> {
+    const data = await loadData();
+    data.nodes.push(input.groupNode);
+    const memberMap = new Map(input.members.map((m) => [m.id, m]));
+    for (const node of data.nodes) {
+      const update = memberMap.get(node.id);
+      if (update) {
+        node.position_x = update.position_x;
+        node.position_y = update.position_y;
+        node.group_id = update.group_id;
+        node.updated_at = nowIso();
+      }
+    }
+    await persistData();
+  },
+
+  /**
+   * Dissolve a group container, restoring members to absolute coords and deleting the group node.
+   */
+  async ungroup(input: {
+    groupId: string;
+    members: Array<{ id: string; position_x: number; position_y: number }>;
+  }): Promise<void> {
+    const data = await loadData();
+    data.nodes = data.nodes.filter((n) => n.id !== input.groupId);
+    data.edges = data.edges.filter(
+      (e) =>
+        e.source_node_id !== input.groupId &&
+        e.target_node_id !== input.groupId,
+    );
+    const memberMap = new Map(input.members.map((m) => [m.id, m]));
+    for (const node of data.nodes) {
+      const update = memberMap.get(node.id);
+      if (update) {
+        node.position_x = update.position_x;
+        node.position_y = update.position_y;
+        node.group_id = null;
+        node.updated_at = nowIso();
+      }
+    }
+    await persistData();
+  },
+
+  /**
+   * Move a single node into or out of a group container with its position.
+   */
+  async updateNodeGroup(input: {
+    nodeId: string;
+    groupId: string | null;
+    position: { x: number; y: number };
+  }): Promise<void> {
+    const data = await loadData();
+    const node = data.nodes.find((n) => n.id === input.nodeId);
+    if (!node) throw new Error("Node not found");
+    node.group_id = input.groupId;
+    node.position_x = input.position.x;
+    node.position_y = input.position.y;
+    node.updated_at = nowIso();
+    await persistData();
+  },
+
+  /**
+   * Update the title of a group container node.
+   */
+  async updateGroupTitle(id: string, title: string): Promise<void> {
+    const data = await loadData();
+    const node = data.nodes.find((n) => n.id === id);
+    if (!node) throw new Error("Group node not found");
+    node.display_config = {
+      ...(node.display_config ?? {}),
+      title,
+    };
+    node.updated_at = nowIso();
+    await persistData();
+  },
+
   /**
    * Removing a node never touches the referenced entity — layout only.
-   * The connections that touched the node are a different matter: they
-   * reference the layout itself, so they go with it, exactly as the cloud
-   * schema's cascading endpoint FKs do.
+   * If a group container node is removed, its members are restored to absolute coords.
+   * If a member node is removed and leaves its group empty (0 members), the group dissolves.
    */
   async removeNode(id: string): Promise<void> {
     const data = await loadData();
+    const targetNode = data.nodes.find((n) => n.id === id);
+    if (!targetNode) return;
+
+    // If removing a group container node: restore members to absolute positions
+    if (targetNode.kind === "group") {
+      for (const node of data.nodes) {
+        if (node.group_id === id) {
+          node.position_x = targetNode.position_x + node.position_x;
+          node.position_y = targetNode.position_y + node.position_y;
+          node.group_id = null;
+          node.updated_at = nowIso();
+        }
+      }
+    }
+
+    const previousGroupId = targetNode.group_id;
+
     data.nodes = data.nodes.filter((n) => n.id !== id);
     data.edges = data.edges.filter(
       (e) => e.source_node_id !== id && e.target_node_id !== id,
     );
+
+    // If removing a member node left a group with 0 members, auto-dissolve the group container
+    if (previousGroupId) {
+      const remainingMembers = data.nodes.filter(
+        (n) => n.group_id === previousGroupId,
+      );
+      if (remainingMembers.length === 0) {
+        data.nodes = data.nodes.filter((n) => n.id !== previousGroupId);
+        data.edges = data.edges.filter(
+          (e) =>
+            e.source_node_id !== previousGroupId &&
+            e.target_node_id !== previousGroupId,
+        );
+      }
+    }
+
     await persistData();
   },
 
