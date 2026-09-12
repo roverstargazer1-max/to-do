@@ -256,7 +256,7 @@ describe("node-kind registry", () => {
 
   it("derives the React Flow render routing from the registration", () => {
     expect(Object.keys(workspaceNodeTypes).sort()).toEqual(
-      [UNKNOWN_NODE_KIND, "event", "focus", "habit", "task"].sort(),
+      [UNKNOWN_NODE_KIND, "event", "focus", "group", "habit", "task"].sort(),
     );
   });
 

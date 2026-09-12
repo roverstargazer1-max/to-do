@@ -94,7 +94,7 @@ export function FocusNode({ data }: WorkspaceNodeComponentProps) {
     "nodrag h-7 w-7 grid place-content-center rounded-md border border-border bg-background text-foreground/80 hover:text-foreground hover:border-foreground/40 active:scale-95 transition-[colors,transform] duration-200 ease-seijaku";
 
   return (
-    <div data-testid="focus-node" className="relative w-full">
+    <div data-testid="focus-node" className="relative w-full h-full">
       <span data-testid="focus-node-timer" className="sr-only">
         {isRunning ? "running" : "paused"}
       </span>

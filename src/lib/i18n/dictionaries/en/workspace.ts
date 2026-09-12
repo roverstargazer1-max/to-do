@@ -40,7 +40,14 @@ export const workspace = {
   "workspace.canvas.focusAdded": "Focus node added to canvas",
   "workspace.canvas.focusAddFailed": "Failed to add focus node to canvas",
   "workspace.canvas.connectFailed": "Failed to connect the nodes",
+  "workspace.canvas.disconnect": "Disconnect",
   "workspace.canvas.disconnectFailed": "Failed to remove the connection",
+  "workspace.canvas.quickTaskPlaceholder":
+    "New task title, press Enter to create...",
+  "workspace.canvas.pickExistingTask": "Select existing task",
+  "workspace.canvas.fitView": "Fit view",
+  "workspace.canvas.taskCreated": "Task created and added to canvas",
+  "workspace.canvas.taskCreateFailed": "Failed to create task",
 
   // --- Add-node pickers (AddTaskNodeDialog / AddHabitNodeDialog / AddEventNodeDialog) ---
   "workspace.addTask.title": "Add task to canvas",
@@ -130,4 +137,14 @@ export const workspace = {
   "workspace.dialog.renameFailed": "Failed to rename workspace",
   "workspace.dialog.deleted": "Workspace deleted",
   "workspace.dialog.deleteFailed": "Failed to delete workspace",
+
+  // --- Grouping ---
+  "workspace.toolbar.group": "Group",
+  "workspace.toolbar.ungroup": "Ungroup",
+  "workspace.group.defaultTitle": "Group",
+  "workspace.group.renameHint": "Double click to rename",
+  "workspace.group.renameFailed": "Failed to rename group",
+  "workspace.group.ungrouped": "Group dissolved",
+  "workspace.group.ungroupFailed": "Failed to ungroup",
+  "workspace.group.createFailed": "Failed to create group",
 } satisfies Record<string, DictionaryValue>;

@@ -94,7 +94,10 @@ export function TaskNode({ data, spec }: WorkspaceNodeComponentProps) {
     : "missing";
 
   return (
-    <div data-testid={`task-node-${testKey}`} className="relative w-full">
+    <div
+      data-testid={`task-node-${testKey}`}
+      className="relative w-full h-full"
+    >
       <span data-testid={`task-node-state-${testKey}`} className="sr-only">
         {stateLabel}
       </span>

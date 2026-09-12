@@ -1,6 +1,6 @@
 "use client";
 
-import type { ComponentType } from "react";
+import type { ComponentType, CSSProperties } from "react";
 import type { Node, NodeProps, NodeTypes } from "@xyflow/react";
 import { z } from "zod";
 import { nodeCommands } from "@/lib/commands/node";
@@ -16,6 +16,7 @@ import { TaskNode } from "./TaskNode";
 import { HabitNode } from "./HabitNode";
 import { EventNode } from "./EventNode";
 import { FocusNode } from "./FocusNode";
+import { GroupNode } from "./GroupNode";
 import { UnknownNode } from "./UnknownNode";
 
 /**
@@ -247,6 +248,34 @@ const focusNodeSpec: NodeKindSpec = {
   schema: FocusNodeRowSchema,
 };
 
+/**
+ * The group container row's contract: kind and a *null* reference pair.
+ */
+const GroupNodeRowSchema = z.object({
+  kind: z.literal("group"),
+  entity_type: z.null(),
+  entity_id: z.null(),
+});
+
+export type GroupNodeCommands = {
+  createGroup: typeof nodeCommands.createGroup;
+  ungroup: typeof nodeCommands.ungroup;
+  renameGroup: typeof nodeCommands.renameGroup;
+};
+
+const groupNodeSpec: NodeKindSpec = {
+  kind: "group",
+  label: "Group",
+  defaults: { width: 360, height: 240 },
+  component: GroupNode,
+  commands: {
+    createGroup: nodeCommands.createGroup,
+    ungroup: nodeCommands.ungroup,
+    renameGroup: nodeCommands.renameGroup,
+  } satisfies GroupNodeCommands,
+  schema: GroupNodeRowSchema,
+};
+
 /** The fallback kind — never registered, never throws. */
 export const UNKNOWN_NODE_KIND = "unknown";
 
@@ -270,6 +299,7 @@ registerNodeKind(taskNodeSpec);
 registerNodeKind(habitNodeSpec);
 registerNodeKind(eventNodeSpec);
 registerNodeKind(focusNodeSpec);
+registerNodeKind(groupNodeSpec);
 
 /** Look up a registered kind spec (undefined for unknown kinds). */
 export function getNodeKindSpec(kind: string): NodeKindSpec | undefined {
@@ -325,11 +355,22 @@ export const workspaceNodeTypes: NodeTypes = {
  * Translate persisted node rows into flow nodes via the registry. Nodes
  * are `deletable: false`: the canvas's Delete key cuts connections, and
  * a node is dismissed through its own control (ADR 0021).
+ *
+ * Group containers render before member nodes so the container sits behind
+ * its children in DOM stacking order. Member nodes receive parentId so they move with
+ * the group, but do not set expandParent so dragged cards can float outside without stretching
+ * the container boundary.
  */
 export function toWorkspaceFlowNodes(
   rows: WorkspaceNode[],
 ): WorkspaceFlowNode[] {
-  return rows.map((row) => {
+  const groupRows = rows.filter((r) => r.kind === "group");
+  const memberRows = rows.filter((r) => r.kind !== "group");
+  const sortedRows = [...groupRows, ...memberRows];
+
+  const groupIds = new Set(groupRows.map((g) => g.id));
+
+  return sortedRows.map((row) => {
     const spec = resolveNodeKind(row);
     const node: WorkspaceFlowNode = {
       id: row.id,
@@ -342,9 +383,16 @@ export function toWorkspaceFlowNodes(
       // would only edit local state.
       deletable: false,
     };
-    if (row.width != null) {
-      node.style = { width: row.width };
+
+    if (row.group_id && groupIds.has(row.group_id)) {
+      node.parentId = row.group_id;
     }
+
+    const style: CSSProperties = {};
+    if (row.width != null) style.width = row.width;
+    if (row.height != null) style.height = row.height;
+    if (row.width != null || row.height != null) node.style = style;
+
     return node;
   });
 }

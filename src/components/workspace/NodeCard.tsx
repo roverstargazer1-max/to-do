@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import { Handle, Position, useNodeId } from "@xyflow/react";
 import { cn } from "@/lib/utils";
+import { CardResizer } from "./CardResizer";
 
 /**
  * The shared node card — the single surface every kind renders through.
@@ -30,9 +31,20 @@ export interface NodeCardProps {
   action?: ReactNode;
   children: ReactNode;
   className?: string;
+  selected?: boolean;
+  minWidth?: number;
+  minHeight?: number;
 }
 
-export function NodeCard({ kind, action, children, className }: NodeCardProps) {
+export function NodeCard({
+  kind,
+  action,
+  children,
+  className,
+  selected,
+  minWidth = 200,
+  minHeight = 48,
+}: NodeCardProps) {
   const nodeId = useNodeId();
 
   return (
@@ -48,6 +60,12 @@ export function NodeCard({ kind, action, children, className }: NodeCardProps) {
 
       {nodeId ? (
         <>
+          <CardResizer
+            nodeId={nodeId}
+            selected={selected}
+            minWidth={minWidth}
+            minHeight={minHeight}
+          />
           {/* One port per side, in Strict connection mode: a connection runs
               out of a right port into a left one — whichever end the drag
               started from, React Flow normalises the direction, so the

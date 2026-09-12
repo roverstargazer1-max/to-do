@@ -82,7 +82,10 @@ export function EventNode({ data }: WorkspaceNodeComponentProps) {
   };
 
   return (
-    <div data-testid={`event-node-${testKey}`} className="relative w-full">
+    <div
+      data-testid={`event-node-${testKey}`}
+      className="relative w-full h-full"
+    >
       <span data-testid={`event-node-state-${testKey}`} className="sr-only">
         {stateLabel}
       </span>

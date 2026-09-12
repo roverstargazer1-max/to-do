@@ -50,7 +50,10 @@ export function UnknownNode({ data }: WorkspaceNodeComponentProps) {
   );
 
   return (
-    <div data-testid={`unknown-node-${row.id}`} className="relative w-full">
+    <div
+      data-testid={`unknown-node-${row.id}`}
+      className="relative w-full h-full"
+    >
       <NodeCard kind={t("workspace.node.kindUnknown")} action={removeButton}>
         <div className="px-3 py-2.5">
           <p className="text-sm text-muted-foreground">

@@ -97,7 +97,10 @@ export function HabitNode({ data }: WorkspaceNodeComponentProps) {
   const stateLabel = habit ? (doneToday ? "done" : "not-done") : "missing";
 
   return (
-    <div data-testid={`habit-node-${testKey}`} className="relative w-full">
+    <div
+      data-testid={`habit-node-${testKey}`}
+      className="relative w-full h-full"
+    >
       <span data-testid={`habit-node-state-${testKey}`} className="sr-only">
         {stateLabel}
       </span>

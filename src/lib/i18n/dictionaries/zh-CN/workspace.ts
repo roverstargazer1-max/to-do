@@ -35,7 +35,13 @@ export const workspace = {
   "workspace.canvas.focusAdded": "专注节点已添加到画布",
   "workspace.canvas.focusAddFailed": "添加专注节点到画布失败",
   "workspace.canvas.connectFailed": "连接节点失败",
+  "workspace.canvas.disconnect": "删除连线",
   "workspace.canvas.disconnectFailed": "移除连线失败",
+  "workspace.canvas.quickTaskPlaceholder": "新建任务标题，按 Enter 创建...",
+  "workspace.canvas.pickExistingTask": "选择已有任务",
+  "workspace.canvas.fitView": "适应画板",
+  "workspace.canvas.taskCreated": "任务已创建并添加到画布",
+  "workspace.canvas.taskCreateFailed": "创建任务失败",
 
   // --- Add-node pickers ---
   "workspace.addTask.title": "添加任务到画布",
@@ -117,4 +123,14 @@ export const workspace = {
   "workspace.dialog.renameFailed": "重命名工作台失败",
   "workspace.dialog.deleted": "工作台已删除",
   "workspace.dialog.deleteFailed": "删除工作台失败",
+
+  // --- Grouping ---
+  "workspace.toolbar.group": "打组",
+  "workspace.toolbar.ungroup": "解散组",
+  "workspace.group.defaultTitle": "分组",
+  "workspace.group.renameHint": "双击重命名",
+  "workspace.group.renameFailed": "重命名分组失败",
+  "workspace.group.ungrouped": "已解散分组",
+  "workspace.group.ungroupFailed": "解散分组失败",
+  "workspace.group.createFailed": "创建分组失败",
 } satisfies Record<string, DictionaryValue>;
