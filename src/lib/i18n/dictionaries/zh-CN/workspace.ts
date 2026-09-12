@@ -95,6 +95,7 @@ export const workspace = {
   "workspace.docNode.placeholder": "输入提示词或 Markdown 内容...",
   "workspace.docNode.emptyPreview": "双击编辑内容...",
   "workspace.docNode.copySuccess": "已复制到剪贴板",
+  "workspace.docNode.copyFailed": "复制到剪贴板失败",
   "workspace.docNode.copyAria": "复制内容",
   "workspace.docNode.editAria": "编辑内容",
   "workspace.docNode.previewAria": "完成并预览",

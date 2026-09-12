@@ -108,6 +108,7 @@ export const workspace = {
   "workspace.docNode.placeholder": "Enter prompt or Markdown content...",
   "workspace.docNode.emptyPreview": "Double-click to edit content...",
   "workspace.docNode.copySuccess": "Copied to clipboard",
+  "workspace.docNode.copyFailed": "Failed to copy to clipboard",
   "workspace.docNode.copyAria": "Copy content",
   "workspace.docNode.editAria": "Edit content",
   "workspace.docNode.previewAria": "Done and preview",

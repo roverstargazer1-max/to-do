@@ -17,6 +17,7 @@ import { HabitNode } from "./HabitNode";
 import { EventNode } from "./EventNode";
 import { FocusNode } from "./FocusNode";
 import { GroupNode } from "./GroupNode";
+import { DocNode } from "./DocNode";
 import { UnknownNode } from "./UnknownNode";
 
 /**
@@ -276,6 +277,53 @@ const groupNodeSpec: NodeKindSpec = {
   schema: GroupNodeRowSchema,
 };
 
+/**
+ * The doc row's contract: kind and a *null* reference pair.
+ */
+const DocNodeRowSchema = z.object({
+  kind: z.literal("doc"),
+  entity_type: z.null(),
+  entity_id: z.null(),
+});
+
+export type DocNodeCommands = {
+  add: (
+    ctx: NodeCommandContext,
+    input: {
+      workspaceId: string;
+      position: NodePosition;
+      title?: string;
+      content?: string;
+    },
+  ) => Promise<WorkspaceNode>;
+  update: typeof nodeCommands.updateDocNode;
+};
+
+const docNodeSpec: NodeKindSpec = {
+  kind: "doc",
+  label: "Doc",
+  defaults: { width: 280, height: 180 },
+  component: DocNode,
+  commands: {
+    add: (ctx: NodeCommandContext, input) =>
+      nodeCommands.add(ctx, {
+        workspaceId: input.workspaceId,
+        kind: "doc",
+        entityType: null,
+        entityId: null,
+        position: input.position,
+        width: docNodeSpec.defaults.width,
+        height: docNodeSpec.defaults.height,
+        displayConfig: {
+          title: input.title ?? "",
+          content: input.content ?? "",
+        },
+      }),
+    update: nodeCommands.updateDocNode,
+  } satisfies DocNodeCommands,
+  schema: DocNodeRowSchema,
+};
+
 /** The fallback kind — never registered, never throws. */
 export const UNKNOWN_NODE_KIND = "unknown";
 
@@ -300,6 +348,7 @@ registerNodeKind(habitNodeSpec);
 registerNodeKind(eventNodeSpec);
 registerNodeKind(focusNodeSpec);
 registerNodeKind(groupNodeSpec);
+registerNodeKind(docNodeSpec);
 
 /** Look up a registered kind spec (undefined for unknown kinds). */
 export function getNodeKindSpec(kind: string): NodeKindSpec | undefined {

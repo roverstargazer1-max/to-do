@@ -25,8 +25,8 @@ import { CardResizer } from "./CardResizer";
  * port-free and structurally unchanged.
  */
 export interface NodeCardProps {
-  /** The kind's display name — the head's label. Already translated. */
-  kind: string;
+  /** The kind's display name or header element. */
+  kind: ReactNode;
   /** The node's own affordances, rendered at the head's right edge. */
   action?: ReactNode;
   children: ReactNode;
