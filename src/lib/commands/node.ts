@@ -45,6 +45,7 @@ import type {
   RenameGroupInput,
   AddToGroupInput,
   RemoveFromGroupInput,
+  UpdateDocNodeInput,
 } from "@/lib/types/workspace";
 
 export interface NodeCommandContext {
@@ -330,6 +331,44 @@ export const nodeCommands = {
 
     try {
       await workspaceMutations.updateGroupTitle(input.groupId, input.title);
+    } catch (err) {
+      invalidateNodeCaches(ctx.queryClient);
+      throw err;
+    }
+  },
+
+  /**
+   * `node.updateDocNode` — update title and/or content of a doc node.
+   * Optimistically updates React Query cache and writes to backend.
+   */
+  updateDocNode: async (
+    ctx: NodeCommandContext,
+    input: UpdateDocNodeInput,
+  ): Promise<void> => {
+    ctx.queryClient.setQueryData<WorkspaceNode[]>(
+      workspaceKeys.nodes.list(input.workspaceId, ctx.isGuestMode),
+      (old) =>
+        old?.map((n) =>
+          n.id === input.nodeId
+            ? {
+                ...n,
+                display_config: {
+                  ...(n.display_config ?? {}),
+                  ...(input.title !== undefined ? { title: input.title } : {}),
+                  ...(input.content !== undefined
+                    ? { content: input.content }
+                    : {}),
+                },
+              }
+            : n,
+        ),
+    );
+
+    try {
+      await workspaceMutations.updateDocNode(input.nodeId, {
+        title: input.title,
+        content: input.content,
+      });
     } catch (err) {
       invalidateNodeCaches(ctx.queryClient);
       throw err;

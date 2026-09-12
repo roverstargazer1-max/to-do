@@ -39,6 +39,9 @@ export const workspace = {
   "workspace.canvas.addFocus": "Focus",
   "workspace.canvas.focusAdded": "Focus node added to canvas",
   "workspace.canvas.focusAddFailed": "Failed to add focus node to canvas",
+  "workspace.canvas.addDoc": "Doc",
+  "workspace.canvas.docAdded": "Doc node added to canvas",
+  "workspace.canvas.docAddFailed": "Failed to add doc node to canvas",
   "workspace.canvas.connectFailed": "Failed to connect the nodes",
   "workspace.canvas.disconnect": "Disconnect",
   "workspace.canvas.disconnectFailed": "Failed to remove the connection",
@@ -83,6 +86,7 @@ export const workspace = {
   "workspace.node.checkInHabitAria": "Check in habit from node",
   "workspace.node.removeEventAria": "Remove event node",
   "workspace.node.removeFocusAria": "Remove focus node",
+  "workspace.node.removeDocAria": "Remove doc node",
   "workspace.node.removeUnknownAria": "Remove unknown node",
   // Habit node state labels (habits.ts owns the page's equivalents; the
   // node reuses the same words in its own namespace).
@@ -97,7 +101,17 @@ export const workspace = {
   "workspace.node.kindHabit": "Habit",
   "workspace.node.kindEvent": "Event",
   "workspace.node.kindFocus": "Focus",
+  "workspace.node.kindDoc": "Doc",
   "workspace.node.kindUnknown": "Unknown",
+
+  // --- Doc node (DocNode.tsx) ---
+  "workspace.docNode.placeholder": "Enter prompt or Markdown content...",
+  "workspace.docNode.emptyPreview": "Double-click to edit content...",
+  "workspace.docNode.copySuccess": "Copied to clipboard",
+  "workspace.docNode.copyAria": "Copy content",
+  "workspace.docNode.editAria": "Edit content",
+  "workspace.docNode.previewAria": "Done and preview",
+  "workspace.docNode.titlePlaceholder": "Doc title",
 
   // --- Focus node (FocusNode.tsx) ---
   "workspace.focusNode.modeFocus": "Focus",

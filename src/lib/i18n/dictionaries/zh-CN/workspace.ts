@@ -34,6 +34,9 @@ export const workspace = {
   "workspace.canvas.addFocus": "专注",
   "workspace.canvas.focusAdded": "专注节点已添加到画布",
   "workspace.canvas.focusAddFailed": "添加专注节点到画布失败",
+  "workspace.canvas.addDoc": "文档",
+  "workspace.canvas.docAdded": "文档节点已添加到画布",
+  "workspace.canvas.docAddFailed": "添加文档节点到画布失败",
   "workspace.canvas.connectFailed": "连接节点失败",
   "workspace.canvas.disconnect": "删除连线",
   "workspace.canvas.disconnectFailed": "移除连线失败",
@@ -74,6 +77,7 @@ export const workspace = {
   "workspace.node.checkInHabitAria": "从节点打卡习惯",
   "workspace.node.removeEventAria": "移除事件节点",
   "workspace.node.removeFocusAria": "移除专注节点",
+  "workspace.node.removeDocAria": "移除文档节点",
   "workspace.node.removeUnknownAria": "移除未知节点",
   "workspace.node.doneToday": "今日已完成",
   "workspace.node.today": "今天",
@@ -84,7 +88,17 @@ export const workspace = {
   "workspace.node.kindHabit": "习惯",
   "workspace.node.kindEvent": "事件",
   "workspace.node.kindFocus": "专注",
+  "workspace.node.kindDoc": "文档",
   "workspace.node.kindUnknown": "未知",
+
+  // --- Doc node ---
+  "workspace.docNode.placeholder": "输入提示词或 Markdown 内容...",
+  "workspace.docNode.emptyPreview": "双击编辑内容...",
+  "workspace.docNode.copySuccess": "已复制到剪贴板",
+  "workspace.docNode.copyAria": "复制内容",
+  "workspace.docNode.editAria": "编辑内容",
+  "workspace.docNode.previewAria": "完成并预览",
+  "workspace.docNode.titlePlaceholder": "文档标题",
 
   // --- Focus node ---
   "workspace.focusNode.modeFocus": "专注",

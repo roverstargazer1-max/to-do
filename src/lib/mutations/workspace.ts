@@ -352,6 +352,36 @@ export const workspaceMutations = {
   },
 
   /**
+   * Update the title and/or content of a doc node in display_config.
+   */
+  updateDocNode: async (
+    id: string,
+    updates: { title?: string; content?: string },
+  ): Promise<void> => {
+    if (isGuest()) {
+      return guestWorkspaceStore.updateDocNode(id, updates);
+    }
+    const supabase = createClient();
+    const { data: current } = await supabase
+      .from("workspace_nodes")
+      .select("display_config")
+      .eq("id", id)
+      .single();
+    const displayConfig = {
+      ...((current?.display_config as Record<string, unknown>) ?? {}),
+      ...updates,
+    };
+    const { error } = await supabase
+      .from("workspace_nodes")
+      .update({
+        display_config: displayConfig,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", id);
+    if (error) throw new Error(error.message);
+  },
+
+  /**
    * Move a single node into or out of a group container with its new coordinates.
    */
   updateNodeGroup: async (input: {

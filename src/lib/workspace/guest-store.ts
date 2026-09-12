@@ -324,6 +324,24 @@ export const guestWorkspaceStore = {
   },
 
   /**
+   * Update the title and/or content of a doc node.
+   */
+  async updateDocNode(
+    id: string,
+    updates: { title?: string; content?: string },
+  ): Promise<void> {
+    const data = await loadData();
+    const node = data.nodes.find((n) => n.id === id);
+    if (!node) throw new Error("Doc node not found");
+    node.display_config = {
+      ...(node.display_config ?? {}),
+      ...updates,
+    };
+    node.updated_at = nowIso();
+    await persistData();
+  },
+
+  /**
    * Removing a node never touches the referenced entity — layout only.
    * If a group container node is removed, its members are restored to absolute coords.
    * If a member node is removed and leaves its group empty (0 members), the group dissolves.

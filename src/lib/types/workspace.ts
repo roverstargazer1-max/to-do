@@ -88,6 +88,7 @@ export const WORKSPACE_NODE_KINDS = [
   "event",
   "focus",
   "group",
+  "doc",
 ] as const;
 
 export type WorkspaceNodeKind = (typeof WORKSPACE_NODE_KINDS)[number];
@@ -203,4 +204,18 @@ export interface AddEdgeInput {
   workspaceId: string;
   sourceNodeId: string;
   targetNodeId: string;
+}
+
+/** Display configuration for document/text nodes. */
+export interface DocDisplayConfig {
+  title?: string;
+  content?: string;
+}
+
+/** Input for updating document node title and/or content. */
+export interface UpdateDocNodeInput {
+  workspaceId: string;
+  nodeId: string;
+  title?: string;
+  content?: string;
 }
