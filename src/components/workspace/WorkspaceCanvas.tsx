@@ -25,6 +25,7 @@ import "./workspace-canvas.css";
 import {
   Calendar,
   CheckSquare,
+  FileText,
   Group,
   Plus,
   Repeat,
@@ -58,6 +59,7 @@ import {
   toWorkspaceFlowNodes,
   workspaceNodeTypes,
   type FocusNodeCommands,
+  type DocNodeCommands,
   type TaskNodeCommands,
   type WorkspaceFlowNode,
 } from "./node-registry";
@@ -1172,6 +1174,40 @@ export function WorkspaceCanvas({ workspaceId }: WorkspaceCanvasProps) {
     ],
   );
 
+  // A doc node references pure workspace text/markdown note, not an entity.
+  const addDocNode = useCallback(
+    async (customPosition?: NodePosition) => {
+      const spec = getNodeKindSpec("doc");
+      if (!spec) return;
+      const pos = customPosition ?? addPosition ?? getCenterPosition();
+      try {
+        const createdNode = await (spec.commands as DocNodeCommands).add(
+          { queryClient, isGuestMode },
+          { workspaceId, position: pos },
+        );
+        notify(t("workspace.canvas.docAdded"));
+        if (createdNode && pendingSourceNodeId) {
+          connectPendingSource(createdNode.id);
+        }
+      } catch (err) {
+        console.error("Failed to add doc node:", err);
+        notify.error(t("workspace.canvas.docAddFailed"));
+      } finally {
+        setPendingSourceNodeId(null);
+      }
+    },
+    [
+      queryClient,
+      isGuestMode,
+      workspaceId,
+      addPosition,
+      getCenterPosition,
+      pendingSourceNodeId,
+      connectPendingSource,
+      t,
+    ],
+  );
+
   /**
    * Fast inline task creation: creates task directly in inbox and places node at addPosition.
    */
@@ -1317,6 +1353,14 @@ export function WorkspaceCanvas({ workspaceId }: WorkspaceCanvasProps) {
               <Timer className="h-4 w-4" strokeWidth={2.25} />
               {t("workspace.canvas.addFocus")}
             </DropdownMenuItem>
+            <DropdownMenuItem
+              data-testid="add-node-doc"
+              onClick={() => void addDocNode()}
+              className="gap-2.5"
+            >
+              <FileText className="h-4 w-4" strokeWidth={2.25} />
+              {t("workspace.canvas.addDoc")}
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
 
@@ -1350,6 +1394,7 @@ export function WorkspaceCanvas({ workspaceId }: WorkspaceCanvasProps) {
         onAddHabit={() => openAddDialog("habit", addPosition)}
         onAddEvent={() => openAddDialog("event", addPosition)}
         onAddFocus={() => void addFocusNode(addPosition)}
+        onAddDoc={() => void addDocNode(addPosition)}
         onFitView={() =>
           reactFlowInstanceRef.current?.fitView({ duration: 300 })
         }

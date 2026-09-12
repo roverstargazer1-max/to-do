@@ -17,6 +17,7 @@ import {
 import {
   Calendar,
   CheckSquare,
+  FileText,
   Maximize2,
   Plus,
   Repeat,
@@ -33,6 +34,7 @@ export interface QuickAddMenuProps {
   onAddHabit: () => void;
   onAddEvent: () => void;
   onAddFocus: () => void;
+  onAddDoc: () => void;
   onFitView?: () => void;
 }
 
@@ -45,6 +47,7 @@ export function QuickAddMenu({
   onAddHabit,
   onAddEvent,
   onAddFocus,
+  onAddDoc,
   onFitView,
 }: QuickAddMenuProps) {
   const { t } = useTranslation();
@@ -209,6 +212,21 @@ export function QuickAddMenu({
         >
           <Timer className="h-4 w-4 text-muted-foreground" strokeWidth={2.25} />
           <span>{t("workspace.canvas.addFocus")}</span>
+        </DropdownMenuItem>
+
+        <DropdownMenuItem
+          data-testid="quick-add-doc"
+          onClick={() => {
+            onAddDoc();
+            onClose();
+          }}
+          className="gap-2.5 text-xs cursor-pointer"
+        >
+          <FileText
+            className="h-4 w-4 text-muted-foreground"
+            strokeWidth={2.25}
+          />
+          <span>{t("workspace.canvas.addDoc")}</span>
         </DropdownMenuItem>
 
         {onFitView ? (
