@@ -77,12 +77,14 @@ export const guestWorkspaceStore = {
   async createWorkspace(input: {
     id: string;
     name: string;
+    color?: string;
   }): Promise<Workspace> {
     const data = await loadData();
     const workspace: Workspace = {
       id: input.id,
       user_id: "guest",
       name: input.name,
+      color: input.color || DEFAULT_PROJECT_COLOR,
       created_at: nowIso(),
       updated_at: nowIso(),
     };
@@ -91,11 +93,18 @@ export const guestWorkspaceStore = {
     return { ...workspace };
   },
 
-  async renameWorkspace(id: string, name: string): Promise<Workspace> {
+  async renameWorkspace(
+    id: string,
+    name: string,
+    color?: string,
+  ): Promise<Workspace> {
     const data = await loadData();
     const workspace = data.workspaces.find((w) => w.id === id);
     if (!workspace) throw new Error("Workspace not found");
     workspace.name = name;
+    if (color !== undefined) {
+      workspace.color = color;
+    }
     workspace.updated_at = nowIso();
     await persistData();
     return { ...workspace };
