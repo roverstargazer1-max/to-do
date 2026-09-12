@@ -106,6 +106,7 @@ export const tasks = {
   "tasks.group.evening": "This Evening",
   "tasks.group.completedSection": "Completed",
   "tasks.board.dropForEvening": "Drop here for evening",
+  "tasks.board.dropForDaytime": "Drop here for daytime",
   "tasks.board.void": "Ma (Void)",
 
   // Task cards (list row / board card / drag ghost)

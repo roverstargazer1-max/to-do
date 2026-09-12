@@ -1030,10 +1030,20 @@ function TaskListBase({
     );
   }
 
-  if (
-    processedTasks.active.length === 0 &&
-    processedTasks.completed.length === 0
-  ) {
+  const hasTasks =
+    processedTasks.active.length > 0 ||
+    processedTasks.evening.length > 0 ||
+    processedTasks.completed.length > 0 ||
+    (processedTasks.groups !== null &&
+      processedTasks.groups.some((g) => g.tasks.length > 0));
+
+  const hasDisplayTasks =
+    displayTasks.length > 0 ||
+    displayEveningTasks.length > 0 ||
+    processedTasks.completed.length > 0 ||
+    (displayGroups !== null && displayGroups.some((g) => g.tasks.length > 0));
+
+  if (!hasTasks && !hasDisplayTasks) {
     return (
       <div className="px-4 md:px-6">
         <EmptyState

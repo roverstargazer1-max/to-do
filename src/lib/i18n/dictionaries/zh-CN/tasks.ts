@@ -105,6 +105,7 @@ export const tasks = {
   "tasks.group.evening": "今晚",
   "tasks.group.completedSection": "已完成",
   "tasks.board.dropForEvening": "拖到这里设为今晚",
+  "tasks.board.dropForDaytime": "拖到这里移出今晚",
   "tasks.board.void": "间 (空)",
 
   // Task cards (list row / board card / drag ghost)

@@ -180,7 +180,12 @@ function TaskListViewBase({
             strategy={verticalListSortingStrategy}
           >
             <DroppableContainer id="active-section" className="flex flex-col">
-              <div className="flex flex-col gap-0 rounded-xl border border-border bg-background/50 overflow-hidden">
+              <div
+                className={cn(
+                  "flex flex-col gap-0 rounded-xl border border-border bg-background/50 overflow-hidden",
+                  active.length === 0 && !isDndActive && "hidden",
+                )}
+              >
                 {active.map((task) => {
                   const project = projectsMap?.get?.(
                     task.project_id || "inbox",
@@ -199,6 +204,13 @@ function TaskListViewBase({
                     />
                   );
                 })}
+                {active.length === 0 && isDndActive && (
+                  <div className="h-12 flex items-center justify-center border-2 border-dashed border-primary/20 rounded-2xl mx-1">
+                    <span className="text-[10px] font-bold text-muted-foreground/70 uppercase tracking-widest">
+                      {t("tasks.board.dropForDaytime")}
+                    </span>
+                  </div>
+                )}
               </div>
             </DroppableContainer>
           </SortableContext>
