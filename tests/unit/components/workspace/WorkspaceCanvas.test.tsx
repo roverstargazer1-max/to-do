@@ -34,6 +34,35 @@ const addNode = vi.hoisted(() => vi.fn());
 
 type WorkspaceRow = import("@/lib/types/workspace").WorkspaceNode;
 
+const mockTasks = vi.hoisted(() => ({
+  tasks: [
+    {
+      id: "task-1",
+      content: "Task 1 Content",
+      description: "Detailed description",
+      priority: 1,
+      is_completed: false,
+      created_at: "2026-09-09T00:00:00.000Z",
+      updated_at: "2026-09-09T00:00:00.000Z",
+    },
+  ],
+}));
+
+vi.mock("@/lib/hooks/useTasks", () => ({
+  useTasks: () => ({ data: mockTasks.tasks, isLoading: false }),
+  useInboxProject: () => ({ data: null }),
+}));
+
+vi.mock("@/lib/hooks/useProjects", () => ({
+  useProjects: () => ({ data: [], isLoading: false }),
+}));
+
+vi.mock("@/lib/hooks/useTaskMutations", () => ({
+  useCreateTask: () => ({ mutate: vi.fn(), isPending: false }),
+  useUpdateTask: () => ({ mutate: vi.fn(), isPending: false }),
+  useDeleteTask: () => ({ mutate: vi.fn(), isPending: false }),
+}));
+
 vi.mock("@xyflow/react", async () => {
   const React = await import("react");
   const { useState, useCallback } = React;
@@ -47,6 +76,7 @@ vi.mock("@xyflow/react", async () => {
       defaultViewport,
       onMoveEnd,
       onNodeDragStop,
+      onNodeDoubleClick,
       children,
     }: {
       defaultViewport?: { x: number; y: number; zoom: number };
@@ -55,6 +85,7 @@ vi.mock("@xyflow/react", async () => {
         viewport: { x: number; y: number; zoom: number },
       ) => void;
       onNodeDragStop?: (event: unknown, node: unknown) => void;
+      onNodeDoubleClick?: (event: unknown, node: unknown) => void;
       children?: React.ReactNode;
     }) => (
       <div
@@ -76,6 +107,21 @@ vi.mock("@xyflow/react", async () => {
           }
         >
           simulate drag stop
+        </button>
+        <button
+          type="button"
+          data-testid="simulate-node-double-click"
+          onClick={() =>
+            dragNodeState.node &&
+            onNodeDoubleClick?.(
+              {
+                target: document.createElement("div"),
+              } as unknown as React.MouseEvent,
+              dragNodeState.node,
+            )
+          }
+        >
+          simulate node double click
         </button>
         {children}
       </div>
@@ -351,6 +397,26 @@ describe("WorkspaceCanvas node drag persistence (three-layer model)", () => {
             kind: "task",
           }),
         );
+      });
+    });
+  });
+
+  describe("Task node double click editing", () => {
+    it("opens task detail sheet when a task node is double clicked", async () => {
+      renderCanvas("ws-a");
+      dragNodeState.node = {
+        id: "node-1",
+        position: { x: 0, y: 0 },
+        data: {
+          row: makeNode({ id: "node-1", entity_id: "task-1", kind: "task" }),
+        },
+      };
+
+      const simulateBtn = screen.getByTestId("simulate-node-double-click");
+      fireEvent.click(simulateBtn);
+
+      await waitFor(() => {
+        expect(screen.getByTestId("workspace-task-detail-sheet")).toBeDefined();
       });
     });
   });

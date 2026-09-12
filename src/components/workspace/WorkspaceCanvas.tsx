@@ -73,6 +73,15 @@ import { AddHabitNodeDialog } from "./AddHabitNodeDialog";
 import { AddEventNodeDialog } from "./AddEventNodeDialog";
 import { QuickAddMenu } from "./QuickAddMenu";
 import { taskCommands } from "@/lib/commands/task";
+import { useTasks } from "@/lib/hooks/useTasks";
+import type { Task } from "@/lib/types/task";
+import {
+  Sheet,
+  SheetContent,
+  SheetTitle,
+  SheetDescription,
+} from "@/components/ui/sheet";
+import { TaskDetailPanel } from "@/components/tasks/TaskDetailPanel";
 
 interface WorkspaceCanvasProps {
   workspaceId: string;
@@ -124,6 +133,25 @@ export function WorkspaceCanvas({ workspaceId }: WorkspaceCanvasProps) {
   const { t } = useTranslation();
   const { data: workspaceNodes } = useWorkspaceNodes(workspaceId);
   const { data: workspaceEdges } = useWorkspaceEdges(workspaceId);
+  const { data: tasks = [] } = useTasks({ showCompleted: true });
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
+  const editingTask = useMemo(
+    () =>
+      editingTaskId
+        ? (tasks.find((t) => t.id === editingTaskId) ?? null)
+        : null,
+    [editingTaskId, tasks],
+  );
+  const [preservedEditingTask, setPreservedEditingTask] = useState<Task | null>(
+    null,
+  );
+  useEffect(() => {
+    if (editingTask) {
+      setPreservedEditingTask(editingTask);
+    }
+  }, [editingTask]);
+  const activeTaskForPanel = editingTask ?? preservedEditingTask;
+
   const [nodes, setNodes, onNodesChange] = useNodesState<WorkspaceFlowNode>([]);
   const [edges, setEdges] = useState<WorkspaceFlowEdge[]>([]);
   const { queuePositionWrite } = useNodePositionWrites();
@@ -971,6 +999,34 @@ export function WorkspaceCanvas({ workspaceId }: WorkspaceCanvasProps) {
   );
 
   /**
+   * Double clicking a task node opens the right-side detail edit sheet.
+   */
+  const handleNodeDoubleClick = useCallback(
+    (event: React.MouseEvent, node: WorkspaceFlowNode) => {
+      const target = event.target as HTMLElement | null;
+      if (!target) return;
+
+      // Exclude clicks on action buttons (like delete), checkboxes, inputs, or menus
+      if (
+        target.closest(
+          "button, [role='button'], [role='checkbox'], input, textarea, a, [data-testid*='remove'], [data-testid*='toggle']",
+        )
+      ) {
+        return;
+      }
+
+      const row = node.data?.row as WorkspaceNode | undefined;
+      if (row?.kind === "task" && row?.entity_id) {
+        const targetTask = tasks.find((t) => t.id === row.entity_id);
+        if (targetTask) {
+          setEditingTaskId(row.entity_id);
+        }
+      }
+    },
+    [tasks],
+  );
+
+  /**
    * A connection may not loop onto its own node, and one ordered pair holds
    * one connection: redrawing A → B is a no-op rather than a duplicate the
    * database would reject.
@@ -1182,6 +1238,7 @@ export function WorkspaceCanvas({ workspaceId }: WorkspaceCanvasProps) {
         onConnectStart={handleConnectStart}
         onConnectEnd={handleConnectEnd}
         onEdgesDelete={handleEdgesDelete}
+        onNodeDoubleClick={handleNodeDoubleClick}
         isValidConnection={isValidConnection}
         defaultViewport={savedViewport ?? { x: 0, y: 0, zoom: 1 }}
         onMoveEnd={handleMoveEnd}
@@ -1328,6 +1385,35 @@ export function WorkspaceCanvas({ workspaceId }: WorkspaceCanvasProps) {
         }}
         onNodeAdded={(node) => connectPendingSource(node.id)}
       />
+
+      <Sheet
+        open={Boolean(editingTaskId && activeTaskForPanel)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setEditingTaskId(null);
+          }
+        }}
+      >
+        <SheetContent
+          side="right"
+          showClose={false}
+          className="p-0 sm:max-w-xl w-full border-l border-border bg-background/95 backdrop-blur-md shadow-2xl overflow-hidden flex flex-col h-full"
+          data-testid="workspace-task-detail-sheet"
+        >
+          <SheetTitle className="sr-only">
+            {activeTaskForPanel?.content ?? "Task details"}
+          </SheetTitle>
+          <SheetDescription className="sr-only">
+            Edit task details, subtasks, and schedule
+          </SheetDescription>
+          {activeTaskForPanel && (
+            <TaskDetailPanel
+              task={activeTaskForPanel}
+              onClose={() => setEditingTaskId(null)}
+            />
+          )}
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
