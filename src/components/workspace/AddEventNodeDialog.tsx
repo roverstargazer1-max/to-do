@@ -19,7 +19,7 @@ import { useDateFormatter } from "@/lib/i18n/useDateFormatter";
 import { cn } from "@/lib/utils";
 import { getNodeKindSpec } from "./node-registry";
 import type { EventNodeCommands } from "./node-registry";
-import type { NodePosition } from "@/lib/types/workspace";
+import type { NodePosition, WorkspaceNode } from "@/lib/types/workspace";
 import type { CalendarEvent } from "@/lib/types/calendar-event";
 
 interface AddEventNodeDialogProps {
@@ -28,6 +28,7 @@ interface AddEventNodeDialogProps {
   position: NodePosition;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onNodeAdded?: (node: WorkspaceNode) => void;
 }
 
 /**
@@ -43,6 +44,7 @@ export function AddEventNodeDialog({
   position,
   open,
   onOpenChange,
+  onNodeAdded,
 }: AddEventNodeDialogProps) {
   const queryClient = useQueryClient();
   const { isGuestMode } = useAuth();
@@ -55,12 +57,15 @@ export function AddEventNodeDialog({
   const handleSelect = async (event: CalendarEvent) => {
     if (!spec) return;
     try {
-      await (spec.commands as EventNodeCommands).add(
+      const createdNode = await (spec.commands as EventNodeCommands).add(
         { queryClient, isGuestMode },
         { workspaceId, eventId: event.id, position },
       );
       notify(t("workspace.addEvent.added"));
       onOpenChange(false);
+      if (createdNode) {
+        onNodeAdded?.(createdNode);
+      }
     } catch (err) {
       console.error("Failed to add event node:", err);
       notify.error(t("workspace.addEvent.addFailed"));

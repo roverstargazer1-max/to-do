@@ -18,7 +18,7 @@ import { cn } from "@/lib/utils";
 import { getCurrentStreak } from "@/lib/utils/habit-streak";
 import { getNodeKindSpec } from "./node-registry";
 import type { HabitNodeCommands } from "./node-registry";
-import type { NodePosition } from "@/lib/types/workspace";
+import type { NodePosition, WorkspaceNode } from "@/lib/types/workspace";
 import type { HabitWithEntries } from "@/lib/types/habit";
 
 interface AddHabitNodeDialogProps {
@@ -27,6 +27,7 @@ interface AddHabitNodeDialogProps {
   position: NodePosition;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onNodeAdded?: (node: WorkspaceNode) => void;
 }
 
 /**
@@ -42,6 +43,7 @@ export function AddHabitNodeDialog({
   position,
   open,
   onOpenChange,
+  onNodeAdded,
 }: AddHabitNodeDialogProps) {
   const queryClient = useQueryClient();
   const { isGuestMode } = useAuth();
@@ -52,12 +54,15 @@ export function AddHabitNodeDialog({
   const handleSelect = async (habit: HabitWithEntries) => {
     if (!spec) return;
     try {
-      await (spec.commands as HabitNodeCommands).add(
+      const createdNode = await (spec.commands as HabitNodeCommands).add(
         { queryClient, isGuestMode },
         { workspaceId, habitId: habit.id, position },
       );
       notify(t("workspace.addHabit.added"));
       onOpenChange(false);
+      if (createdNode) {
+        onNodeAdded?.(createdNode);
+      }
     } catch (err) {
       console.error("Failed to add habit node:", err);
       notify.error(t("workspace.addHabit.addFailed"));

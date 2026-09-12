@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   ReactFlow,
@@ -9,15 +9,28 @@ import {
   Controls,
   useNodesState,
   type Connection,
+  type NodeChange,
+  type OnNodesChange,
   type OnConnect,
+  type OnConnectStart,
+  type OnConnectEnd,
   type OnEdgesChange,
   type OnMoveEnd,
   type OnNodeDrag,
+  type ReactFlowInstance,
   type Viewport,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import "./workspace-canvas.css";
-import { Calendar, CheckSquare, Plus, Repeat, Timer } from "lucide-react";
+import {
+  Calendar,
+  CheckSquare,
+  Group,
+  Plus,
+  Repeat,
+  Timer,
+  Ungroup,
+} from "lucide-react";
 import { useAuth } from "@/components/AuthProvider";
 import { Button } from "@/components/ui/button";
 import {
@@ -28,11 +41,13 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { notify } from "@/lib/notify";
 import { useTranslation } from "@/lib/i18n/useTranslation";
+import type { TranslationKey } from "@/lib/i18n/dictionaries/en";
 import { useWorkspaceNodes } from "@/lib/hooks/useWorkspaceNodes";
 import { useWorkspaceEdges } from "@/lib/hooks/useWorkspaceEdges";
 import { workspaceKeys } from "@/lib/queries/workspace-keys";
 import { useWorkspaceViewportStore } from "@/lib/store/workspaceViewportStore";
 import { edgeCommands } from "@/lib/commands/edge";
+import { nodeCommands } from "@/lib/commands/node";
 import type {
   NodePosition,
   WorkspaceEdge,
@@ -43,16 +58,21 @@ import {
   toWorkspaceFlowNodes,
   workspaceNodeTypes,
   type FocusNodeCommands,
+  type TaskNodeCommands,
   type WorkspaceFlowNode,
 } from "./node-registry";
 import {
   toWorkspaceFlowEdges,
   type WorkspaceFlowEdge,
 } from "./edge-projection";
+import { workspaceEdgeTypes } from "./WorkspaceEdge";
 import { useNodePositionWrites } from "./useNodePositionWrites";
+import { useNodeSizeWrites } from "./useNodeSizeWrites";
 import { AddTaskNodeDialog } from "./AddTaskNodeDialog";
 import { AddHabitNodeDialog } from "./AddHabitNodeDialog";
 import { AddEventNodeDialog } from "./AddEventNodeDialog";
+import { QuickAddMenu } from "./QuickAddMenu";
+import { taskCommands } from "@/lib/commands/task";
 
 interface WorkspaceCanvasProps {
   workspaceId: string;
@@ -107,7 +127,48 @@ export function WorkspaceCanvas({ workspaceId }: WorkspaceCanvasProps) {
   const [nodes, setNodes, onNodesChange] = useNodesState<WorkspaceFlowNode>([]);
   const [edges, setEdges] = useState<WorkspaceFlowEdge[]>([]);
   const { queuePositionWrite } = useNodePositionWrites();
+  const { queueSizeWrite } = useNodeSizeWrites();
   const wrapperRef = useRef<HTMLDivElement>(null);
+  const reactFlowInstanceRef = useRef<ReactFlowInstance<
+    WorkspaceFlowNode,
+    WorkspaceFlowEdge
+  > | null>(null);
+  const [dropTargetGroupId, setDropTargetGroupId] = useState<string | null>(
+    null,
+  );
+  const [quickMenuOpen, setQuickMenuOpen] = useState(false);
+  const [quickMenuAnchor, setQuickMenuAnchor] = useState<{
+    x: number;
+    y: number;
+  } | null>(null);
+  const [pendingSourceNodeId, setPendingSourceNodeId] = useState<string | null>(
+    null,
+  );
+  const connectStartRef = useRef<{
+    nodeId: string | null;
+    handleType: string | null;
+  } | null>(null);
+
+  // The pre-change nodes, for handlers that need the post-change frame
+  const nodesRef = useRef<WorkspaceFlowNode[]>([]);
+  useEffect(() => {
+    nodesRef.current = nodes;
+  }, [nodes]);
+
+  const displayNodes = useMemo(() => {
+    if (!dropTargetGroupId) return nodes;
+    return nodes.map((node) =>
+      node.id === dropTargetGroupId
+        ? {
+            ...node,
+            data: {
+              ...node.data,
+              isDropTarget: true,
+            },
+          }
+        : node,
+    );
+  }, [nodes, dropTargetGroupId]);
 
   // Connections the user has drawn that the rows do not carry yet. Kept in
   // a ref because the projection effect reads it without re-subscribing.
@@ -151,41 +212,537 @@ export function WorkspaceCanvas({ workspaceId }: WorkspaceCanvasProps) {
     [workspaceId, setViewport],
   );
 
-  // Layer 2 + layer 3 fire together on drag end.
-  const handleNodeDragStop: OnNodeDrag<WorkspaceFlowNode> = useCallback(
-    (_event, node) => {
-      const row = (node.data as { row: WorkspaceNode }).row;
-      // A press without movement drags zero pixels — nothing to persist.
-      if (
-        row.position_x === node.position.x &&
-        row.position_y === node.position.y
-      ) {
+  const handleNodeDrag: OnNodeDrag<WorkspaceFlowNode> = useCallback(
+    (_event, node, movedNodes) => {
+      const moved =
+        Array.isArray(movedNodes) && movedNodes.length > 0
+          ? movedNodes
+          : [node];
+      const hasGroup = moved.some(
+        (n) => (n.data as { row: WorkspaceNode }).row.kind === "group",
+      );
+      if (hasGroup) {
+        setDropTargetGroupId((prev) => (prev ? null : prev));
         return;
       }
-      // Layer 2 — the optimistic cache write: the node list entry shows
-      // the final position immediately.
-      queryClient.setQueryData<WorkspaceNode[]>(
-        workspaceKeys.nodes.list(workspaceId, isGuestMode),
-        (old) =>
-          old?.map((n) =>
-            n.id === row.id
-              ? {
-                  ...n,
-                  position_x: node.position.x,
-                  position_y: node.position.y,
-                }
-              : n,
-          ),
+
+      const currentNodes = nodesRef.current;
+      const groupNodes = currentNodes.filter(
+        (n) => (n.data as { row: WorkspaceNode }).row.kind === "group",
       );
-      // Layer 3 — the debounced row-level PATCH under the node.move key.
-      queuePositionWrite({
-        workspaceId,
-        nodeId: row.id,
-        position: { x: node.position.x, y: node.position.y },
-      });
+
+      const parent = node.parentId
+        ? currentNodes.find((n) => n.id === node.parentId)
+        : null;
+      const parentX = parent?.position.x ?? 0;
+      const parentY = parent?.position.y ?? 0;
+      const absX = parentX + node.position.x;
+      const absY = parentY + node.position.y;
+      const w = node.measured?.width ?? (node.style?.width as number) ?? 260;
+      const h = node.measured?.height ?? (node.style?.height as number) ?? 80;
+      const centerX = absX + w / 2;
+      const centerY = absY + h / 2;
+
+      let targetGroup: WorkspaceFlowNode | null = null;
+      for (const g of groupNodes) {
+        const gx = g.position.x;
+        const gy = g.position.y;
+        const gw = (g.style?.width as number) ?? g.measured?.width ?? 360;
+        const gh = (g.style?.height as number) ?? g.measured?.height ?? 240;
+
+        if (
+          centerX >= gx &&
+          centerX <= gx + gw &&
+          centerY >= gy &&
+          centerY <= gy + gh
+        ) {
+          targetGroup = g;
+          break;
+        }
+      }
+
+      const newTargetId =
+        targetGroup && targetGroup.id !== node.parentId ? targetGroup.id : null;
+      setDropTargetGroupId(newTargetId);
     },
-    [queryClient, workspaceId, isGuestMode, queuePositionWrite],
+    [],
   );
+
+  // Layer 2 + layer 3 fire together on drag end.
+  const handleNodeDragStop: OnNodeDrag<WorkspaceFlowNode> = useCallback(
+    async (_event, node, movedNodes) => {
+      setDropTargetGroupId(null);
+      const moved =
+        Array.isArray(movedNodes) && movedNodes.length > 0
+          ? movedNodes
+          : [node];
+      const currentNodes = nodesRef.current;
+      const groupNodes = currentNodes.filter(
+        (n) => (n.data as { row: WorkspaceNode }).row.kind === "group",
+      );
+
+      for (const dragged of moved) {
+        const row = (dragged.data as { row: WorkspaceNode }).row;
+        // Group container nodes persist their own position directly
+        if (row.kind === "group") {
+          const pos = dragged.position;
+          if (row.position_x === pos.x && row.position_y === pos.y) continue;
+          queryClient.setQueryData<WorkspaceNode[]>(
+            workspaceKeys.nodes.list(workspaceId, isGuestMode),
+            (old) =>
+              old?.map((n) =>
+                n.id === row.id
+                  ? { ...n, position_x: pos.x, position_y: pos.y }
+                  : n,
+              ),
+          );
+          queuePositionWrite({ workspaceId, nodeId: row.id, position: pos });
+          continue;
+        }
+
+        // Card node — calculate absolute coordinates and center point
+        const parent = dragged.parentId
+          ? currentNodes.find((n) => n.id === dragged.parentId)
+          : null;
+        const parentX = parent?.position.x ?? 0;
+        const parentY = parent?.position.y ?? 0;
+        const absX = parentX + dragged.position.x;
+        const absY = parentY + dragged.position.y;
+        const w =
+          dragged.measured?.width ?? (dragged.style?.width as number) ?? 260;
+        const h =
+          dragged.measured?.height ?? (dragged.style?.height as number) ?? 80;
+        const centerX = absX + w / 2;
+        const centerY = absY + h / 2;
+
+        let targetGroup: WorkspaceFlowNode | null = null;
+        for (const g of groupNodes) {
+          const gx = g.position.x;
+          const gy = g.position.y;
+          const gw = (g.style?.width as number) ?? g.measured?.width ?? 360;
+          const gh = (g.style?.height as number) ?? g.measured?.height ?? 240;
+
+          if (
+            centerX >= gx &&
+            centerX <= gx + gw &&
+            centerY >= gy &&
+            centerY <= gy + gh
+          ) {
+            targetGroup = g;
+            break;
+          }
+        }
+
+        const currentGroupId = row.group_id ?? null;
+        const targetGroupId = targetGroup ? targetGroup.id : null;
+
+        if (currentGroupId && !targetGroupId) {
+          // Detach from current group -> becomes root node
+          const newPos = { x: Math.round(absX), y: Math.round(absY) };
+          setNodes((nds) =>
+            nds.map((n) =>
+              n.id === row.id
+                ? { ...n, parentId: undefined, position: newPos }
+                : n,
+            ),
+          );
+          await nodeCommands.removeFromGroup(
+            { queryClient, isGuestMode },
+            { workspaceId, nodeId: row.id, position: newPos },
+          );
+        } else if (targetGroupId && targetGroupId !== currentGroupId) {
+          // Attach into new group
+          const gx = targetGroup!.position.x;
+          const gy = targetGroup!.position.y;
+          const relPos = {
+            x: Math.round(absX - gx),
+            y: Math.round(absY - gy),
+          };
+
+          // Auto-expand target group if card extends beyond bottom-right
+          const gw =
+            (targetGroup!.style?.width as number) ??
+            targetGroup!.measured?.width ??
+            360;
+          const gh =
+            (targetGroup!.style?.height as number) ??
+            targetGroup!.measured?.height ??
+            240;
+          const requiredW = relPos.x + w + 24;
+          const requiredH = relPos.y + h + 24;
+          if (requiredW > gw || requiredH > gh) {
+            const newGw = Math.max(gw, requiredW);
+            const newGh = Math.max(gh, requiredH);
+            queueSizeWrite({
+              workspaceId,
+              nodeId: targetGroupId,
+              width: newGw,
+              height: newGh,
+            });
+            queryClient.setQueryData<WorkspaceNode[]>(
+              workspaceKeys.nodes.list(workspaceId, isGuestMode),
+              (old) =>
+                old?.map((n) =>
+                  n.id === targetGroupId
+                    ? { ...n, width: newGw, height: newGh }
+                    : n,
+                ),
+            );
+          }
+
+          setNodes((nds) =>
+            nds.map((n) =>
+              n.id === row.id
+                ? { ...n, parentId: targetGroupId, position: relPos }
+                : n,
+            ),
+          );
+
+          await nodeCommands.addToGroup(
+            { queryClient, isGuestMode },
+            {
+              workspaceId,
+              nodeId: row.id,
+              groupId: targetGroupId,
+              position: relPos,
+            },
+          );
+        } else {
+          // Moved within same container or canvas root
+          const pos = dragged.position;
+          if (row.position_x === pos.x && row.position_y === pos.y) continue;
+
+          if (currentGroupId && targetGroup) {
+            const gw =
+              (targetGroup.style?.width as number) ??
+              targetGroup.measured?.width ??
+              360;
+            const gh =
+              (targetGroup.style?.height as number) ??
+              targetGroup.measured?.height ??
+              240;
+            const requiredW = pos.x + w + 24;
+            const requiredH = pos.y + h + 24;
+            if (requiredW > gw || requiredH > gh) {
+              const newGw = Math.max(gw, requiredW);
+              const newGh = Math.max(gh, requiredH);
+              queueSizeWrite({
+                workspaceId,
+                nodeId: currentGroupId,
+                width: newGw,
+                height: newGh,
+              });
+              queryClient.setQueryData<WorkspaceNode[]>(
+                workspaceKeys.nodes.list(workspaceId, isGuestMode),
+                (old) =>
+                  old?.map((n) =>
+                    n.id === currentGroupId
+                      ? { ...n, width: newGw, height: newGh }
+                      : n,
+                  ),
+              );
+            }
+          }
+
+          queryClient.setQueryData<WorkspaceNode[]>(
+            workspaceKeys.nodes.list(workspaceId, isGuestMode),
+            (old) =>
+              old?.map((n) =>
+                n.id === row.id
+                  ? { ...n, position_x: pos.x, position_y: pos.y }
+                  : n,
+              ),
+          );
+          queuePositionWrite({ workspaceId, nodeId: row.id, position: pos });
+        }
+      }
+    },
+    [
+      queryClient,
+      workspaceId,
+      isGuestMode,
+      queuePositionWrite,
+      queueSizeWrite,
+      setNodes,
+    ],
+  );
+
+  /**
+   * Layer 2 + layer 3 for resize and boundary expansion (expandParent).
+   */
+  const handleNodesChange: OnNodesChange<WorkspaceFlowNode> = useCallback(
+    (changes: NodeChange<WorkspaceFlowNode>[]) => {
+      onNodesChange(changes);
+
+      for (const change of changes) {
+        if (change.type !== "dimensions" || change.resizing !== false) continue;
+        const dimensions = change.dimensions;
+        if (!dimensions) continue;
+
+        let node = nodesRef.current.find(
+          (n) => "id" in n && n.id === change.id,
+        );
+        if (!node) continue;
+        for (const other of changes) {
+          if (!("id" in other) || other.id !== change.id) continue;
+          if (other.type === "position" && other.position) {
+            node = { ...node, position: other.position };
+          }
+          if (other.type === "dimensions" && other.dimensions) {
+            node = {
+              ...node,
+              measured: { ...node.measured, ...other.dimensions },
+            };
+          }
+        }
+
+        const row = (node.data as { row: WorkspaceNode }).row;
+        if (row.kind === "group") continue;
+        const width = dimensions.width;
+        const height = dimensions.height;
+        const position = node.position;
+
+        // Auto-expand parent group if member card resize exceeds bounds
+        if (row.group_id) {
+          const groupNode = nodesRef.current.find((n) => n.id === row.group_id);
+          if (groupNode) {
+            const gw =
+              (groupNode.style?.width as number) ??
+              groupNode.measured?.width ??
+              360;
+            const gh =
+              (groupNode.style?.height as number) ??
+              groupNode.measured?.height ??
+              240;
+            const requiredW = position.x + width + 24;
+            const requiredH = position.y + height + 24;
+            if (requiredW > gw || requiredH > gh) {
+              const newGw = Math.max(gw, requiredW);
+              const newGh = Math.max(gh, requiredH);
+              queueSizeWrite({
+                workspaceId,
+                nodeId: row.group_id,
+                width: newGw,
+                height: newGh,
+              });
+              queryClient.setQueryData<WorkspaceNode[]>(
+                workspaceKeys.nodes.list(workspaceId, isGuestMode),
+                (old) =>
+                  old?.map((n) =>
+                    n.id === row.group_id
+                      ? { ...n, width: newGw, height: newGh }
+                      : n,
+                  ),
+              );
+            }
+          }
+        }
+
+        if (
+          row.width === width &&
+          row.height === height &&
+          row.position_x === position.x &&
+          row.position_y === position.y
+        ) {
+          continue;
+        }
+
+        queryClient.setQueryData<WorkspaceNode[]>(
+          workspaceKeys.nodes.list(workspaceId, isGuestMode),
+          (old) =>
+            old?.map((n) =>
+              n.id === row.id
+                ? {
+                    ...n,
+                    width,
+                    height,
+                    position_x: position.x,
+                    position_y: position.y,
+                  }
+                : n,
+            ),
+        );
+        queueSizeWrite({ workspaceId, nodeId: row.id, width, height });
+        if (row.position_x !== position.x || row.position_y !== position.y) {
+          queuePositionWrite({ workspaceId, nodeId: row.id, position });
+        }
+      }
+    },
+    [
+      onNodesChange,
+      queryClient,
+      workspaceId,
+      isGuestMode,
+      queueSizeWrite,
+      queuePositionWrite,
+    ],
+  );
+
+  // ── Grouping ───────────────────────────────────────────────────────────
+  const selectedNodes = nodes.filter((node) => node.selected);
+  const selectedGroupNodes = selectedNodes.filter(
+    (n) => (n.data as { row: WorkspaceNode }).row.kind === "group",
+  );
+  const selectedContentNodes = selectedNodes.filter(
+    (n) => (n.data as { row: WorkspaceNode }).row.kind !== "group",
+  );
+
+  const handleCreateGroup = useCallback(async () => {
+    if (selectedContentNodes.length < 2) return;
+
+    const targetBounds = selectedContentNodes.map((n) => {
+      const row = (n.data as { row: WorkspaceNode }).row;
+      const spec = getNodeKindSpec(row.kind);
+      const width =
+        n.measured?.width ??
+        (typeof row.width === "number" ? row.width : null) ??
+        spec?.defaults.width ??
+        240;
+      const height =
+        n.measured?.height ??
+        (typeof row.height === "number" ? row.height : null) ??
+        spec?.defaults.height ??
+        100;
+
+      let absX = n.position.x;
+      let absY = n.position.y;
+      if (n.parentId) {
+        const parent = nodes.find((p) => p.id === n.parentId);
+        if (parent) {
+          absX += parent.position.x;
+          absY += parent.position.y;
+        }
+      }
+
+      return {
+        id: n.id,
+        x: absX,
+        y: absY,
+        width,
+        height,
+      };
+    });
+
+    const minX = Math.min(...targetBounds.map((b) => b.x));
+    const minY = Math.min(...targetBounds.map((b) => b.y));
+    const maxX = Math.max(...targetBounds.map((b) => b.x + b.width));
+    const maxY = Math.max(...targetBounds.map((b) => b.y + b.height));
+
+    const PAD_X = 24;
+    const PAD_TOP = 44;
+    const PAD_BOTTOM = 24;
+
+    const groupX = Math.round(minX - PAD_X);
+    const groupY = Math.round(minY - PAD_TOP);
+    const groupW = Math.round(maxX - minX + PAD_X * 2);
+    const groupH = Math.round(maxY - minY + PAD_TOP + PAD_BOTTOM);
+
+    const members = targetBounds.map((b) => ({
+      id: b.id,
+      position: {
+        x: Math.round(b.x - groupX),
+        y: Math.round(b.y - groupY),
+      },
+    }));
+
+    await nodeCommands.createGroup(
+      { queryClient, isGuestMode },
+      {
+        workspaceId,
+        group: {
+          position: { x: groupX, y: groupY },
+          width: groupW,
+          height: groupH,
+          title: t("workspace.group.defaultTitle"),
+        },
+        members,
+      },
+    );
+  }, [selectedContentNodes, nodes, queryClient, isGuestMode, workspaceId, t]);
+
+  const runGroupCommand = useCallback(
+    async (run: () => Promise<unknown>, failureKey: TranslationKey) => {
+      try {
+        await run();
+      } catch (err: unknown) {
+        console.error("Grouping failed:", err);
+        notify.error(t(failureKey));
+      }
+    },
+    [t],
+  );
+
+  const groupAction: {
+    key: "group" | "ungroup";
+    label: string;
+    run: () => Promise<unknown>;
+  } | null = useMemo(() => {
+    // Case 1: Exactly 1 group node selected
+    if (selectedGroupNodes.length === 1 && selectedContentNodes.length === 0) {
+      const groupId = selectedGroupNodes[0].id;
+      return {
+        key: "ungroup",
+        label: t("workspace.toolbar.ungroup"),
+        run: () =>
+          runGroupCommand(
+            () =>
+              nodeCommands.ungroup(
+                { queryClient, isGuestMode },
+                { workspaceId, groupId },
+              ),
+            "workspace.group.ungroupFailed",
+          ),
+      };
+    }
+
+    // Case 2: Selected content nodes belong to the SAME group
+    const memberGroupIds = new Set(
+      selectedContentNodes
+        .map((n) => (n.data as { row: WorkspaceNode }).row.group_id)
+        .filter((id): id is string => typeof id === "string" && id.length > 0),
+    );
+    if (
+      selectedGroupNodes.length === 0 &&
+      selectedContentNodes.length > 0 &&
+      memberGroupIds.size === 1
+    ) {
+      const groupId = [...memberGroupIds][0];
+      return {
+        key: "ungroup",
+        label: t("workspace.toolbar.ungroup"),
+        run: () =>
+          runGroupCommand(
+            () =>
+              nodeCommands.ungroup(
+                { queryClient, isGuestMode },
+                { workspaceId, groupId },
+              ),
+            "workspace.group.ungroupFailed",
+          ),
+      };
+    }
+
+    // Case 3: 2 or more content nodes selected (can be grouped)
+    if (selectedContentNodes.length >= 2 && selectedGroupNodes.length === 0) {
+      return {
+        key: "group",
+        label: t("workspace.toolbar.group"),
+        run: () =>
+          runGroupCommand(handleCreateGroup, "workspace.group.createFailed"),
+      };
+    }
+
+    return null;
+  }, [
+    selectedGroupNodes,
+    selectedContentNodes,
+    t,
+    handleCreateGroup,
+    runGroupCommand,
+    queryClient,
+    isGuestMode,
+    workspaceId,
+  ]);
 
   /**
    * Drawing a connection. The id is minted here, not inside the command, so
@@ -226,6 +783,191 @@ export function WorkspaceCanvas({ workspaceId }: WorkspaceCanvasProps) {
         });
     },
     [queryClient, isGuestMode, workspaceId, t],
+  );
+
+  const handleConnectStart: OnConnectStart = useCallback((_event, params) => {
+    connectStartRef.current = {
+      nodeId: params.nodeId,
+      handleType: params.handleType,
+    };
+  }, []);
+
+  /**
+   * Helper to convert client/mouse coordinates into flow world coordinates.
+   */
+  const getFlowPositionFromScreen = useCallback(
+    (clientX: number, clientY: number): NodePosition => {
+      if (reactFlowInstanceRef.current) {
+        return reactFlowInstanceRef.current.screenToFlowPosition({
+          x: clientX,
+          y: clientY,
+        });
+      }
+      const rect = wrapperRef.current?.getBoundingClientRect();
+      const vp = useWorkspaceViewportStore
+        .getState()
+        .getViewport(workspaceId) ?? { x: 0, y: 0, zoom: 1 };
+      return {
+        x: Math.round((clientX - (rect?.left ?? 0) - vp.x) / vp.zoom),
+        y: Math.round((clientY - (rect?.top ?? 0) - vp.y) / vp.zoom),
+      };
+    },
+    [workspaceId],
+  );
+
+  const connectPendingSource = useCallback(
+    (newNodeId: string) => {
+      if (!pendingSourceNodeId) return;
+      const source = pendingSourceNodeId;
+      setPendingSourceNodeId(null);
+      const edgeId = crypto.randomUUID();
+      pendingEdgeIdsRef.current.add(edgeId);
+      setEdges((current) => [
+        ...current,
+        {
+          id: edgeId,
+          source,
+          target: newNodeId,
+          type: "default",
+          data: { edgeId, workspaceId },
+        },
+      ]);
+      void edgeCommands
+        .add(
+          { queryClient, isGuestMode },
+          {
+            id: edgeId,
+            workspaceId,
+            sourceNodeId: source,
+            targetNodeId: newNodeId,
+          },
+        )
+        .catch((err) => {
+          console.error("Failed to connect nodes:", err);
+        });
+    },
+    [pendingSourceNodeId, workspaceId, queryClient, isGuestMode, setEdges],
+  );
+
+  /**
+   * Mindmap connection flow: dragging from a port into empty canvas
+   * opens the quick-add menu at that position, and creates a connecting edge upon creation.
+   */
+  const handleConnectEnd: OnConnectEnd = useCallback(
+    (event, connectionState) => {
+      const startInfo = connectStartRef.current;
+      connectStartRef.current = null;
+
+      if (connectionState.isValid) return;
+      const sourceId = startInfo?.nodeId ?? connectionState.fromNode?.id;
+      if (!sourceId) return;
+
+      let clientX = 0;
+      let clientY = 0;
+      if (
+        "clientX" in event &&
+        typeof (event as MouseEvent).clientX === "number"
+      ) {
+        clientX = (event as MouseEvent).clientX;
+        clientY = (event as MouseEvent).clientY;
+      } else if (
+        "changedTouches" in event &&
+        (event as TouchEvent).changedTouches.length > 0
+      ) {
+        clientX = (event as TouchEvent).changedTouches[0].clientX;
+        clientY = (event as TouchEvent).changedTouches[0].clientY;
+      }
+
+      let flowPos: NodePosition;
+      if (clientX && clientY) {
+        flowPos = getFlowPositionFromScreen(clientX, clientY);
+      } else if (connectionState.to) {
+        flowPos = {
+          x: Math.round(connectionState.to.x),
+          y: Math.round(connectionState.to.y),
+        };
+        if (reactFlowInstanceRef.current) {
+          const screen =
+            reactFlowInstanceRef.current.flowToScreenPosition(flowPos);
+          clientX = screen.x;
+          clientY = screen.y;
+        }
+      } else {
+        return;
+      }
+
+      setPendingSourceNodeId(sourceId);
+      setAddPosition(flowPos);
+      setQuickMenuAnchor({ x: clientX, y: clientY });
+      setQuickMenuOpen(true);
+    },
+    [getFlowPositionFromScreen],
+  );
+
+  /**
+   * Double clicking empty canvas opens the quick-add menu right at the cursor position.
+   */
+  const handleCanvasDoubleClick = useCallback(
+    (event: React.MouseEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (!target) return;
+
+      if (
+        target.closest(".react-flow__node:not(.react-flow__node-group)") ||
+        target.closest(".react-flow__edge") ||
+        target.closest(".react-flow__controls") ||
+        target.closest(
+          "button, [role='button'], input, textarea, a, [role='dialog'], [role='menu']",
+        ) ||
+        target.closest(".ws-group-node__head") ||
+        target.closest(".react-flow__resize-control")
+      ) {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+
+      const flowPos = getFlowPositionFromScreen(event.clientX, event.clientY);
+      setPendingSourceNodeId(null);
+      setAddPosition(flowPos);
+      setQuickMenuAnchor({ x: event.clientX, y: event.clientY });
+      setQuickMenuOpen(true);
+    },
+    [getFlowPositionFromScreen],
+  );
+
+  /**
+   * Right clicking empty canvas intercepts browser context menu and opens quick-add menu.
+   */
+  const handleCanvasContextMenu = useCallback(
+    (event: React.MouseEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (!target) return;
+
+      if (
+        target.closest(".react-flow__node:not(.react-flow__node-group)") ||
+        target.closest(".react-flow__edge") ||
+        target.closest(".react-flow__controls") ||
+        target.closest(
+          "button, [role='button'], input, textarea, a, [role='dialog'], [role='menu']",
+        ) ||
+        target.closest(".ws-group-node__head") ||
+        target.closest(".react-flow__resize-control")
+      ) {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+
+      const flowPos = getFlowPositionFromScreen(event.clientX, event.clientY);
+      setPendingSourceNodeId(null);
+      setAddPosition(flowPos);
+      setQuickMenuAnchor({ x: event.clientX, y: event.clientY });
+      setQuickMenuOpen(true);
+    },
+    [getFlowPositionFromScreen],
   );
 
   /**
@@ -282,19 +1024,19 @@ export function WorkspaceCanvas({ workspaceId }: WorkspaceCanvasProps) {
           workspaceKeys.edges.list(workspaceId, isGuestMode),
           (old) => old?.filter((row) => row.id !== data.edgeId),
         );
-
+        pendingEdgeIdsRef.current.delete(data.edgeId);
         void edgeCommands
           .remove(
             { queryClient, isGuestMode },
-            { id: data.edgeId, workspace_id: data.workspaceId },
+            { id: data.edgeId, workspace_id: workspaceId },
           )
           .catch((err) => {
-            console.error("Failed to remove edge:", err);
+            console.error("Failed to delete edge:", err);
             notify.error(t("workspace.canvas.disconnectFailed"));
           });
       }
     },
-    [queryClient, workspaceId, isGuestMode, t],
+    [queryClient, isGuestMode, workspaceId, t],
   );
 
   // Which node-kind picker is open; the position is computed at open time.
@@ -331,8 +1073,8 @@ export function WorkspaceCanvas({ workspaceId }: WorkspaceCanvasProps) {
   }, [workspaceId]);
 
   const openAddDialog = useCallback(
-    (kind: AddNodeDialogKind) => {
-      setAddPosition(getCenterPosition());
+    (kind: AddNodeDialogKind, customPosition?: NodePosition) => {
+      setAddPosition(customPosition ?? getCenterPosition());
       setAddDialogKind(kind);
     },
     [getCenterPosition],
@@ -341,20 +1083,82 @@ export function WorkspaceCanvas({ workspaceId }: WorkspaceCanvasProps) {
   // A focus node references the timer singleton, not an entity — there is
   // no picker; the menu item places it directly through the kind's
   // registry binding (ADR 0020).
-  const addFocusNode = useCallback(async () => {
-    const spec = getNodeKindSpec("focus");
-    if (!spec) return;
-    try {
-      await (spec.commands as FocusNodeCommands).add(
-        { queryClient, isGuestMode },
-        { workspaceId, position: getCenterPosition() },
-      );
-      notify(t("workspace.canvas.focusAdded"));
-    } catch (err) {
-      console.error("Failed to add focus node:", err);
-      notify.error(t("workspace.canvas.focusAddFailed"));
-    }
-  }, [queryClient, isGuestMode, workspaceId, getCenterPosition, t]);
+  const addFocusNode = useCallback(
+    async (customPosition?: NodePosition) => {
+      const spec = getNodeKindSpec("focus");
+      if (!spec) return;
+      const pos = customPosition ?? addPosition ?? getCenterPosition();
+      try {
+        const createdNode = await (spec.commands as FocusNodeCommands).add(
+          { queryClient, isGuestMode },
+          { workspaceId, position: pos },
+        );
+        notify(t("workspace.canvas.focusAdded"));
+        if (createdNode && pendingSourceNodeId) {
+          connectPendingSource(createdNode.id);
+        }
+      } catch (err) {
+        console.error("Failed to add focus node:", err);
+        notify.error(t("workspace.canvas.focusAddFailed"));
+      } finally {
+        setPendingSourceNodeId(null);
+      }
+    },
+    [
+      queryClient,
+      isGuestMode,
+      workspaceId,
+      addPosition,
+      getCenterPosition,
+      pendingSourceNodeId,
+      connectPendingSource,
+      t,
+    ],
+  );
+
+  /**
+   * Fast inline task creation: creates task directly in inbox and places node at addPosition.
+   */
+  const handleQuickCreateTask = useCallback(
+    async (title: string) => {
+      const spec = getNodeKindSpec("task");
+      if (!spec) return;
+      const pos = addPosition ?? getCenterPosition();
+
+      try {
+        const newTask = await taskCommands.create(
+          { queryClient, isGuestMode },
+          { content: title, project_id: undefined },
+        );
+
+        const createdNode = await (spec.commands as TaskNodeCommands).add(
+          { queryClient, isGuestMode },
+          { workspaceId, taskId: newTask.id, position: pos },
+        );
+
+        notify(t("workspace.canvas.taskCreated"));
+
+        if (createdNode && pendingSourceNodeId) {
+          connectPendingSource(createdNode.id);
+        }
+      } catch (err) {
+        console.error("Failed to quick create task:", err);
+        notify.error(t("workspace.canvas.taskCreateFailed"));
+      } finally {
+        setPendingSourceNodeId(null);
+      }
+    },
+    [
+      addPosition,
+      getCenterPosition,
+      queryClient,
+      isGuestMode,
+      workspaceId,
+      pendingSourceNodeId,
+      connectPendingSource,
+      t,
+    ],
+  );
 
   return (
     <div
@@ -362,19 +1166,29 @@ export function WorkspaceCanvas({ workspaceId }: WorkspaceCanvasProps) {
       className="relative w-full h-full border-t border-border md:border-t-0"
       data-testid="workspace-canvas"
       data-workspace-id={workspaceId}
+      onDoubleClick={handleCanvasDoubleClick}
+      onContextMenu={handleCanvasContextMenu}
     >
       <ReactFlow
-        nodes={nodes}
+        nodes={displayNodes}
         edges={edges}
         nodeTypes={workspaceNodeTypes}
-        onNodesChange={onNodesChange}
+        edgeTypes={workspaceEdgeTypes}
+        onNodesChange={handleNodesChange}
         onEdgesChange={handleEdgesChange}
+        onNodeDrag={handleNodeDrag}
         onNodeDragStop={handleNodeDragStop}
         onConnect={handleConnect}
+        onConnectStart={handleConnectStart}
+        onConnectEnd={handleConnectEnd}
         onEdgesDelete={handleEdgesDelete}
         isValidConnection={isValidConnection}
         defaultViewport={savedViewport ?? { x: 0, y: 0, zoom: 1 }}
         onMoveEnd={handleMoveEnd}
+        onInit={(instance) => {
+          reactFlowInstanceRef.current = instance;
+        }}
+        zoomOnDoubleClick={false}
         // Selection exists so a connection can be picked and cut; the
         // Delete key is scoped to connections because nodes are
         // `deletable: false` (a node leaves through its own control).
@@ -398,7 +1212,7 @@ export function WorkspaceCanvas({ workspaceId }: WorkspaceCanvasProps) {
         <Controls position="bottom-left" showInteractive={false} />
       </ReactFlow>
 
-      <div className="absolute top-3 right-3 z-10">
+      <div className="absolute top-3 right-3 z-10 flex flex-col items-end gap-2">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button
@@ -448,25 +1262,71 @@ export function WorkspaceCanvas({ workspaceId }: WorkspaceCanvasProps) {
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+
+        {groupAction ? (
+          <Button
+            variant="outline"
+            size="sm"
+            data-testid={`workspace-${groupAction.key}-button`}
+            onClick={() => void groupAction.run()}
+            className="gap-2 bg-background shadow-xs text-xs font-medium"
+          >
+            {groupAction.key === "group" ? (
+              <Group className="h-4 w-4" strokeWidth={2.25} />
+            ) : (
+              <Ungroup className="h-4 w-4" strokeWidth={2.25} />
+            )}
+            <span>{groupAction.label}</span>
+          </Button>
+        ) : null}
       </div>
+
+      <QuickAddMenu
+        open={quickMenuOpen}
+        anchor={quickMenuAnchor}
+        onClose={() => {
+          setQuickMenuOpen(false);
+          setPendingSourceNodeId(null);
+        }}
+        onQuickCreateTask={handleQuickCreateTask}
+        onPickExistingTask={() => openAddDialog("task", addPosition)}
+        onAddHabit={() => openAddDialog("habit", addPosition)}
+        onAddEvent={() => openAddDialog("event", addPosition)}
+        onAddFocus={() => void addFocusNode(addPosition)}
+        onFitView={() =>
+          reactFlowInstanceRef.current?.fitView({ duration: 300 })
+        }
+      />
 
       <AddTaskNodeDialog
         workspaceId={workspaceId}
         position={addPosition}
         open={addDialogKind === "task"}
-        onOpenChange={(open) => setAddDialogKind(open ? "task" : null)}
+        onOpenChange={(open) => {
+          setAddDialogKind(open ? "task" : null);
+          if (!open) setPendingSourceNodeId(null);
+        }}
+        onNodeAdded={(node) => connectPendingSource(node.id)}
       />
       <AddHabitNodeDialog
         workspaceId={workspaceId}
         position={addPosition}
         open={addDialogKind === "habit"}
-        onOpenChange={(open) => setAddDialogKind(open ? "habit" : null)}
+        onOpenChange={(open) => {
+          setAddDialogKind(open ? "habit" : null);
+          if (!open) setPendingSourceNodeId(null);
+        }}
+        onNodeAdded={(node) => connectPendingSource(node.id)}
       />
       <AddEventNodeDialog
         workspaceId={workspaceId}
         position={addPosition}
         open={addDialogKind === "event"}
-        onOpenChange={(open) => setAddDialogKind(open ? "event" : null)}
+        onOpenChange={(open) => {
+          setAddDialogKind(open ? "event" : null);
+          if (!open) setPendingSourceNodeId(null);
+        }}
+        onNodeAdded={(node) => connectPendingSource(node.id)}
       />
     </div>
   );

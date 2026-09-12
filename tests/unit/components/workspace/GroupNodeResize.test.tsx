@@ -2,10 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import React from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import type {
-  WorkspaceNode,
-  WorkspaceNodeKindSpec,
-} from "@/lib/types/workspace";
+import type { WorkspaceNode } from "@/lib/types/workspace";
 import { workspaceKeys } from "@/lib/queries/workspace-keys";
 
 const mockSetNodes = vi.fn();
@@ -17,7 +14,7 @@ type ResizeParams = {
   y: number;
   width: number;
   height: number;
-  direction: number[];
+  direction?: number[];
 };
 
 let resizeControlCallbacks: {
@@ -126,15 +123,16 @@ function renderTestGroup(
     allNodes,
   );
 
+  const GroupNodeBound = GroupNode as unknown as React.ComponentType<{
+    id: string;
+    data: { row: WorkspaceNode };
+  }>;
+
   return {
     queryClient,
     ...render(
       <QueryClientProvider client={queryClient}>
-        <GroupNode
-          id={groupRow.id}
-          data={{ row: groupRow }}
-          spec={{} as unknown as WorkspaceNodeKindSpec}
-        />
+        <GroupNodeBound id={groupRow.id} data={{ row: groupRow }} />
       </QueryClientProvider>,
     ),
   };

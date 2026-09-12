@@ -80,6 +80,7 @@
   display: flex;
   flex-direction: column;
   width: 100%;
+  height: 100%;
   /* No overflow clipping: a port sits centered on the card's edge, so half
      of it lives outside the border box by design. */
   background: hsl(var(--canvas-node, 0 0% 100%));
@@ -160,6 +161,9 @@
 
 .ws-node-card__body {
   min-width: 0;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
 }
 
 /* The card drags as a whole, so its own controls have to say otherwise. */
@@ -179,6 +183,7 @@
   min-width: 9px;
   min-height: 9px;
   box-shadow: none;
+  z-index: 30;
   transition:
     background-color 120ms var(--ease-seijaku, ease),
     border-color 120ms var(--ease-seijaku, ease),
@@ -292,4 +297,324 @@
 /* MiniMap stays out (no persistent chrome beyond Controls). */
 .react-flow__minimap {
   display: none;
+}
+
+/* ── Group container node ─────────────────────────────────────────────── */
+
+.ws-group-node {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  border: 1px dashed hsl(var(--border));
+  border-radius: calc(var(--radius) + 2px);
+  background: hsl(var(--muted) / 0.35);
+  box-shadow: 0 1px 3px hsl(0 0% 0% / 0.03);
+  transition:
+    border-color 150ms var(--ease-seijaku, ease),
+    box-shadow 150ms var(--ease-seijaku, ease);
+}
+
+.dark .ws-group-node {
+  background: hsl(var(--card) / 0.3);
+  border-color: hsl(var(--border) / 0.8);
+}
+
+.react-flow__node:hover .ws-group-node {
+  border-color: hsl(var(--foreground) / 0.45);
+}
+
+.react-flow__node.selected .ws-group-node {
+  border-color: hsl(var(--foreground));
+  border-style: solid;
+  box-shadow: 0 0 0 2px hsl(var(--foreground) / 0.08);
+}
+
+.ws-group-node.ws-group-node--drop-target {
+  border-color: hsl(var(--primary));
+  border-style: solid;
+  box-shadow:
+    0 0 0 2px hsl(var(--primary) / 0.35),
+    0 0 24px -4px hsl(var(--primary) / 0.25);
+  background: hsl(var(--canvas-node, 0 0% 100%) / 0.85);
+}
+
+.ws-group-node__head {
+  display: flex;
+  align-items: center;
+  gap: theme("spacing.1.5");
+  height: 28px;
+  padding: 0 8px;
+  border-bottom: 1px solid hsl(var(--border) / 0.4);
+  background: hsl(var(--canvas-node, 0 0% 100%) / 0.6);
+  border-top-left-radius: inherit;
+  border-top-right-radius: inherit;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: hsl(var(--muted-foreground));
+  user-select: none;
+}
+
+.ws-group-node__dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.7;
+}
+
+.ws-group-node__title {
+  flex: 1 1 auto;
+  font-weight: 500;
+  color: hsl(var(--foreground));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: text;
+}
+
+.ws-group-node__title-input {
+  flex: 1 1 auto;
+  height: 20px;
+  padding: 0 4px;
+  background: hsl(var(--background));
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius);
+  font-family: inherit;
+  font-size: inherit;
+  color: hsl(var(--foreground));
+  outline: none;
+}
+
+.ws-group-node__count {
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: hsl(var(--muted));
+  color: hsl(var(--muted-foreground));
+}
+
+.ws-group-node__ungroup-btn {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  color: hsl(var(--muted-foreground));
+}
+
+.ws-group-node__ungroup-btn:hover {
+  color: hsl(var(--destructive, red));
+}
+
+.ws-group-node__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  pointer-events: none;
+}
+
+.react-flow__node.react-flow__node-group {
+  padding: 0;
+}
+
+.ws-group-node .react-flow__resize-control {
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity 120ms var(--ease-seijaku, ease),
+    background-color 120ms var(--ease-seijaku, ease),
+    border-color 120ms var(--ease-seijaku, ease);
+  z-index: 10;
+}
+
+.react-flow__node:hover .ws-group-node .react-flow__resize-control,
+.react-flow__node.selected .ws-group-node .react-flow__resize-control,
+.react-flow__node.dragging .ws-group-node .react-flow__resize-control {
+  opacity: 1;
+  pointer-events: all;
+}
+
+/* 4 Corners: clean industrial square anchors */
+.ws-group-node .react-flow__resize-control.handle.ws-resize-handle--corner {
+  width: 7px;
+  height: 7px;
+  border-radius: 1.5px;
+  border: 1px solid hsl(var(--canvas, 0 0% 100%));
+  background-color: hsl(var(--foreground));
+  box-shadow: 0 1px 2px hsl(0 0% 0% / 0.15);
+}
+
+/* 4 Edge Centers: pill-shaped grab handles for horizontal & vertical stretch */
+.ws-group-node .react-flow__resize-control.handle.ws-resize-handle--edge.top,
+.ws-group-node
+  .react-flow__resize-control.handle.ws-resize-handle--edge.bottom {
+  width: 28px;
+  height: 6px;
+  border-radius: 3px;
+  border: 1px solid hsl(var(--border));
+  background-color: hsl(var(--canvas-node, 0 0% 100%));
+  box-shadow: 0 1px 3px hsl(0 0% 0% / 0.1);
+  cursor: ns-resize;
+}
+
+.ws-group-node .react-flow__resize-control.handle.ws-resize-handle--edge.left,
+.ws-group-node .react-flow__resize-control.handle.ws-resize-handle--edge.right {
+  width: 6px;
+  height: 28px;
+  border-radius: 3px;
+  border: 1px solid hsl(var(--border));
+  background-color: hsl(var(--canvas-node, 0 0% 100%));
+  box-shadow: 0 1px 3px hsl(0 0% 0% / 0.1);
+  cursor: ew-resize;
+}
+
+.ws-group-node .react-flow__resize-control.handle.ws-resize-handle--edge:hover {
+  background-color: hsl(var(--foreground));
+  border-color: hsl(var(--foreground));
+}
+
+/* Expanded hit targets so handles are effortless to grab */
+.ws-group-node .react-flow__resize-control.handle::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 24px;
+  height: 24px;
+  pointer-events: all;
+}
+
+/* 1px bounding lines for edge highlighting */
+.ws-group-node .react-flow__resize-control.line {
+  border-color: hsl(var(--foreground) / 0.25);
+}
+
+.react-flow__node.selected .ws-group-node .react-flow__resize-control.line {
+  border-color: hsl(var(--foreground) / 0.45);
+}
+
+/* ── Individual node card resize controls ────────────────────────────── */
+
+.react-flow__resize-control.ws-card-resize-handle {
+  background: hsl(var(--canvas-node, 0 0% 100%));
+  border: 1px solid hsl(var(--foreground) / 0.7);
+  box-shadow: 0 1px 2px hsl(0 0% 0% / 0.15);
+  transition:
+    transform 120ms var(--ease-seijaku, ease),
+    border-color 120ms var(--ease-seijaku, ease),
+    background-color 120ms var(--ease-seijaku, ease);
+  z-index: 20;
+}
+
+.react-flow__resize-control.ws-card-resize-handle:hover {
+  border-color: hsl(var(--foreground));
+  background: hsl(var(--foreground));
+}
+
+/* Corner handles: square dots */
+.react-flow__resize-control.ws-card-resize-handle.ws-card-resize-handle--corner {
+  width: 6px;
+  height: 6px;
+  border-radius: 2px;
+}
+
+.react-flow__resize-control.ws-card-resize-handle.ws-card-resize-handle--corner:hover {
+  transform: scale(1.35);
+}
+
+.react-flow__resize-control.ws-card-resize-handle.ws-card-resize-handle--corner::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 18px;
+  height: 18px;
+  pointer-events: all;
+}
+
+/* Edge pill handles (top & bottom) for vertical height adjustment */
+.react-flow__resize-control.handle.ws-card-resize-handle--edge.top,
+.react-flow__resize-control.handle.ws-card-resize-handle--edge.bottom {
+  width: 24px;
+  height: 5px;
+  border-radius: 2.5px;
+  background: hsl(var(--canvas-node, 0 0% 100%));
+  border: 1px solid hsl(var(--foreground) / 0.6);
+  box-shadow: 0 1px 2px hsl(0 0% 0% / 0.15);
+  cursor: ns-resize;
+  z-index: 20;
+}
+
+.react-flow__resize-control.handle.ws-card-resize-handle--edge:hover {
+  background: hsl(var(--foreground));
+  border-color: hsl(var(--foreground));
+  transform: scale(1.1);
+}
+
+.react-flow__resize-control.handle.ws-card-resize-handle--edge::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 32px;
+  height: 18px;
+  pointer-events: all;
+}
+
+/* Perimeter lines with generous hit targets for comfortable drag */
+.react-flow__resize-control.ws-card-resize-line {
+  border-color: transparent;
+  z-index: 15;
+}
+
+.react-flow__resize-control.ws-card-resize-line:hover {
+  border-color: hsl(var(--foreground) / 0.3);
+}
+
+.react-flow__resize-control.ws-card-resize-line.left::after,
+.react-flow__resize-control.ws-card-resize-line.right::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 12px;
+  height: 100%;
+  pointer-events: all;
+}
+
+.react-flow__resize-control.ws-card-resize-line.top::after,
+.react-flow__resize-control.ws-card-resize-line.bottom::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 0;
+  transform: translateY(-50%);
+  width: 100%;
+  height: 12px;
+  pointer-events: all;
+}
+
+/* ── Flow edge (Feishu-style interactive connection) ─────────────────── */
+
+.react-flow__edge.ws-flow-edge path.react-flow__edge-path {
+  transition:
+    stroke 150ms var(--ease-seijaku, ease),
+    stroke-width 150ms var(--ease-seijaku, ease);
+}
+
+.react-flow__edge.ws-flow-edge:hover path.react-flow__edge-path,
+.react-flow__edge.ws-flow-edge--hovered path.react-flow__edge-path {
+  stroke: hsl(var(--foreground));
+  stroke-width: 2px;
+}
+
+.react-flow__edge.ws-flow-edge.selected path.react-flow__edge-path {
+  stroke: hsl(var(--primary));
+  stroke-width: 2px;
 }

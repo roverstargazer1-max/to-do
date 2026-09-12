@@ -18,7 +18,7 @@ import { cn } from "@/lib/utils";
 import { formatDueDate } from "@/components/tasks/task-utils";
 import { getNodeKindSpec } from "./node-registry";
 import type { TaskNodeCommands } from "./node-registry";
-import type { NodePosition } from "@/lib/types/workspace";
+import type { NodePosition, WorkspaceNode } from "@/lib/types/workspace";
 import type { Task } from "@/lib/types/task";
 
 interface AddTaskNodeDialogProps {
@@ -27,6 +27,7 @@ interface AddTaskNodeDialogProps {
   position: NodePosition;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onNodeAdded?: (node: WorkspaceNode) => void;
 }
 
 /**
@@ -41,6 +42,7 @@ export function AddTaskNodeDialog({
   position,
   open,
   onOpenChange,
+  onNodeAdded,
 }: AddTaskNodeDialogProps) {
   const queryClient = useQueryClient();
   const { isGuestMode } = useAuth();
@@ -51,12 +53,15 @@ export function AddTaskNodeDialog({
   const handleSelect = async (task: Task) => {
     if (!spec) return;
     try {
-      await (spec.commands as TaskNodeCommands).add(
+      const createdNode = await (spec.commands as TaskNodeCommands).add(
         { queryClient, isGuestMode },
         { workspaceId, taskId: task.id, position },
       );
       notify(t("workspace.addTask.added"));
       onOpenChange(false);
+      if (createdNode) {
+        onNodeAdded?.(createdNode);
+      }
     } catch (err) {
       console.error("Failed to add task node:", err);
       notify.error(t("workspace.addTask.addFailed"));

@@ -1,5 +1,5 @@
-﻿import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import React from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
@@ -30,6 +30,7 @@ const dragNodeState = vi.hoisted(() => ({
 const nodeRows = vi.hoisted(() => ({ rows: [] as WorkspaceRow[] }));
 const nodeMoveEvents = vi.hoisted(() => ({ events: [] as unknown[] }));
 const updateNodePosition = vi.hoisted(() => vi.fn());
+const addNode = vi.hoisted(() => vi.fn());
 
 type WorkspaceRow = import("@/lib/types/workspace").WorkspaceNode;
 
@@ -96,7 +97,7 @@ vi.mock("@/lib/mutations/workspace", () => ({
     rename: vi.fn(),
     delete: vi.fn(),
     listNodes: vi.fn(async () => nodeRows.rows),
-    addNode: vi.fn(),
+    addNode: addNode,
     updateNodePosition: updateNodePosition,
     removeNode: vi.fn(),
   },
@@ -300,5 +301,57 @@ describe("WorkspaceCanvas node drag persistence (three-layer model)", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  describe("QuickAddMenu interactions", () => {
+    it("opens quick add menu on canvas double-click", () => {
+      renderCanvas("ws-a");
+      const canvas = screen.getByTestId("workspace-canvas");
+
+      fireEvent.doubleClick(canvas, { clientX: 200, clientY: 300 });
+
+      expect(screen.getByTestId("quick-add-menu")).toBeDefined();
+      expect(screen.getByTestId("quick-add-task-input")).toBeDefined();
+    });
+
+    it("opens quick add menu on canvas context menu (right click)", () => {
+      renderCanvas("ws-a");
+      const canvas = screen.getByTestId("workspace-canvas");
+
+      fireEvent.contextMenu(canvas, { clientX: 250, clientY: 350 });
+
+      expect(screen.getByTestId("quick-add-menu")).toBeDefined();
+    });
+
+    it("creates task and adds node when submitting quick task input", async () => {
+      window.localStorage.setItem("kanso_guest_mode", "true");
+      addNode.mockResolvedValue({
+        id: "node-quick-1",
+        workspace_id: "ws-a",
+        kind: "task",
+        entity_id: "task-quick-1",
+        entity_type: "task",
+        position_x: 200,
+        position_y: 300,
+      });
+
+      renderCanvas("ws-a");
+      const canvas = screen.getByTestId("workspace-canvas");
+
+      fireEvent.doubleClick(canvas, { clientX: 200, clientY: 300 });
+
+      const input = screen.getByTestId("quick-add-task-input");
+      fireEvent.change(input, { target: { value: "Urgent canvas task" } });
+      fireEvent.keyDown(input, { key: "Enter" });
+
+      await waitFor(() => {
+        expect(addNode).toHaveBeenCalledWith(
+          expect.objectContaining({
+            workspaceId: "ws-a",
+            kind: "task",
+          }),
+        );
+      });
+    });
   });
 });
