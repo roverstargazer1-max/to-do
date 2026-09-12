@@ -128,6 +128,7 @@ export const workspace = {
   "workspace.dialog.renamePlaceholder": "工作台名称",
   "workspace.dialog.nameAria": "工作台名称",
   "workspace.dialog.nameDescription": "为你的工作台画布命名。",
+  "workspace.dialog.colorLabel": "工作台颜色",
   "workspace.dialog.deleteTitle": "删除工作台",
   "workspace.dialog.deleteDescription": (params: TranslationParams) =>
     `确定要删除“${params.name}”吗？它的节点会一并移除，但你的任务和习惯不受影响。`,

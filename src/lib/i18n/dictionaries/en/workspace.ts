@@ -142,6 +142,7 @@ export const workspace = {
   "workspace.dialog.renamePlaceholder": "Workspace name",
   "workspace.dialog.nameAria": "Workspace Name",
   "workspace.dialog.nameDescription": "Name your workspace canvas.",
+  "workspace.dialog.colorLabel": "Workspace color",
   "workspace.dialog.deleteTitle": "Delete Workspace",
   "workspace.dialog.deleteDescription": (params: TranslationParams) =>
     `Are you sure you want to delete "${params.name}"? Its nodes are removed with it; your tasks and habits are not affected.`,

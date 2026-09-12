@@ -29,7 +29,7 @@ import {
   DrawerTitle,
 } from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
-import { Send, Trash2, Loader2 } from "lucide-react";
+import { Send, Trash2, Loader2, Palette } from "lucide-react";
 import { useAuth } from "@/components/AuthProvider";
 import { useHaptic } from "@/lib/hooks/useHaptic";
 import { useMediaQuery } from "@/lib/hooks/useMediaQuery";
@@ -40,6 +40,9 @@ import { workspaceCommands } from "@/lib/commands/workspace";
 import { useWorkspaceViewportStore } from "@/lib/store/workspaceViewportStore";
 import { useWorkspaces } from "@/lib/hooks/useWorkspaces";
 import { useWorkspaceActions } from "@/components/workspace/WorkspaceActionsProvider";
+import { ColorPicker } from "@/components/shared/ColorPicker";
+import { IconCell } from "@/components/ui/IconCell";
+import { DEFAULT_PROJECT_COLOR } from "@/lib/constants/colors";
 import type { Workspace } from "@/lib/types/workspace";
 
 /** Shared command context for the dialog command calls. */
@@ -51,25 +54,24 @@ function useWorkspaceCommandContext() {
 
 function WorkspaceNameForm({
   initialValue,
+  initialColor = DEFAULT_PROJECT_COLOR,
   placeholder,
   submitLabel,
   onSubmit,
   pending,
 }: {
   initialValue: string;
+  initialColor?: string;
   placeholder: string;
   submitLabel: string;
-  onSubmit: (name: string) => void;
+  onSubmit: (name: string, color: string) => void;
   pending: boolean;
 }) {
   const [name, setName] = useState(initialValue);
+  const [color, setColor] = useState(initialColor);
   const { t } = useTranslation();
   const { trigger } = useHaptic();
   const isFinePointer = useMediaQuery("(pointer: fine)");
-
-  useEffect(() => {
-    setName(initialValue);
-  }, [initialValue]);
 
   const trimmed = name.trim();
   const isValid = trimmed.length > 0 && trimmed.length <= 200;
@@ -77,7 +79,7 @@ function WorkspaceNameForm({
   const submit = () => {
     if (!isValid || pending) return;
     trigger("thud");
-    onSubmit(trimmed);
+    onSubmit(trimmed, color);
   };
 
   return (
@@ -86,7 +88,7 @@ function WorkspaceNameForm({
         e.preventDefault();
         submit();
       }}
-      className="flex flex-col h-auto"
+      className="flex flex-col h-auto max-h-[90dvh]"
     >
       <ResponsiveDialogHeader className="sr-only">
         <ResponsiveDialogTitle>{submitLabel}</ResponsiveDialogTitle>
@@ -114,6 +116,27 @@ function WorkspaceNameForm({
         />
       </div>
 
+      {/* Body — Color Picker matching CreateProjectDialog */}
+      <div className="flex-1 overflow-y-auto min-h-0 py-2">
+        <div className="flex items-start gap-3 px-3 py-2.5 rounded-md mx-2">
+          <IconCell>
+            <Palette
+              className="h-4 w-4 text-muted-foreground"
+              strokeWidth={2.25}
+            />
+          </IconCell>
+          <div className="flex-1 min-w-0">
+            <ColorPicker
+              value={color}
+              onChange={(newColor) => setColor(newColor)}
+              ariaLabel={t("workspace.dialog.colorLabel")}
+            />
+          </div>
+        </div>
+
+        <div className="h-1" />
+      </div>
+
       <div className="shrink-0 flex items-center gap-3 px-4 py-3 border-t border-border/40 pb-[calc(0.75rem+env(safe-area-inset-bottom))] bg-background w-full max-w-full">
         <div className="flex-1" />
         <Button
@@ -121,7 +144,7 @@ function WorkspaceNameForm({
           size="sm"
           className="h-9 w-9 p-0 rounded-lg bg-brand hover:bg-brand/90 text-brand-foreground shadow-sm shadow-brand/10 transition-seijaku flex items-center justify-center"
           disabled={!isValid || pending}
-          aria-label={pending ? submitLabel : submitLabel}
+          aria-label={submitLabel}
         >
           {pending ? (
             <Loader2 className="h-5 w-5 animate-spin" />
@@ -147,10 +170,10 @@ function CreateWorkspaceDialog({
 
   const [pending, setPending] = useState(false);
 
-  const handleCreate = async (name: string) => {
+  const handleCreate = async (name: string, color: string) => {
     setPending(true);
     try {
-      const workspace = await workspaceCommands.create(ctx, { name });
+      const workspace = await workspaceCommands.create(ctx, { name, color });
       notify(t("workspace.dialog.created"));
       onOpenChange(false);
       router.push(`/workspaces/${workspace.id}`);
@@ -166,6 +189,7 @@ function CreateWorkspaceDialog({
     <ResponsiveDialog open={open} onOpenChange={onOpenChange}>
       <ResponsiveDialogContent className="sm:max-w-[400px] p-0 overflow-hidden">
         <WorkspaceNameForm
+          key={open ? "create-open" : "create-closed"}
           initialValue=""
           placeholder={t("workspace.dialog.createPlaceholder")}
           submitLabel={t("workspace.dialog.createTitle")}
@@ -196,11 +220,11 @@ function RenameWorkspaceDialog({
   // invalidated in place (the name typed is authoritative, the id is not).
   const current = workspaces?.find((w) => w.id === workspace?.id) ?? workspace;
 
-  const handleRename = async (name: string) => {
+  const handleRename = async (name: string, color: string) => {
     if (!current) return;
     setPending(true);
     try {
-      await workspaceCommands.rename(ctx, current.id, name);
+      await workspaceCommands.rename(ctx, current.id, name, color);
       notify(t("workspace.dialog.renamed"));
       onOpenChange(false);
     } catch (err) {
@@ -217,6 +241,7 @@ function RenameWorkspaceDialog({
         <WorkspaceNameForm
           key={current?.id ?? "none"}
           initialValue={current?.name ?? ""}
+          initialColor={current?.color ?? DEFAULT_PROJECT_COLOR}
           placeholder={t("workspace.dialog.renamePlaceholder")}
           submitLabel={t("workspace.dialog.renameTitle")}
           onSubmit={handleRename}
