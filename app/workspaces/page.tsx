@@ -5,7 +5,9 @@ import { useWorkspaces } from "@/lib/hooks/useWorkspaces";
 import { useWorkspaceActions } from "@/components/workspace/WorkspaceActionsProvider";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Button } from "@/components/ui/button";
-import { Frame, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
+import { WorkspaceIcon } from "@/components/icons/WorkspaceIcon";
+import { DEFAULT_PROJECT_COLOR } from "@/lib/constants/colors";
 import { useAuth } from "@/components/AuthProvider";
 import { useTranslation } from "@/lib/i18n/useTranslation";
 
@@ -59,7 +61,13 @@ export default function WorkspacesPage() {
                   className="flex items-center gap-3 px-4 py-3.5 rounded-lg border border-border hover:border-foreground/40 transition-colors duration-300 ease-seijaku text-foreground"
                 >
                   <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-border bg-muted/40">
-                    <Frame className="h-4 w-4" strokeWidth={2.25} />
+                    <div
+                      className="h-3.5 w-3.5 rounded-full"
+                      style={{
+                        backgroundColor:
+                          workspace.color || DEFAULT_PROJECT_COLOR,
+                      }}
+                    />
                   </div>
                   <div className="flex-1 min-w-0">
                     <span className="block truncate font-medium">
@@ -76,7 +84,7 @@ export default function WorkspacesPage() {
         ) : (
           <div>
             <EmptyState
-              icon={Frame}
+              icon={WorkspaceIcon}
               title={t("workspace.list.emptyTitle")}
               description={t("workspace.list.emptyDescription")}
               action={{

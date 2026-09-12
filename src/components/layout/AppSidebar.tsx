@@ -42,8 +42,9 @@ import {
   EllipsisVertical,
   Pencil,
   Sparkles,
-  Frame,
 } from "lucide-react";
+import { WorkspaceIcon } from "@/components/icons/WorkspaceIcon";
+import { DEFAULT_PROJECT_COLOR } from "@/lib/constants/colors";
 import { useProjects } from "@/lib/hooks/useProjects";
 import { useProjectActions } from "@/components/ProjectActionsProvider";
 import { useWorkspaces } from "@/lib/hooks/useWorkspaces";
@@ -425,7 +426,7 @@ export function AppSidebar() {
                 toggleWorkspacesOpen();
               }}
             >
-              <Frame strokeWidth={2.25} />
+              <WorkspaceIcon strokeWidth={2.25} />
               <span className="flex-1">{t("common.nav.workspaces")}</span>
               <ChevronDown
                 className={`h-4 w-4 shrink-0 transition-transform ${
@@ -471,7 +472,13 @@ export function AppSidebar() {
                             }}
                           >
                             <div className="flex items-center justify-center w-5 h-5 shrink-0">
-                              <Frame className="h-4 w-4" strokeWidth={2.25} />
+                              <div
+                                className="h-3 w-3 rounded-full"
+                                style={{
+                                  backgroundColor:
+                                    workspace.color || DEFAULT_PROJECT_COLOR,
+                                }}
+                              />
                             </div>
                             <span className="truncate">{workspace.name}</span>
                           </Link>

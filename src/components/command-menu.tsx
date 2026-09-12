@@ -29,8 +29,8 @@ import {
   SettingsIcon,
   SunIcon,
   SearchX,
-  Frame,
 } from "lucide-react";
+import { WorkspaceIcon } from "@/components/icons/WorkspaceIcon";
 import { EmptyState } from "@/components/ui/EmptyState";
 
 import {
@@ -270,7 +270,7 @@ export function CommandMenu({ open, onOpenChange }: CommandMenuProps) {
             <CommandItem
               onSelect={() => runCommand(() => openCreateWorkspace())}
             >
-              <Frame className="mr-2 h-5 w-5" />
+              <WorkspaceIcon className="mr-2 h-5 w-5" />
               <span>{t("command.newWorkspace")}</span>
               <CommandShortcut>W</CommandShortcut>
             </CommandItem>
@@ -456,7 +456,7 @@ export function CommandMenu({ open, onOpenChange }: CommandMenuProps) {
             <CommandItem
               onSelect={() => runCommand(() => router.push("/workspaces"))}
             >
-              <Frame className="mr-2 h-5 w-5" />
+              <WorkspaceIcon className="mr-2 h-5 w-5" />
               <span>{t("common.nav.workspaces")}</span>
             </CommandItem>
           </CommandGroup>

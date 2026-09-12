@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useWorkspaces } from "@/lib/hooks/useWorkspaces";
 import { WorkspaceCanvas } from "@/components/workspace/WorkspaceCanvas";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { Frame } from "lucide-react";
+import { WorkspaceIcon } from "@/components/icons/WorkspaceIcon";
 import { useTranslation } from "@/lib/i18n/useTranslation";
 
 export default function WorkspaceCanvasPage({
@@ -31,7 +31,7 @@ export default function WorkspaceCanvasPage({
   if (!workspace) {
     return (
       <EmptyState
-        icon={Frame}
+        icon={WorkspaceIcon}
         title={t("workspace.canvas.notFoundTitle")}
         description={t("workspace.canvas.notFoundDescription")}
         action={{
