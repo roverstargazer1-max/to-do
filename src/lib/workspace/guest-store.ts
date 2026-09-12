@@ -21,6 +21,7 @@ import type {
   WorkspaceEdge,
   WorkspaceNode,
 } from "@/lib/types/workspace";
+import { DEFAULT_PROJECT_COLOR } from "@/lib/constants/colors";
 
 const GUEST_WORKSPACES_KEY = "kanso-guest-workspaces";
 

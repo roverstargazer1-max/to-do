@@ -54,13 +54,14 @@ describe("workspaceCommands", () => {
 
       const result = await workspaceCommands.create(
         { queryClient, isGuestMode: false },
-        { name: "Sprint 14" },
+        { name: "Sprint 14", color: "#3B82F6" },
       );
 
       expect(result).toEqual(workspace);
       expect(workspaceMutations.create).toHaveBeenCalledWith({
         id: expect.any(String),
         name: "Sprint 14",
+        color: "#3B82F6",
       });
       expect(publishDomainEvent).toHaveBeenCalledWith({
         type: "workspace.created",
@@ -93,15 +94,25 @@ describe("workspaceCommands", () => {
 
   describe("rename", () => {
     it("publishes workspace.renamed and invalidates the list", async () => {
-      const workspace = { ...makeWorkspace("ws-1"), name: "Renamed" };
+      const workspace = {
+        ...makeWorkspace("ws-1"),
+        name: "Renamed",
+        color: "#10B981",
+      };
       vi.mocked(workspaceMutations.rename).mockResolvedValue(workspace);
 
       await workspaceCommands.rename(
         { queryClient, isGuestMode: false },
         "ws-1",
         "Renamed",
+        "#10B981",
       );
 
+      expect(workspaceMutations.rename).toHaveBeenCalledWith(
+        "ws-1",
+        "Renamed",
+        "#10B981",
+      );
       expect(publishDomainEvent).toHaveBeenCalledWith({
         type: "workspace.renamed",
         workspaceId: "ws-1",

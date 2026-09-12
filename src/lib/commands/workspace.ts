@@ -56,6 +56,7 @@ export const workspaceCommands = {
     const workspace = await workspaceMutations.create({
       id: crypto.randomUUID(),
       name: input.name,
+      color: input.color,
     });
 
     invalidateWorkspaceCaches(ctx.queryClient, ctx.isGuestMode);
@@ -67,13 +68,14 @@ export const workspaceCommands = {
     return workspace;
   },
 
-  /** `workspace.rename` — changes the workspace's name. */
+  /** `workspace.rename` — changes the workspace's name and optional color. */
   rename: async (
     ctx: WorkspaceCommandContext,
     id: string,
     name: string,
+    color?: string,
   ): Promise<Workspace> => {
-    const workspace = await workspaceMutations.rename(id, name);
+    const workspace = await workspaceMutations.rename(id, name, color);
 
     invalidateWorkspaceCaches(ctx.queryClient, ctx.isGuestMode);
     publishDomainEvent({

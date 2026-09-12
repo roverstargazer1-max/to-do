@@ -43,7 +43,7 @@ export const workspaceMutations = {
     return fetchAllRows<Workspace>((from, to) =>
       supabase
         .from("workspaces")
-        .select("id, user_id, name, created_at, updated_at")
+        .select("id, user_id, name, color, created_at, updated_at")
         .order("created_at", { ascending: true })
         .range(from, to),
     );
@@ -57,25 +57,46 @@ export const workspaceMutations = {
     }
     const userId = await currentUserId();
     const supabase = createClient();
+    const insertPayload: {
+      id: string;
+      user_id: string;
+      name: string;
+      color?: string;
+    } = {
+      id: input.id,
+      user_id: userId,
+      name: input.name,
+    };
+    if (input.color) {
+      insertPayload.color = input.color;
+    }
     const { data, error } = await supabase
       .from("workspaces")
-      .insert({ id: input.id, user_id: userId, name: input.name })
-      .select("id, user_id, name, created_at, updated_at")
+      .insert(insertPayload)
+      .select("id, user_id, name, color, created_at, updated_at")
       .single();
     if (error) throw new Error(error.message);
     return data as Workspace;
   },
 
-  rename: async (id: string, name: string): Promise<Workspace> => {
+  rename: async (
+    id: string,
+    name: string,
+    color?: string,
+  ): Promise<Workspace> => {
     if (isGuest()) {
-      return guestWorkspaceStore.renameWorkspace(id, name);
+      return guestWorkspaceStore.renameWorkspace(id, name, color);
     }
     const supabase = createClient();
+    const updatePayload: { name: string; color?: string } = { name };
+    if (color !== undefined) {
+      updatePayload.color = color;
+    }
     const { data, error } = await supabase
       .from("workspaces")
-      .update({ name })
+      .update(updatePayload)
       .eq("id", id)
-      .select("id, user_id, name, created_at, updated_at")
+      .select("id, user_id, name, color, created_at, updated_at")
       .single();
     if (error) throw new Error(error.message);
     return data as Workspace;

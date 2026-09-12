@@ -10,6 +10,7 @@ export interface Workspace {
   id: string;
   user_id: string;
   name: string;
+  color?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -95,6 +96,7 @@ export type WorkspaceNodeKind = (typeof WORKSPACE_NODE_KINDS)[number];
 
 export interface CreateWorkspaceInput {
   name: string;
+  color?: string;
 }
 
 /** A node's position on the canvas, in flow coordinates. */
