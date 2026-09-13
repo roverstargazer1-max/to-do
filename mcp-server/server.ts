@@ -508,7 +508,7 @@ export function createKagelinMcpServer(
   // ==========================================
   server.tool(
     "build_workspace",
-    "Compile a semantic workspace blueprint and create all canvas nodes, groups, and connections.",
+    "Compile a semantic workspace blueprint and create all canvas nodes, groups, and connections. Supported node kinds: 'doc' (Markdown card/SOP/Prompt), 'task' (actionable item with priority/dueDate/existingTaskId), 'habit' (daily routine with streak), 'project' (epic board with progress bar), 'focus' (pomodoro singleton timer lens). Sections with isGroup:true render visual container frames.",
     {
       blueprint: WorkspaceBlueprintSchema.optional(),
       name: z.string().optional(),
@@ -665,7 +665,7 @@ export function createKagelinMcpServer(
   // ==========================================
   server.tool(
     "patch_workspace",
-    "Apply incremental semantic additions, updates, deletions, and connections to an existing workspace.",
+    "Apply incremental semantic additions, updates, deletions, and connections to an existing workspace without moving untouched cards. Supports addItems (doc/task/habit/project/focus), removeNodeIds, updateDocs ({nodeId, title?, content?}), addFlows ({fromItemId, toItemId}), removeEdgeIds.",
     {
       patch: BlueprintPatchSchema.optional(),
       workspaceId: z.string().optional(),
