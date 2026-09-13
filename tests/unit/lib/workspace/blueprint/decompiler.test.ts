@@ -308,4 +308,105 @@ describe("Semantic Snapshot Decompiler (decompiler.ts)", () => {
     expect(markdown).toContain("Sprint Specs -> Setup Database");
     expect(markdown).toContain("Setup Database -> Deploy staging");
   });
+
+  it("decompiles decision nodes, step nodes, and labeled edges cleanly", async () => {
+    const nodes: WorkspaceNode[] = [
+      {
+        id: "dec-1",
+        workspace_id: "ws-flow",
+        user_id: "user-1",
+        kind: "decision",
+        entity_type: null,
+        entity_id: null,
+        position_x: 100,
+        position_y: 100,
+        width: 220,
+        height: 110,
+        group_id: null,
+        display_config: {
+          question: "Has Admin Rights?",
+          description: "Verify role = admin",
+        },
+        created_at: "2026-09-13T00:00:00Z",
+        updated_at: "2026-09-13T00:00:00Z",
+      },
+      {
+        id: "step-1",
+        workspace_id: "ws-flow",
+        user_id: "user-1",
+        kind: "step",
+        entity_type: null,
+        entity_id: null,
+        position_x: 400,
+        position_y: 100,
+        width: 240,
+        height: 80,
+        group_id: null,
+        display_config: {
+          title: "Grant Superuser Access",
+          description: "Log audit event",
+        },
+        created_at: "2026-09-13T00:00:00Z",
+        updated_at: "2026-09-13T00:00:00Z",
+      },
+    ];
+
+    const edges: WorkspaceEdge[] = [
+      {
+        id: "edge-flow-1",
+        workspace_id: "ws-flow",
+        user_id: "user-1",
+        source_node_id: "dec-1",
+        target_node_id: "step-1",
+        label: "Yes",
+        source_handle: "out",
+        created_at: "2026-09-13T00:00:00Z",
+        updated_at: "2026-09-13T00:00:00Z",
+      },
+    ];
+
+    const snapshot = await decompileWorkspaceToSnapshot("ws-flow", {
+      workspace: {
+        id: "ws-flow",
+        name: "Admin Approval Flow",
+        color: null,
+        user_id: "user-1",
+        created_at: "2026-09-13T00:00:00Z",
+        updated_at: "2026-09-13T00:00:00Z",
+      },
+      nodes,
+      edges,
+    });
+
+    expect(snapshot.standaloneItems).toHaveLength(2);
+    const decItem = snapshot.standaloneItems.find((i) => i.nodeId === "dec-1");
+    expect(decItem?.kind).toBe("decision");
+    expect(decItem?.title).toBe("Has Admin Rights?");
+    expect(decItem?.content).toBe("Verify role = admin");
+
+    const stepItem = snapshot.standaloneItems.find(
+      (i) => i.nodeId === "step-1",
+    );
+    expect(stepItem?.kind).toBe("step");
+    expect(stepItem?.title).toBe("Grant Superuser Access");
+
+    expect(snapshot.edges).toHaveLength(1);
+    expect(snapshot.edges[0]).toEqual(
+      expect.objectContaining({
+        id: "edge-flow-1",
+        sourceTitle: "Has Admin Rights?",
+        targetTitle: "Grant Superuser Access",
+        label: "Yes",
+        sourceHandle: "out",
+      }),
+    );
+
+    const markdown = formatSnapshotToMarkdown(snapshot);
+    expect(markdown).toContain("- Decision: Has Admin Rights?");
+    expect(markdown).toContain("> Verify role = admin");
+    expect(markdown).toContain("- Step: Grant Superuser Access");
+    expect(markdown).toContain(
+      "Has Admin Rights? --[Yes]--> Grant Superuser Access",
+    );
+  });
 });

@@ -210,4 +210,156 @@ describe("Kagelin MCP Server (mcp-server/server.ts)", () => {
     expect(data.success).toBe(true);
     expect(data.result.updatedDocNodeIds).toContain("node-doc-1");
   });
+
+  it("executes build_workspace with mermaid string to generate flowchart with tasks, decisions, and labeled edges", async () => {
+    const tool = (mcpServer as any)._registeredTools.build_workspace;
+    const mermaid = `
+graph LR
+  A[任务: 编写代码 #p1] --> B{是否通过测试?}
+  B -->|通过| C[任务: 部署上线 #p2]
+  B -->|不通过| D[步骤: 修复缺陷]
+  D --> A
+`;
+
+    const response = await tool.handler({
+      mermaid,
+      name: "Mermaid Flowchart Workspace",
+      color: "#6366f1",
+    });
+    expect(response.content).toHaveLength(1);
+
+    const data = JSON.parse(response.content[0].text);
+    expect(data.success).toBe(true);
+    expect(data.workspaceId).toBeDefined();
+    // 4 nodes: task A, decision B, task C, step D
+    expect(data.nodeCount).toBe(4);
+    // 4 edges: A->B, B->C, B->D, D->A
+    expect(data.edgeCount).toBe(4);
+  });
+
+  it("executes patch_workspace with decision, step, and labeled flow", async () => {
+    const tool = (mcpServer as any)._registeredTools.patch_workspace;
+    const patch: BlueprintPatch = {
+      workspaceId: "ws-1",
+      addItems: [
+        {
+          item: {
+            id: "dec-1",
+            kind: "decision",
+            question: "Is architecture approved?",
+            description: "Check RFC discussion",
+          },
+        },
+        {
+          item: {
+            id: "step-1",
+            kind: "step",
+            title: "Manual Verification",
+            description: "Run smoke test checklist",
+          },
+        },
+      ],
+      addFlows: [
+        {
+          fromItemId: "dec-1",
+          toItemId: "step-1",
+          label: "Approved",
+          fromPort: "out",
+        },
+      ],
+    };
+
+    const response = await tool.handler({ patch });
+    expect(response.content).toHaveLength(1);
+
+    const data = JSON.parse(response.content[0].text);
+    expect(data.success).toBe(true);
+    expect(data.result.addedNodes).toHaveLength(2);
+    expect(data.result.addedNodes[0]).toEqual(
+      expect.objectContaining({
+        id: "dec-1",
+        kind: "decision",
+        display_config: {
+          question: "Is architecture approved?",
+          description: "Check RFC discussion",
+        },
+      }),
+    );
+    expect(data.result.addedNodes[1]).toEqual(
+      expect.objectContaining({
+        id: "step-1",
+        kind: "step",
+        display_config: {
+          title: "Manual Verification",
+          description: "Run smoke test checklist",
+        },
+      }),
+    );
+    expect(data.result.addedEdges).toHaveLength(1);
+    expect(data.result.addedEdges[0]).toEqual(
+      expect.objectContaining({
+        source_node_id: "dec-1",
+        target_node_id: "step-1",
+        label: "Approved",
+        source_handle: "out",
+      }),
+    );
+  });
+
+  it("executes patch_workspace with updateDecisions and updateSteps", async () => {
+    const patchTool = (mcpServer as any)._registeredTools.patch_workspace;
+
+    // 1. Add decision and step
+    await patchTool.handler({
+      patch: {
+        workspaceId: "ws-1",
+        addItems: [
+          {
+            item: {
+              id: "dec-update-test",
+              kind: "decision",
+              question: "Original Question?",
+              description: "Original Description",
+            },
+          },
+          {
+            item: {
+              id: "step-update-test",
+              kind: "step",
+              title: "Original Title",
+              description: "Original Description",
+            },
+          },
+        ],
+      },
+    });
+
+    // 2. In-place update via patch_workspace
+    const updateResponse = await patchTool.handler({
+      patch: {
+        workspaceId: "ws-1",
+        updateDecisions: [
+          {
+            nodeId: "dec-update-test",
+            question: "Updated Question?",
+            description: "Updated Description",
+          },
+        ],
+        updateSteps: [
+          {
+            nodeId: "step-update-test",
+            title: "Updated Title",
+          },
+        ],
+      },
+    });
+
+    expect(updateResponse.content).toHaveLength(1);
+    const updateData = JSON.parse(updateResponse.content[0].text);
+    expect(updateData.success).toBe(true);
+    expect(updateData.result.updatedDecisionNodeIds).toEqual([
+      "dec-update-test",
+    ]);
+    expect(updateData.result.updatedStepNodeIds).toEqual(["step-update-test"]);
+  });
 });

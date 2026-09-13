@@ -61,6 +61,9 @@ export interface SnapshotEdge {
   id: string;
   sourceNodeId: string;
   targetNodeId: string;
+  label?: string | null;
+  sourceHandle?: string | null;
+  targetHandle?: string | null;
   sourceTitle?: string;
   targetTitle?: string;
 }
@@ -254,6 +257,14 @@ export async function decompileWorkspaceToSnapshot(
     } else if (n.kind === "focus") {
       item.title = "Focus Timer";
       nodeTitleMap.set(n.id, item.title);
+    } else if (n.kind === "decision") {
+      item.title = (display.question as string) || "Decision";
+      item.content = (display.description as string) || "";
+      nodeTitleMap.set(n.id, item.title);
+    } else if (n.kind === "step") {
+      item.title = (display.title as string) || "Step";
+      item.content = (display.description as string) || "";
+      nodeTitleMap.set(n.id, item.title);
     } else {
       item.title = (display.title as string) || `${n.kind} node`;
       nodeTitleMap.set(n.id, item.title);
@@ -271,6 +282,9 @@ export async function decompileWorkspaceToSnapshot(
     id: e.id,
     sourceNodeId: e.source_node_id,
     targetNodeId: e.target_node_id,
+    label: e.label ?? null,
+    sourceHandle: e.source_handle ?? null,
+    targetHandle: e.target_handle ?? null,
     sourceTitle: nodeTitleMap.get(e.source_node_id) ?? e.source_node_id,
     targetTitle: nodeTitleMap.get(e.target_node_id) ?? e.target_node_id,
   }));
@@ -342,6 +356,20 @@ export function formatSnapshotToMarkdown(snapshot: WorkspaceSnapshot): string {
         itemLines.push(`- Focus Timer ${coordStr}`);
         break;
       }
+      case "decision": {
+        itemLines.push(`- Decision: ${item.title} ${coordStr}`);
+        if (item.content) {
+          itemLines.push(`  > ${item.content}`);
+        }
+        break;
+      }
+      case "step": {
+        itemLines.push(`- Step: ${item.title} ${coordStr}`);
+        if (item.content) {
+          itemLines.push(`  > ${item.content}`);
+        }
+        break;
+      }
       default: {
         itemLines.push(`- ${item.kind}: ${item.title ?? "Item"} ${coordStr}`);
         break;
@@ -379,7 +407,8 @@ export function formatSnapshotToMarkdown(snapshot: WorkspaceSnapshot): string {
     for (const edge of snapshot.edges) {
       const src = edge.sourceTitle || edge.sourceNodeId;
       const tgt = edge.targetTitle || edge.targetNodeId;
-      lines.push(`- ${src} -> ${tgt} (Edge ID: ${edge.id})`);
+      const arrow = edge.label ? ` --[${edge.label}]--> ` : " -> ";
+      lines.push(`- ${src}${arrow}${tgt} (Edge ID: ${edge.id})`);
     }
     lines.push("");
   }

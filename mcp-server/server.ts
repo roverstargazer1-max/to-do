@@ -11,7 +11,10 @@ import {
   type WorkspaceBlueprint,
   type BlueprintPatch,
   type BlueprintDocItem,
+  type BlueprintDecisionItem,
+  type BlueprintStepItem,
 } from "../src/lib/workspace/blueprint/types";
+import { compileMermaidToBlueprint } from "../src/lib/workspace/blueprint/mermaid/index";
 import {
   compileBlueprintLayout,
   getItemDimensions,
@@ -508,8 +511,14 @@ export function createKagelinMcpServer(
   // ==========================================
   server.tool(
     "build_workspace",
-    "Compile a semantic workspace blueprint and create all canvas nodes, groups, and connections. Supported node kinds: 'doc' (Markdown card/SOP/Prompt), 'task' (actionable item with priority/dueDate/existingTaskId), 'habit' (daily routine with streak), 'project' (epic board with progress bar), 'focus' (pomodoro singleton timer lens). Sections with isGroup:true render visual container frames.",
+    "Compile a semantic workspace blueprint or raw Mermaid flowchart string and create all canvas nodes, groups, and connections. Supported node kinds: 'doc' (Markdown card/SOP/Prompt), 'task' (actionable item with priority/dueDate/existingTaskId), 'habit' (daily routine with streak), 'project' (epic board with progress bar), 'focus' (pomodoro singleton timer lens), 'decision' (diamond card for conditional branching), 'step' (procedural step). Accepts optional `mermaid` string parameter (e.g. 'graph TD\\nA[task: Task 1] -->|Yes| B{Pass?}') to build native interactive flowcharts end-to-end. Sections with isGroup:true render visual container frames.",
     {
+      mermaid: z
+        .string()
+        .optional()
+        .describe(
+          "Optional Mermaid flowchart DSL text (e.g. 'graph LR\\nA[任务: 开始] --> B{是否通过?}\\nB -->|是| C[任务: 上线]'). Transpiled directly into interactive canvas nodes and labeled edges.",
+        ),
       blueprint: WorkspaceBlueprintSchema.optional(),
       name: z.string().optional(),
       color: z.string().optional(),
@@ -519,7 +528,12 @@ export function createKagelinMcpServer(
     async (args) => {
       try {
         let blueprint: WorkspaceBlueprint;
-        if (args.blueprint) {
+        if (args.mermaid) {
+          blueprint = compileMermaidToBlueprint(args.mermaid, {
+            name: args.name,
+            color: args.color,
+          });
+        } else if (args.blueprint) {
           blueprint = WorkspaceBlueprintSchema.parse(args.blueprint);
         } else {
           blueprint = WorkspaceBlueprintSchema.parse({
@@ -583,9 +597,25 @@ export function createKagelinMcpServer(
                       title: lNode.title,
                       content: (lNode.item as BlueprintDocItem)?.content,
                     }
-                  : lNode.kind === "group"
-                    ? { title: lNode.title, color: lNode.color }
-                    : null,
+                  : lNode.kind === "decision"
+                    ? {
+                        question:
+                          (lNode.item as BlueprintDecisionItem)?.question ??
+                          lNode.title,
+                        description: (lNode.item as BlueprintDecisionItem)
+                          ?.description,
+                      }
+                    : lNode.kind === "step"
+                      ? {
+                          title:
+                            (lNode.item as BlueprintStepItem)?.title ??
+                            lNode.title,
+                          description: (lNode.item as BlueprintStepItem)
+                            ?.description,
+                        }
+                      : lNode.kind === "group"
+                        ? { title: lNode.title, color: lNode.color }
+                        : null,
               created_at: new Date().toISOString(),
               updated_at: new Date().toISOString(),
             };
@@ -601,6 +631,9 @@ export function createKagelinMcpServer(
               user_id: "mock-user",
               source_node_id: lEdge.sourceNodeId,
               target_node_id: lEdge.targetNodeId,
+              label: lEdge.label ?? null,
+              source_handle: lEdge.sourceHandle ?? null,
+              target_handle: lEdge.targetHandle ?? null,
               created_at: new Date().toISOString(),
               updated_at: new Date().toISOString(),
             };
@@ -665,13 +698,15 @@ export function createKagelinMcpServer(
   // ==========================================
   server.tool(
     "patch_workspace",
-    "Apply incremental semantic additions, updates, deletions, and connections to an existing workspace without moving untouched cards. Supports addItems (doc/task/habit/project/focus), removeNodeIds, updateDocs ({nodeId, title?, content?}), addFlows ({fromItemId, toItemId}), removeEdgeIds.",
+    "Apply incremental semantic additions, updates, deletions, and connections to an existing workspace without moving untouched cards. Supports addItems (doc/task/habit/project/focus/decision/step), removeNodeIds, updateDocs ({nodeId, title?, content?}), updateDecisions ({nodeId, question?, description?}), updateSteps ({nodeId, title?, description?}), addFlows ({fromItemId, toItemId, label?, fromPort?, toPort?}), removeEdgeIds.",
     {
       patch: BlueprintPatchSchema.optional(),
       workspaceId: z.string().optional(),
       addItems: z.array(z.unknown()).optional(),
       removeNodeIds: z.array(z.string()).optional(),
       updateDocs: z.array(z.unknown()).optional(),
+      updateDecisions: z.array(z.unknown()).optional(),
+      updateSteps: z.array(z.unknown()).optional(),
       addFlows: z.array(z.unknown()).optional(),
       removeEdgeIds: z.array(z.string()).optional(),
     },
@@ -686,6 +721,8 @@ export function createKagelinMcpServer(
             addItems: args.addItems,
             removeNodeIds: args.removeNodeIds,
             updateDocs: args.updateDocs,
+            updateDecisions: args.updateDecisions,
+            updateSteps: args.updateSteps,
             addFlows: args.addFlows,
             removeEdgeIds: args.removeEdgeIds,
           });
@@ -710,6 +747,44 @@ export function createKagelinMcpServer(
                 ...(u.content !== undefined ? { content: u.content } : {}),
               };
               updatedDocNodeIds.push(u.nodeId);
+            }
+          }
+
+          // Apply decision updates
+          const updatedDecisionNodeIds: string[] = [];
+          if (patch.updateDecisions) {
+            for (const u of patch.updateDecisions) {
+              const node = workspaceNodes.find((n) => n.id === u.nodeId);
+              if (!node || node.kind !== "decision") {
+                throw new Error(`Decision node ${u.nodeId} not found`);
+              }
+              node.display_config = {
+                ...(node.display_config || {}),
+                ...(u.question !== undefined ? { question: u.question } : {}),
+                ...(u.description !== undefined
+                  ? { description: u.description }
+                  : {}),
+              };
+              updatedDecisionNodeIds.push(u.nodeId);
+            }
+          }
+
+          // Apply step updates
+          const updatedStepNodeIds: string[] = [];
+          if (patch.updateSteps) {
+            for (const u of patch.updateSteps) {
+              const node = workspaceNodes.find((n) => n.id === u.nodeId);
+              if (!node || node.kind !== "step") {
+                throw new Error(`Step node ${u.nodeId} not found`);
+              }
+              node.display_config = {
+                ...(node.display_config || {}),
+                ...(u.title !== undefined ? { title: u.title } : {}),
+                ...(u.description !== undefined
+                  ? { description: u.description }
+                  : {}),
+              };
+              updatedStepNodeIds.push(u.nodeId);
             }
           }
 
@@ -766,7 +841,19 @@ export function createKagelinMcpServer(
                         title: (item as BlueprintDocItem).title,
                         content: (item as BlueprintDocItem).content,
                       }
-                    : null,
+                    : item.kind === "decision"
+                      ? {
+                          question: (item as BlueprintDecisionItem).question,
+                          description: (item as BlueprintDecisionItem)
+                            .description,
+                        }
+                      : item.kind === "step"
+                        ? {
+                            title: (item as BlueprintStepItem).title,
+                            description: (item as BlueprintStepItem)
+                              .description,
+                          }
+                        : null,
                 created_at: new Date().toISOString(),
                 updated_at: new Date().toISOString(),
               };
@@ -784,6 +871,9 @@ export function createKagelinMcpServer(
                 user_id: "mock-user",
                 source_node_id: flow.fromItemId,
                 target_node_id: flow.toItemId,
+                label: flow.label ?? null,
+                source_handle: flow.fromPort ?? null,
+                target_handle: flow.toPort ?? null,
                 created_at: new Date().toISOString(),
                 updated_at: new Date().toISOString(),
               };
@@ -804,6 +894,8 @@ export function createKagelinMcpServer(
                       addedNodes,
                       removedNodeIds,
                       updatedDocNodeIds,
+                      updatedDecisionNodeIds,
+                      updatedStepNodeIds,
                       addedEdges,
                       removedEdgeIds,
                     },
