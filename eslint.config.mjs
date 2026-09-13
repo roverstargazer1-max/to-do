@@ -88,6 +88,22 @@ const eslintConfig = defineConfig([
       "no-restricted-imports": "off",
     },
   },
+  {
+    files: ["tests/**"],
+    rules: {
+      "@typescript-eslint/no-explicit-any": "off",
+      "@typescript-eslint/ban-ts-comment": "off",
+      "@typescript-eslint/no-unused-vars": "off",
+    },
+  },
+  {
+    files: ["mcp-server/**"],
+    rules: {
+      "no-console": "off",
+      "no-restricted-syntax": "off",
+      "local/no-unbounded-supabase-select": "off",
+    },
+  },
 ]);
 
 export default eslintConfig;

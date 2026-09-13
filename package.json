@@ -25,7 +25,8 @@
     "copy-wasm": "node -e \"require('fs').copyFileSync('node_modules/sql.js/dist/sql-wasm.wasm', 'public/sql-wasm.wasm')\"",
     "preview": "node scripts/release.cjs --channel=preview",
     "release": "node scripts/release.cjs --channel=stable",
-    "prepare": "husky && npm run copy-wasm"
+    "prepare": "husky && npm run copy-wasm",
+    "mcp:start": "tsx mcp-server/index.ts"
   },
   "lint-staged": {
     "*.{js,jsx,ts,tsx}": [
@@ -40,6 +41,7 @@
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@hookform/resolvers": "^5.4.0",
+    "@modelcontextprotocol/sdk": "^1.30.0",
     "@radix-ui/react-alert-dialog": "^1.1.19",
     "@radix-ui/react-checkbox": "^1.3.7",
     "@radix-ui/react-dialog": "^1.1.15",
@@ -100,6 +102,7 @@
     "sql.js": "^1.14.1",
     "tailwind-merge": "^3.6.0",
     "tsdav": "^2.3.1",
+    "tsx": "^4.23.13",
     "undici": "^8.7.0",
     "vaul": "^1.1.2",
     "web-push": "^3.6.7",
