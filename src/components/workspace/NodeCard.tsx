@@ -34,6 +34,8 @@ export interface NodeCardProps {
   selected?: boolean;
   minWidth?: number;
   minHeight?: number;
+  /** Optional custom handles (e.g. for multi-port Decision nodes). */
+  customHandles?: ReactNode;
 }
 
 export function NodeCard({
@@ -44,6 +46,7 @@ export function NodeCard({
   selected,
   minWidth = 200,
   minHeight = 48,
+  customHandles,
 }: NodeCardProps) {
   const nodeId = useNodeId();
 
@@ -66,12 +69,24 @@ export function NodeCard({
             minWidth={minWidth}
             minHeight={minHeight}
           />
-          {/* One port per side, in Strict connection mode: a connection runs
-              out of a right port into a left one — whichever end the drag
-              started from, React Flow normalises the direction, so the
-              arrangement keeps reading left → right. */}
-          <Handle id="out" type="source" position={Position.Right} />
-          <Handle id="in" type="target" position={Position.Left} />
+          {customHandles ? (
+            customHandles
+          ) : (
+            <>
+              {/* Four-way connection ports:
+                  Horizontal: Left (in), Right (out)
+                  Vertical: Top (in-top), Bottom (out-bottom)
+              */}
+              <Handle id="out" type="source" position={Position.Right} />
+              <Handle id="in" type="target" position={Position.Left} />
+              <Handle id="in-top" type="target" position={Position.Top} />
+              <Handle
+                id="out-bottom"
+                type="source"
+                position={Position.Bottom}
+              />
+            </>
+          )}
         </>
       ) : null}
     </div>

@@ -46,6 +46,8 @@ import type {
   AddToGroupInput,
   RemoveFromGroupInput,
   UpdateDocNodeInput,
+  UpdateDecisionNodeInput,
+  UpdateStepNodeInput,
 } from "@/lib/types/workspace";
 
 export interface NodeCommandContext {
@@ -378,6 +380,84 @@ export const nodeCommands = {
       await workspaceMutations.updateDocNode(input.nodeId, {
         title: input.title,
         content: input.content,
+      });
+    } catch (err) {
+      invalidateNodeCaches(ctx.queryClient);
+      throw err;
+    }
+  },
+
+  /**
+   * `node.updateDecisionNode` — update question and/or description of a decision node.
+   * Optimistically updates React Query cache and writes to backend.
+   */
+  updateDecisionNode: async (
+    ctx: NodeCommandContext,
+    input: UpdateDecisionNodeInput,
+  ): Promise<void> => {
+    ctx.queryClient.setQueryData<WorkspaceNode[]>(
+      workspaceKeys.nodes.list(input.workspaceId, ctx.isGuestMode),
+      (old) =>
+        old?.map((n) =>
+          n.id === input.nodeId
+            ? {
+                ...n,
+                display_config: {
+                  ...(n.display_config ?? {}),
+                  ...(input.question !== undefined
+                    ? { question: input.question }
+                    : {}),
+                  ...(input.description !== undefined
+                    ? { description: input.description }
+                    : {}),
+                },
+              }
+            : n,
+        ),
+    );
+
+    try {
+      await workspaceMutations.updateDecisionNode(input.nodeId, {
+        question: input.question,
+        description: input.description,
+      });
+    } catch (err) {
+      invalidateNodeCaches(ctx.queryClient);
+      throw err;
+    }
+  },
+
+  /**
+   * `node.updateStepNode` — update title and/or description of a procedural step node.
+   * Optimistically updates React Query cache and writes to backend.
+   */
+  updateStepNode: async (
+    ctx: NodeCommandContext,
+    input: UpdateStepNodeInput,
+  ): Promise<void> => {
+    ctx.queryClient.setQueryData<WorkspaceNode[]>(
+      workspaceKeys.nodes.list(input.workspaceId, ctx.isGuestMode),
+      (old) =>
+        old?.map((n) =>
+          n.id === input.nodeId
+            ? {
+                ...n,
+                display_config: {
+                  ...(n.display_config ?? {}),
+                  ...(input.title !== undefined ? { title: input.title } : {}),
+                  ...(input.description !== undefined
+                    ? { description: input.description }
+                    : {}),
+                },
+              }
+            : n,
+        ),
+    );
+
+    try {
+      await workspaceMutations.updateStepNode(input.nodeId, {
+        title: input.title,
+        description: input.description,
       });
     } catch (err) {
       invalidateNodeCaches(ctx.queryClient);

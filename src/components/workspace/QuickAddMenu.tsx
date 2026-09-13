@@ -23,6 +23,8 @@ import {
   Plus,
   Repeat,
   Timer,
+  GitBranch,
+  Workflow,
 } from "lucide-react";
 import { useTranslation } from "@/lib/i18n/useTranslation";
 
@@ -37,6 +39,8 @@ export interface QuickAddMenuProps {
   onAddEvent: () => void;
   onAddFocus: () => void;
   onAddDoc: () => void;
+  onAddDecision?: () => void;
+  onAddStep?: () => void;
   onFitView?: () => void;
 }
 
@@ -51,6 +55,8 @@ export function QuickAddMenu({
   onAddEvent,
   onAddFocus,
   onAddDoc,
+  onAddDecision,
+  onAddStep,
   onFitView,
 }: QuickAddMenuProps) {
   const { t } = useTranslation();
@@ -246,6 +252,40 @@ export function QuickAddMenu({
           />
           <span>{t("workspace.canvas.addDoc")}</span>
         </DropdownMenuItem>
+
+        {onAddDecision ? (
+          <DropdownMenuItem
+            data-testid="quick-add-decision"
+            onClick={() => {
+              onAddDecision();
+              onClose();
+            }}
+            className="gap-2.5 text-xs cursor-pointer"
+          >
+            <GitBranch
+              className="h-4 w-4 text-muted-foreground"
+              strokeWidth={2.25}
+            />
+            <span>{t("workspace.canvas.addDecision")}</span>
+          </DropdownMenuItem>
+        ) : null}
+
+        {onAddStep ? (
+          <DropdownMenuItem
+            data-testid="quick-add-step"
+            onClick={() => {
+              onAddStep();
+              onClose();
+            }}
+            className="gap-2.5 text-xs cursor-pointer"
+          >
+            <Workflow
+              className="h-4 w-4 text-muted-foreground"
+              strokeWidth={2.25}
+            />
+            <span>{t("workspace.canvas.addStep")}</span>
+          </DropdownMenuItem>
+        ) : null}
 
         {onFitView ? (
           <>

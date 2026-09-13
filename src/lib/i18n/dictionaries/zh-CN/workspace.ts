@@ -37,9 +37,17 @@ export const workspace = {
   "workspace.canvas.addDoc": "文档",
   "workspace.canvas.docAdded": "文档节点已添加到画布",
   "workspace.canvas.docAddFailed": "添加文档节点到画布失败",
+  "workspace.canvas.addDecision": "决策",
+  "workspace.canvas.decisionAdded": "决策节点已添加到画布",
+  "workspace.canvas.decisionAddFailed": "添加决策节点到画布失败",
+  "workspace.canvas.addStep": "步骤",
+  "workspace.canvas.stepAdded": "步骤节点已添加到画布",
+  "workspace.canvas.stepAddFailed": "添加步骤节点到画布失败",
   "workspace.canvas.connectFailed": "连接节点失败",
   "workspace.canvas.disconnect": "删除连线",
   "workspace.canvas.disconnectFailed": "移除连线失败",
+  "workspace.canvas.editEdgeLabel": "双击编辑连线条件",
+  "workspace.canvas.updateEdgeLabelFailed": "更新连线标签失败",
   "workspace.canvas.quickTaskPlaceholder": "新建任务标题，按 Enter 创建...",
   "workspace.canvas.pickExistingTask": "选择已有任务",
   "workspace.canvas.pickExistingProject": "选择已有项目",
@@ -99,6 +107,8 @@ export const workspace = {
   "workspace.node.kindFocus": "专注",
   "workspace.node.kindDoc": "文档",
   "workspace.node.kindProject": "项目",
+  "workspace.node.kindDecision": "决策",
+  "workspace.node.kindStep": "步骤",
   "workspace.node.kindUnknown": "未知",
 
   // --- Doc node ---
@@ -110,6 +120,21 @@ export const workspace = {
   "workspace.docNode.editAria": "编辑内容",
   "workspace.docNode.previewAria": "完成并预览",
   "workspace.docNode.titlePlaceholder": "文档标题",
+
+  // --- Decision node ---
+  "workspace.decisionNode.questionPlaceholder": "输入条件分支问题...",
+  "workspace.decisionNode.emptyQuestion": "条件分支？",
+  "workspace.decisionNode.editHint": "双击编辑条件问题",
+  "workspace.decisionNode.removeAria": "移除决策节点",
+  "workspace.decisionNode.updateFailed": "更新决策问题失败",
+
+  // --- Step node ---
+  "workspace.stepNode.titlePlaceholder": "输入步骤标题...",
+  "workspace.stepNode.emptyTitle": "步骤",
+  "workspace.stepNode.descPlaceholder": "步骤详情或备忘说明...",
+  "workspace.stepNode.editHint": "双击编辑步骤",
+  "workspace.stepNode.removeAria": "移除步骤节点",
+  "workspace.stepNode.updateFailed": "更新步骤失败",
 
   // --- Focus node ---
   "workspace.focusNode.modeFocus": "专注",

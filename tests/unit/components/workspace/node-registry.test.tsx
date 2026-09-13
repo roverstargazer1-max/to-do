@@ -169,6 +169,26 @@ describe("node-kind registry", () => {
     expect(spec?.schema).toBeDefined();
   });
 
+  it("registers the decision kind once with kind, defaults 240x120, component, commands, schema", () => {
+    const spec = getNodeKindSpec("decision");
+    expect(spec).toBeDefined();
+    expect(spec?.kind).toBe("decision");
+    expect(spec?.defaults).toEqual({ width: 240, height: 120 });
+    expect(spec?.component).toBeDefined();
+    expect(Object.keys(spec?.commands ?? {})).toEqual(["add", "update"]);
+    expect(spec?.schema).toBeDefined();
+  });
+
+  it("registers the step kind once with kind, defaults 240x80, component, commands, schema", () => {
+    const spec = getNodeKindSpec("step");
+    expect(spec).toBeDefined();
+    expect(spec?.kind).toBe("step");
+    expect(spec?.defaults).toEqual({ width: 240, height: 80 });
+    expect(spec?.component).toBeDefined();
+    expect(Object.keys(spec?.commands ?? {})).toEqual(["add", "update"]);
+    expect(spec?.schema).toBeDefined();
+  });
+
   it("resolves a well-formed task row to the task spec", () => {
     expect(resolveNodeKind(makeRow()).kind).toBe("task");
   });
@@ -226,6 +246,52 @@ describe("node-kind registry", () => {
         }),
       ).kind,
     ).toBe("project");
+    expect(
+      resolveNodeKind(
+        makeRow({
+          id: "node-dec",
+          kind: "decision",
+          entity_type: null,
+          entity_id: null,
+        }),
+      ).kind,
+    ).toBe("decision");
+    expect(
+      resolveNodeKind(
+        makeRow({
+          id: "node-step",
+          kind: "step",
+          entity_type: null,
+          entity_id: null,
+        }),
+      ).kind,
+    ).toBe("step");
+  });
+
+  it("degrades a decision row that carries an entity pair — the decision kind references nothing", () => {
+    expect(
+      resolveNodeKind(
+        makeRow({
+          id: "node-dec-invalid",
+          kind: "decision",
+          entity_type: "task",
+          entity_id: "task-1",
+        }),
+      ).kind,
+    ).toBe(UNKNOWN_NODE_KIND);
+  });
+
+  it("degrades a step row that carries an entity pair — the step kind references nothing", () => {
+    expect(
+      resolveNodeKind(
+        makeRow({
+          id: "node-step-invalid",
+          kind: "step",
+          entity_type: "task",
+          entity_id: "task-1",
+        }),
+      ).kind,
+    ).toBe(UNKNOWN_NODE_KIND);
   });
 
   it("degrades a doc row that carries an entity pair — the doc kind references nothing", () => {
@@ -302,12 +368,14 @@ describe("node-kind registry", () => {
     expect(Object.keys(workspaceNodeTypes).sort()).toEqual(
       [
         UNKNOWN_NODE_KIND,
+        "decision",
         "doc",
         "event",
         "focus",
         "group",
         "habit",
         "project",
+        "step",
         "task",
       ].sort(),
     );

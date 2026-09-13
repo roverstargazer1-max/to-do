@@ -42,9 +42,17 @@ export const workspace = {
   "workspace.canvas.addDoc": "Doc",
   "workspace.canvas.docAdded": "Doc node added to canvas",
   "workspace.canvas.docAddFailed": "Failed to add doc node to canvas",
+  "workspace.canvas.addDecision": "Decision",
+  "workspace.canvas.decisionAdded": "Decision node added to canvas",
+  "workspace.canvas.decisionAddFailed": "Failed to add decision node to canvas",
+  "workspace.canvas.addStep": "Step",
+  "workspace.canvas.stepAdded": "Step node added to canvas",
+  "workspace.canvas.stepAddFailed": "Failed to add step node to canvas",
   "workspace.canvas.connectFailed": "Failed to connect the nodes",
   "workspace.canvas.disconnect": "Disconnect",
   "workspace.canvas.disconnectFailed": "Failed to remove the connection",
+  "workspace.canvas.editEdgeLabel": "Double click to edit label",
+  "workspace.canvas.updateEdgeLabelFailed": "Failed to update connection label",
   "workspace.canvas.quickTaskPlaceholder":
     "New task title, press Enter to create...",
   "workspace.canvas.pickExistingTask": "Select existing task",
@@ -113,6 +121,8 @@ export const workspace = {
   "workspace.node.kindFocus": "Focus",
   "workspace.node.kindDoc": "Doc",
   "workspace.node.kindProject": "Project",
+  "workspace.node.kindDecision": "Decision",
+  "workspace.node.kindStep": "Step",
   "workspace.node.kindUnknown": "Unknown",
 
   // --- Doc node (DocNode.tsx) ---
@@ -124,6 +134,21 @@ export const workspace = {
   "workspace.docNode.editAria": "Edit content",
   "workspace.docNode.previewAria": "Done and preview",
   "workspace.docNode.titlePlaceholder": "Doc title",
+
+  // --- Decision node (DecisionNode.tsx) ---
+  "workspace.decisionNode.questionPlaceholder": "Condition question...",
+  "workspace.decisionNode.emptyQuestion": "Condition?",
+  "workspace.decisionNode.editHint": "Double-click to edit condition",
+  "workspace.decisionNode.removeAria": "Remove decision node",
+  "workspace.decisionNode.updateFailed": "Failed to update decision question",
+
+  // --- Step node (StepNode.tsx) ---
+  "workspace.stepNode.titlePlaceholder": "Step title...",
+  "workspace.stepNode.emptyTitle": "Step",
+  "workspace.stepNode.descPlaceholder": "Optional notes or details...",
+  "workspace.stepNode.editHint": "Double-click to edit step",
+  "workspace.stepNode.removeAria": "Remove step node",
+  "workspace.stepNode.updateFailed": "Failed to update step",
 
   // --- Focus node (FocusNode.tsx) ---
   "workspace.focusNode.modeFocus": "Focus",

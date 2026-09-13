@@ -19,6 +19,8 @@ import { FocusNode } from "./FocusNode";
 import { GroupNode } from "./GroupNode";
 import { DocNode } from "./DocNode";
 import { ProjectNode } from "./ProjectNode";
+import { DecisionNode } from "./DecisionNode";
+import { StepNode } from "./StepNode";
 import { UnknownNode } from "./UnknownNode";
 
 /**
@@ -363,6 +365,100 @@ const projectNodeSpec: NodeKindSpec = {
   schema: ProjectNodeRowSchema,
 };
 
+/**
+ * The decision row's contract: kind and a *null* reference pair.
+ */
+const DecisionNodeRowSchema = z.object({
+  kind: z.literal("decision"),
+  entity_type: z.null(),
+  entity_id: z.null(),
+});
+
+export type DecisionNodeCommands = {
+  add: (
+    ctx: NodeCommandContext,
+    input: {
+      workspaceId: string;
+      position: NodePosition;
+      question?: string;
+      description?: string;
+    },
+  ) => Promise<WorkspaceNode>;
+  update: typeof nodeCommands.updateDecisionNode;
+};
+
+const decisionNodeSpec: NodeKindSpec = {
+  kind: "decision",
+  label: "Decision",
+  defaults: { width: 240, height: 120 },
+  component: DecisionNode,
+  commands: {
+    add: (ctx: NodeCommandContext, input) =>
+      nodeCommands.add(ctx, {
+        workspaceId: input.workspaceId,
+        kind: "decision",
+        entityType: null,
+        entityId: null,
+        position: input.position,
+        width: decisionNodeSpec.defaults.width,
+        height: decisionNodeSpec.defaults.height,
+        displayConfig: {
+          question: input.question ?? "",
+          description: input.description ?? "",
+        },
+      }),
+    update: nodeCommands.updateDecisionNode,
+  } satisfies DecisionNodeCommands,
+  schema: DecisionNodeRowSchema,
+};
+
+/**
+ * The step row's contract: kind and a *null* reference pair.
+ */
+const StepNodeRowSchema = z.object({
+  kind: z.literal("step"),
+  entity_type: z.null(),
+  entity_id: z.null(),
+});
+
+export type StepNodeCommands = {
+  add: (
+    ctx: NodeCommandContext,
+    input: {
+      workspaceId: string;
+      position: NodePosition;
+      title?: string;
+      description?: string;
+    },
+  ) => Promise<WorkspaceNode>;
+  update: typeof nodeCommands.updateStepNode;
+};
+
+const stepNodeSpec: NodeKindSpec = {
+  kind: "step",
+  label: "Step",
+  defaults: { width: 240, height: 80 },
+  component: StepNode,
+  commands: {
+    add: (ctx: NodeCommandContext, input) =>
+      nodeCommands.add(ctx, {
+        workspaceId: input.workspaceId,
+        kind: "step",
+        entityType: null,
+        entityId: null,
+        position: input.position,
+        width: stepNodeSpec.defaults.width,
+        height: stepNodeSpec.defaults.height,
+        displayConfig: {
+          title: input.title ?? "",
+          description: input.description ?? "",
+        },
+      }),
+    update: nodeCommands.updateStepNode,
+  } satisfies StepNodeCommands,
+  schema: StepNodeRowSchema,
+};
+
 /** The fallback kind — never registered, never throws. */
 export const UNKNOWN_NODE_KIND = "unknown";
 
@@ -389,6 +485,8 @@ registerNodeKind(focusNodeSpec);
 registerNodeKind(groupNodeSpec);
 registerNodeKind(docNodeSpec);
 registerNodeKind(projectNodeSpec);
+registerNodeKind(decisionNodeSpec);
+registerNodeKind(stepNodeSpec);
 
 /** Look up a registered kind spec (undefined for unknown kinds). */
 export function getNodeKindSpec(kind: string): NodeKindSpec | undefined {
