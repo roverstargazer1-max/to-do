@@ -9,6 +9,17 @@ export async function updateSession(request: NextRequest) {
     return supabaseResponse;
   }
 
+  const isLocalSingleUser =
+    process.env.NEXT_PUBLIC_LOCAL_SINGLE_USER === "true";
+
+  if (
+    isLocalSingleUser &&
+    (request.nextUrl.pathname === "/login" ||
+      request.nextUrl.pathname === "/signup")
+  ) {
+    return NextResponse.redirect(new URL("/", request.url));
+  }
+
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -44,6 +55,10 @@ export async function updateSession(request: NextRequest) {
     data: { user },
     error,
   } = await supabase.auth.getUser();
+
+  if (isLocalSingleUser) {
+    return supabaseResponse;
+  }
 
   // Distinct from AUTH_STANDALONE_ROUTES: gates server auth redirects
   // (covering /access-denied and /api/health), not client shell rendering.

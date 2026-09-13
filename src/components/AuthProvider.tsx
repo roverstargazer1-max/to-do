@@ -123,10 +123,52 @@ export function AuthProvider({
       }
     };
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) applyRealSession(session);
-      else applyNoRealSession();
+    const isLocalSingleUser =
+      process.env.NEXT_PUBLIC_LOCAL_SINGLE_USER === "true";
+    const localEmail =
+      process.env.NEXT_PUBLIC_LOCAL_USER_EMAIL || "mcp-tester@kagelin.local";
+    const localPassword =
+      process.env.NEXT_PUBLIC_LOCAL_USER_PASSWORD || "tester123456";
+
+    const autoSignInLocal = async () => {
+      try {
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email: localEmail,
+          password: localPassword,
+        });
+        if (data?.session) {
+          applyRealSession(data.session);
+          setLoading(false);
+          return;
+        }
+        if (error) {
+          const { data: signUpData } = await supabase.auth.signUp({
+            email: localEmail,
+            password: localPassword,
+          });
+          if (signUpData?.session) {
+            applyRealSession(signUpData.session);
+            setLoading(false);
+            return;
+          }
+        }
+      } catch (err) {
+        console.error("Auto local sign-in error:", err);
+      }
+      applyNoRealSession();
       setLoading(false);
+    };
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        applyRealSession(session);
+        setLoading(false);
+      } else if (isLocalSingleUser) {
+        autoSignInLocal();
+      } else {
+        applyNoRealSession();
+        setLoading(false);
+      }
     });
 
     const {
@@ -135,9 +177,15 @@ export function AuthProvider({
       // getSession() above already resolved this snapshot.
       if (event === "INITIAL_SESSION") return;
 
-      if (session) applyRealSession(session);
-      else applyNoRealSession();
-      setLoading(false);
+      if (session) {
+        applyRealSession(session);
+        setLoading(false);
+      } else if (isLocalSingleUser) {
+        autoSignInLocal();
+      } else {
+        applyNoRealSession();
+        setLoading(false);
+      }
     });
 
     return () => subscription.unsubscribe();
@@ -267,6 +315,9 @@ export function AuthProvider({
   }, []);
 
   const signOut = useCallback(async () => {
+    if (process.env.NEXT_PUBLIC_LOCAL_SINGLE_USER === "true") {
+      return;
+    }
     if (isGuestMode) {
       clearGuestFlag();
       setUser(null);

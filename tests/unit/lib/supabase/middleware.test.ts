@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { NextRequest } from "next/server";
 
 type SetAllFn = (
@@ -70,5 +70,36 @@ describe("updateSession cookie propagation on redirect", () => {
 
     expect(res.status).toBe(307);
     expect(res.cookies.get("sb-x-auth-token")?.value).toBe("");
+  });
+});
+
+describe("updateSession in local single-user mode", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    process.env.NEXT_PUBLIC_LOCAL_SINGLE_USER = "true";
+  });
+
+  afterEach(() => {
+    delete process.env.NEXT_PUBLIC_LOCAL_SINGLE_USER;
+  });
+
+  it("redirects /login and /signup to root /", async () => {
+    const loginReq = new NextRequest("http://localhost:3000/login");
+    const loginRes = await updateSession(loginReq);
+    expect(loginRes.status).toBe(307);
+    expect(new URL(loginRes.headers.get("location")!).pathname).toBe("/");
+
+    const signupReq = new NextRequest("http://localhost:3000/signup");
+    const signupRes = await updateSession(signupReq);
+    expect(signupRes.status).toBe(307);
+    expect(new URL(signupRes.headers.get("location")!).pathname).toBe("/");
+  });
+
+  it("does not redirect unauthenticated app requests to /login", async () => {
+    mockGetUser.mockResolvedValue({ data: { user: null }, error: null });
+    const appReq = new NextRequest("http://localhost:3000/workspaces");
+    const appRes = await updateSession(appReq);
+    expect(appRes.status).toBe(200);
+    expect(appRes.headers.get("location")).toBeNull();
   });
 });

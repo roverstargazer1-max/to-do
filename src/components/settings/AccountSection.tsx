@@ -25,6 +25,9 @@ import {
   KeyRound,
   AlertCircle,
   Mail,
+  HardDrive,
+  Database,
+  Cpu,
 } from "lucide-react";
 import { AuthPasswordField } from "@/components/auth/AuthPasswordField";
 import { PasswordBreachWarning } from "@/components/auth/PasswordBreachWarning";
@@ -205,6 +208,55 @@ export function AccountSection() {
 
   if (isGuestMode) {
     return null;
+  }
+
+  const isLocalSingleUser =
+    process.env.NEXT_PUBLIC_LOCAL_SINGLE_USER === "true";
+
+  if (isLocalSingleUser) {
+    return (
+      <Card className={SETTINGS_CARD_CLASS}>
+        <CardHeader className="pb-3 px-4 pt-5">
+          <CardTitle className="flex items-center gap-2 text-base font-medium tracking-tight">
+            <HardDrive className="h-4 w-4 text-brand" strokeWidth={2.25} />
+            本地单机独占模式
+          </CardTitle>
+          <CardDescription className="text-xs text-muted-foreground/80">
+            应用运行于本地独立环境，所有数据保存在本地数据库中，无需任何远程账号与登录。
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="px-4 pb-4 pt-0 space-y-2.5">
+          <div className={cn(ICON_LED_ROW_CLASS, "justify-between")}>
+            <div className="flex items-center gap-3">
+              <Database className="h-5 w-5 text-foreground/70" />
+              <div>
+                <p className="text-sm font-medium">本地数据库服务</p>
+                <p className="text-xs text-muted-foreground">
+                  PostgreSQL / Supabase 本地容器 (127.0.0.1:54321)
+                </p>
+              </div>
+            </div>
+            <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+              运行中
+            </span>
+          </div>
+          <div className={cn(ICON_LED_ROW_CLASS, "justify-between")}>
+            <div className="flex items-center gap-3">
+              <Cpu className="h-5 w-5 text-foreground/70" />
+              <div>
+                <p className="text-sm font-medium">AI MCP 架构师通道</p>
+                <p className="text-xs text-muted-foreground">
+                  kagelin-workspace-builder 零鉴权直通读写
+                </p>
+              </div>
+            </div>
+            <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-brand/10 text-brand border border-brand/20">
+              已就绪
+            </span>
+          </div>
+        </CardContent>
+      </Card>
+    );
   }
 
   return (

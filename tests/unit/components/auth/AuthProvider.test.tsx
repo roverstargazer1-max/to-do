@@ -456,4 +456,50 @@ describe("AuthProvider", () => {
       ]),
     );
   });
+
+  it("automatically signs in with local credentials when NEXT_PUBLIC_LOCAL_SINGLE_USER is true", async () => {
+    process.env.NEXT_PUBLIC_LOCAL_SINGLE_USER = "true";
+    process.env.NEXT_PUBLIC_LOCAL_USER_EMAIL = "local-owner@kagelin.local";
+    process.env.NEXT_PUBLIC_LOCAL_USER_PASSWORD = "testpassword";
+
+    const localUser = {
+      id: "local-owner-id",
+      email: "local-owner@kagelin.local",
+    } as User;
+    const localSession = { user: localUser } as Session;
+
+    const supabase = mockSupabase(null);
+    supabase.auth.signInWithPassword = vi.fn().mockResolvedValue({
+      data: { session: localSession, user: localUser },
+      error: null,
+    });
+    vi.mocked(createClient).mockReturnValue(
+      supabase as unknown as ReturnType<typeof createClient>,
+    );
+
+    const { result } = renderHook(() => useAuth(), {
+      wrapper: ({ children }) => (
+        <AuthProvider initialIsGuest={false}>{children}</AuthProvider>
+      ),
+    });
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+      expect(result.current.user?.id).toBe("local-owner-id");
+    });
+
+    expect(supabase.auth.signInWithPassword).toHaveBeenCalledWith({
+      email: "local-owner@kagelin.local",
+      password: "testpassword",
+    });
+
+    // signOut is a no-op in local single-user mode
+    await result.current.signOut();
+    expect(supabase.auth.signOut).not.toHaveBeenCalled();
+    expect(result.current.user?.id).toBe("local-owner-id");
+
+    delete process.env.NEXT_PUBLIC_LOCAL_SINGLE_USER;
+    delete process.env.NEXT_PUBLIC_LOCAL_USER_EMAIL;
+    delete process.env.NEXT_PUBLIC_LOCAL_USER_PASSWORD;
+  });
 });

@@ -500,4 +500,20 @@ describe("AccountSection", () => {
       ),
     ).toBeInTheDocument();
   });
+
+  it("renders local single-user card and hides OAuth providers when NEXT_PUBLIC_LOCAL_SINGLE_USER is true", () => {
+    process.env.NEXT_PUBLIC_LOCAL_SINGLE_USER = "true";
+    setupAuth();
+
+    renderWithQueryClient(<AccountSection />);
+
+    expect(screen.getByText("本地单机独占模式")).toBeInTheDocument();
+    expect(screen.getByText("本地数据库服务")).toBeInTheDocument();
+    expect(screen.getByText("AI MCP 架构师通道")).toBeInTheDocument();
+    expect(
+      screen.queryByText("settings.account.providers.title"),
+    ).not.toBeInTheDocument();
+
+    delete process.env.NEXT_PUBLIC_LOCAL_SINGLE_USER;
+  });
 });

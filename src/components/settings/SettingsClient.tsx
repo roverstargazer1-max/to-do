@@ -508,50 +508,62 @@ export function SettingsClient({ version }: SettingsClientProps) {
 
                   <AccountInfoRow
                     icon={User}
-                    label={t("settings.account.email")}
-                    value={user?.email || t("settings.account.notSignedIn")}
+                    label={
+                      process.env.NEXT_PUBLIC_LOCAL_SINGLE_USER === "true"
+                        ? "本地主账号"
+                        : t("settings.account.email")
+                    }
+                    value={
+                      process.env.NEXT_PUBLIC_LOCAL_SINGLE_USER === "true"
+                        ? user?.email || "local-owner@kagelin.local"
+                        : user?.email || t("settings.account.notSignedIn")
+                    }
                   />
 
                   {!isGuestMode && <AccountSection />}
 
-                  <BackupSyncSettings />
+                  {process.env.NEXT_PUBLIC_LOCAL_SINGLE_USER !== "true" && (
+                    <>
+                      <BackupSyncSettings />
 
-                  {!isGuestMode && (
-                    <Button
-                      variant="outline"
-                      className="w-full justify-start shadow-none text-destructive border-destructive-surface-border hover:border-destructive hover:bg-destructive-surface-hover transition-all"
-                      onClick={() => {
-                        trigger("thud");
-                        setIsDeleteDialogOpen(true);
-                      }}
-                      disabled={isSigningOut}
-                    >
-                      <Trash2 className="h-4 w-4 mr-2" strokeWidth={2.25} />
-                      {t("settings.account.deleteCloudData")}
-                    </Button>
+                      {!isGuestMode && (
+                        <Button
+                          variant="outline"
+                          className="w-full justify-start shadow-none text-destructive border-destructive-surface-border hover:border-destructive hover:bg-destructive-surface-hover transition-all"
+                          onClick={() => {
+                            trigger("thud");
+                            setIsDeleteDialogOpen(true);
+                          }}
+                          disabled={isSigningOut}
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" strokeWidth={2.25} />
+                          {t("settings.account.deleteCloudData")}
+                        </Button>
+                      )}
+
+                      <Button
+                        variant="destructive"
+                        className="w-full justify-start shadow-none"
+                        onClick={() => {
+                          trigger("thud");
+                          setShowSignOutConfirm(true);
+                        }}
+                        disabled={isSigningOut}
+                      >
+                        {isSigningOut ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            {t("settings.signingOut")}
+                          </>
+                        ) : (
+                          <>
+                            <LogOut className="h-4 w-4 mr-2" />
+                            {t("settings.account.signOut")}
+                          </>
+                        )}
+                      </Button>
+                    </>
                   )}
-
-                  <Button
-                    variant="destructive"
-                    className="w-full justify-start shadow-none"
-                    onClick={() => {
-                      trigger("thud");
-                      setShowSignOutConfirm(true);
-                    }}
-                    disabled={isSigningOut}
-                  >
-                    {isSigningOut ? (
-                      <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        {t("settings.signingOut")}
-                      </>
-                    ) : (
-                      <>
-                        <LogOut className="h-4 w-4 mr-2" />
-                        {t("settings.account.signOut")}
-                      </>
-                    )}
-                  </Button>
                 </div>
               </section>
             )}

@@ -3,6 +3,10 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 let client: SupabaseClient | undefined;
 
+export function setClient(customClient: SupabaseClient | undefined) {
+  client = customClient;
+}
+
 export function createClient() {
   if (client) return client;
   client = createBrowserClient(
