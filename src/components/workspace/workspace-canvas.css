@@ -119,6 +119,36 @@
     0 0 0 3px hsl(var(--foreground) / 0.06);
 }
 
+/* ── Decision Diamond Shape ───────────────────────────────────────────── */
+
+.ws-decision-diamond {
+  fill: hsl(var(--canvas-node, 0 0% 100%));
+  stroke: hsl(var(--border));
+  filter: drop-shadow(0 1px 2px hsl(0 0% 0% / 0.05))
+    drop-shadow(0 4px 12px hsl(0 0% 0% / 0.08));
+  transition:
+    stroke 200ms var(--ease-seijaku, ease),
+    filter 200ms var(--ease-seijaku, ease);
+}
+
+.dark .ws-decision-diamond {
+  filter: drop-shadow(0 1px 2px hsl(0 0% 0% / 0.45))
+    drop-shadow(0 4px 12px hsl(0 0% 0% / 0.5));
+}
+
+.react-flow__node:hover .ws-decision-diamond,
+.group:hover .ws-decision-diamond {
+  stroke: hsl(var(--foreground) / 0.45);
+}
+
+.react-flow__node.selected .ws-decision-diamond,
+.ws-decision-diamond.selected {
+  stroke: hsl(var(--foreground));
+  filter: drop-shadow(0 1px 2px hsl(0 0% 0% / 0.08))
+    drop-shadow(0 4px 14px hsl(0 0% 0% / 0.12))
+    drop-shadow(0 0 0 2px hsl(var(--foreground) / 0.08));
+}
+
 /* The micro-header: kind dot · uppercase kind label · actions. Mirrors the
    KRNL0 node head (mono, letter-spaced, hairline-separated) in this house's
    monochrome ink rather than KRNL0's accent palette. */
@@ -161,6 +191,7 @@
 
 .ws-node-card__body {
   min-width: 0;
+  min-height: 0;
   flex: 1 1 auto;
   display: flex;
   flex-direction: column;
@@ -196,6 +227,14 @@
 
 .react-flow__handle-right:hover {
   transform: translate(50%, -50%) scale(1.35);
+}
+
+.react-flow__handle-top:hover {
+  transform: translate(-50%, -50%) scale(1.35);
+}
+
+.react-flow__handle-bottom:hover {
+  transform: translate(-50%, 50%) scale(1.35);
 }
 
 /* Live port: hovered, or the end the user is currently dragging from/to. */
@@ -617,4 +656,13 @@
 .react-flow__edge.ws-flow-edge.selected path.react-flow__edge-path {
   stroke: hsl(var(--primary));
   stroke-width: 2px;
+}
+
+.react-flow__edge.ws-flow-edge:hover,
+.react-flow__edge.ws-flow-edge--hovered {
+  --xy-edge-stroke: hsl(var(--foreground));
+}
+
+.react-flow__edge.ws-flow-edge.selected {
+  --xy-edge-stroke: hsl(var(--primary));
 }

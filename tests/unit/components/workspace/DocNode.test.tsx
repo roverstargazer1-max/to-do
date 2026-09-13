@@ -17,6 +17,20 @@ vi.mock("@/lib/commands/node", () => ({
   },
 }));
 
+vi.mock("mermaid", () => ({
+  default: {
+    initialize: vi.fn(),
+    render: vi.fn(async (id: string, chart: string) => {
+      if (chart.includes("INVALID_SYNTAX")) {
+        throw new Error("Syntax error in graph");
+      }
+      return {
+        svg: `<svg data-testid="mock-mermaid-svg"><g id="${id}"><text>${chart}</text></g></svg>`,
+      };
+    }),
+  },
+}));
+
 vi.mock("@/lib/notify", () => {
   const fn = vi.fn();
   return {
@@ -237,5 +251,52 @@ describe("DocNode component", () => {
         row,
       );
     });
+  });
+
+  it("renders embedded mermaid code blocks as styled SVG diagram", async () => {
+    const mermaidContent = `# System Architecture
+
+\`\`\`mermaid
+sequenceDiagram
+  Client->>Server: POST /api/login
+  Server-->>Client: 200 OK (Token)
+\`\`\`
+
+Notes below the diagram.`;
+
+    const row = makeDocRow({
+      display_config: {
+        title: "Auth Sequence",
+        content: mermaidContent,
+      },
+    });
+    renderDocNode(row);
+
+    expect(screen.getByText("System Architecture")).toBeInTheDocument();
+    expect(screen.getByText("Notes below the diagram.")).toBeInTheDocument();
+
+    const diagram = await screen.findByTestId("mermaid-diagram");
+    expect(diagram).toBeInTheDocument();
+    expect(diagram.querySelector("svg")).toBeInTheDocument();
+    expect(diagram).toHaveTextContent("Client->>Server: POST /api/login");
+  });
+
+  it("handles invalid mermaid syntax gracefully without crashing", async () => {
+    const invalidMermaidContent = `\`\`\`mermaid
+INVALID_SYNTAX
+\`\`\``;
+
+    const row = makeDocRow({
+      display_config: {
+        title: "Broken Diagram",
+        content: invalidMermaidContent,
+      },
+    });
+    renderDocNode(row);
+
+    const errorEl = await screen.findByTestId("mermaid-error");
+    expect(errorEl).toBeInTheDocument();
+    expect(errorEl).toHaveTextContent("Mermaid Diagram Error");
+    expect(errorEl).toHaveTextContent("INVALID_SYNTAX");
   });
 });

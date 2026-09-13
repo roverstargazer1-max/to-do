@@ -5,6 +5,7 @@ import {
   useRef,
   useEffect,
   useCallback,
+  isValidElement,
   type ReactNode,
 } from "react";
 import ReactMarkdown from "react-markdown";
@@ -18,6 +19,7 @@ import { nodeCommands } from "@/lib/commands/node";
 import type { DocDisplayConfig } from "@/lib/types/workspace";
 import { NodeCard } from "./NodeCard";
 import type { WorkspaceNodeComponentProps } from "./node-registry";
+import { MermaidDiagram } from "./MermaidDiagram";
 
 /**
  * DocNode — a standalone markdown & text document card on the workspace canvas.
@@ -259,7 +261,7 @@ export function DocNode({ id, data }: WorkspaceNodeComponentProps) {
         minWidth={200}
         minHeight={120}
       >
-        <div className="relative w-full h-full min-h-[110px] flex-1 flex flex-col">
+        <div className="relative w-full h-full min-h-0 flex-1 flex flex-col overflow-hidden">
           {isEditingContent ? (
             <textarea
               ref={textareaRef}
@@ -274,17 +276,54 @@ export function DocNode({ id, data }: WorkspaceNodeComponentProps) {
               }}
               placeholder={t("workspace.docNode.placeholder")}
               data-testid="doc-node-textarea"
-              className="nodrag nowheel nopan flex-1 w-full h-full min-h-[110px] p-2.5 bg-transparent resize-none outline-none text-xs leading-relaxed text-foreground placeholder:text-muted-foreground/60 font-sans"
+              className="nodrag nowheel nopan flex-1 min-h-0 w-full h-full p-2.5 bg-transparent resize-none outline-none text-xs leading-relaxed text-foreground placeholder:text-muted-foreground/60 font-sans"
             />
           ) : (
             <div
               onDoubleClick={() => setIsEditingContent(true)}
               data-testid="doc-node-preview"
-              className="nodrag nowheel nopan flex-1 w-full h-full min-h-[110px] p-2.5 overflow-y-auto cursor-text select-text text-xs leading-relaxed text-foreground"
+              className="nodrag nowheel nopan flex-1 min-h-0 w-full h-full max-h-[480px] p-2.5 overflow-y-auto cursor-text select-text text-xs leading-relaxed text-foreground"
             >
               {currentContent.trim() ? (
                 <div className="prose prose-xs dark:prose-invert max-w-none break-words [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 [&_p]:my-1.5 [&_ul]:my-1.5 [&_ol]:my-1.5 [&_li]:my-0.5 [&_pre]:my-2 [&_code]:rounded [&_code]:px-1 [&_code]:py-0.5 [&_pre_code]:p-0">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                  <ReactMarkdown
+                    remarkPlugins={[remarkGfm]}
+                    components={{
+                      code(props) {
+                        const { className, children, ...rest } = props;
+                        const match = /language-(\w+)/.exec(className || "");
+                        if (match && match[1] === "mermaid") {
+                          return (
+                            <MermaidDiagram
+                              chart={String(children).replace(/\n$/, "")}
+                            />
+                          );
+                        }
+                        return (
+                          <code className={className} {...rest}>
+                            {children}
+                          </code>
+                        );
+                      },
+                      pre(props) {
+                        const { children, ...rest } = props;
+                        if (
+                          isValidElement(children) &&
+                          typeof children.props === "object" &&
+                          children.props !== null &&
+                          "className" in children.props &&
+                          typeof (children.props as { className?: string })
+                            .className === "string" &&
+                          (
+                            children.props as { className?: string }
+                          ).className?.includes("language-mermaid")
+                        ) {
+                          return <>{children}</>;
+                        }
+                        return <pre {...rest}>{children}</pre>;
+                      },
+                    }}
+                  >
                     {currentContent}
                   </ReactMarkdown>
                 </div>
