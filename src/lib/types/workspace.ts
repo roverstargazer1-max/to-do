@@ -78,6 +78,9 @@ export interface WorkspaceEdge {
   user_id: string;
   source_node_id: string;
   target_node_id: string;
+  label?: string | null;
+  source_handle?: string | null;
+  target_handle?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -91,6 +94,8 @@ export const WORKSPACE_NODE_KINDS = [
   "group",
   "doc",
   "project",
+  "decision",
+  "step",
 ] as const;
 
 export type WorkspaceNodeKind = (typeof WORKSPACE_NODE_KINDS)[number];
@@ -208,6 +213,18 @@ export interface AddEdgeInput {
   workspaceId: string;
   sourceNodeId: string;
   targetNodeId: string;
+  label?: string | null;
+  source_handle?: string | null;
+  sourceHandle?: string | null;
+  target_handle?: string | null;
+  targetHandle?: string | null;
+}
+
+/** `edge.update` input: updates edge properties like conditional label. */
+export interface UpdateEdgeInput {
+  id: string;
+  workspaceId: string;
+  label?: string | null;
 }
 
 /** Display configuration for document/text nodes. */
@@ -222,4 +239,32 @@ export interface UpdateDocNodeInput {
   nodeId: string;
   title?: string;
   content?: string;
+}
+
+/** Display configuration for conditional decision nodes. */
+export interface DecisionDisplayConfig {
+  question?: string;
+  description?: string;
+}
+
+/** Input for updating decision node question and/or description. */
+export interface UpdateDecisionNodeInput {
+  workspaceId: string;
+  nodeId: string;
+  question?: string;
+  description?: string;
+}
+
+/** Display configuration for procedural step nodes. */
+export interface StepDisplayConfig {
+  title?: string;
+  description?: string;
+}
+
+/** Input for updating procedural step node title and/or description. */
+export interface UpdateStepNodeInput {
+  workspaceId: string;
+  nodeId: string;
+  title?: string;
+  description?: string;
 }

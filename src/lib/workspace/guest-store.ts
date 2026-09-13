@@ -351,6 +351,36 @@ export const guestWorkspaceStore = {
     await persistData();
   },
 
+  async updateDecisionNode(
+    id: string,
+    updates: { question?: string; description?: string },
+  ): Promise<void> {
+    const data = await loadData();
+    const node = data.nodes.find((n) => n.id === id);
+    if (!node) throw new Error("Decision node not found");
+    node.display_config = {
+      ...(node.display_config ?? {}),
+      ...updates,
+    };
+    node.updated_at = nowIso();
+    await persistData();
+  },
+
+  async updateStepNode(
+    id: string,
+    updates: { title?: string; description?: string },
+  ): Promise<void> {
+    const data = await loadData();
+    const node = data.nodes.find((n) => n.id === id);
+    if (!node) throw new Error("Step node not found");
+    node.display_config = {
+      ...(node.display_config ?? {}),
+      ...updates,
+    };
+    node.updated_at = nowIso();
+    await persistData();
+  },
+
   /**
    * Removing a node never touches the referenced entity — layout only.
    * If a group container node is removed, its members are restored to absolute coords.
@@ -403,6 +433,11 @@ export const guestWorkspaceStore = {
     workspaceId: string;
     sourceNodeId: string;
     targetNodeId: string;
+    label?: string | null;
+    source_handle?: string | null;
+    sourceHandle?: string | null;
+    target_handle?: string | null;
+    targetHandle?: string | null;
   }): Promise<WorkspaceEdge> {
     const data = await loadData();
     // The id arrives from the caller (the canvas already drew the edge), so
@@ -416,10 +451,26 @@ export const guestWorkspaceStore = {
       user_id: "guest",
       source_node_id: input.sourceNodeId,
       target_node_id: input.targetNodeId,
+      label: input.label ?? null,
+      source_handle: input.source_handle ?? input.sourceHandle ?? null,
+      target_handle: input.target_handle ?? input.targetHandle ?? null,
       created_at: nowIso(),
       updated_at: nowIso(),
     };
     data.edges.push(edge);
+    await persistData();
+    return { ...edge };
+  },
+
+  async updateEdge(
+    id: string,
+    patch: { label?: string | null },
+  ): Promise<WorkspaceEdge> {
+    const data = await loadData();
+    const edge = data.edges.find((e) => e.id === id);
+    if (!edge) throw new Error("Edge not found");
+    if (patch.label !== undefined) edge.label = patch.label;
+    edge.updated_at = nowIso();
     await persistData();
     return { ...edge };
   },

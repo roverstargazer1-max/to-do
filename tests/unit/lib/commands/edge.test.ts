@@ -26,6 +26,7 @@ vi.mock("@/lib/mutations/workspace", () => ({
     addNode: vi.fn(),
     listEdges: vi.fn(),
     addEdge: vi.fn(),
+    updateEdge: vi.fn(),
     removeEdge: vi.fn(),
     updateNodePosition: vi.fn(),
     removeNode: vi.fn(),
@@ -65,6 +66,7 @@ describe("edgeCommands", () => {
     invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
     publishDomainEvent.mockClear();
     vi.mocked(workspaceMutations.addEdge).mockReset();
+    vi.mocked(workspaceMutations.updateEdge).mockReset();
     vi.mocked(workspaceMutations.removeEdge).mockReset();
   });
 
@@ -158,6 +160,51 @@ describe("edgeCommands", () => {
         ),
       ).rejects.toThrow("network error");
 
+      expect(publishDomainEvent).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("update", () => {
+    it("updates edge label, invalidates edges family, and publishes edge.updated", async () => {
+      const updatedEdge = makeEdge({ label: "Yes" });
+      vi.mocked(workspaceMutations.updateEdge).mockResolvedValue(updatedEdge);
+
+      const result = await edgeCommands.update(
+        { queryClient, isGuestMode: false },
+        { id: "edge-1", workspaceId: "ws-1", label: "Yes" },
+      );
+
+      expect(result).toEqual(updatedEdge);
+      expect(workspaceMutations.updateEdge).toHaveBeenCalledWith({
+        id: "edge-1",
+        workspaceId: "ws-1",
+        label: "Yes",
+      });
+      expect(invalidateSpy).toHaveBeenCalledWith({
+        queryKey: workspaceKeys.edges.all,
+      });
+      expect(publishDomainEvent).toHaveBeenCalledWith({
+        type: "edge.updated",
+        workspaceId: "ws-1",
+        edgeId: "edge-1",
+      });
+    });
+
+    it("publishes nothing on failure and invalidates caches", async () => {
+      vi.mocked(workspaceMutations.updateEdge).mockRejectedValue(
+        new Error("db update failed"),
+      );
+
+      await expect(
+        edgeCommands.update(
+          { queryClient, isGuestMode: false },
+          { id: "edge-1", workspaceId: "ws-1", label: "No" },
+        ),
+      ).rejects.toThrow("db update failed");
+
+      expect(invalidateSpy).toHaveBeenCalledWith({
+        queryKey: workspaceKeys.edges.all,
+      });
       expect(publishDomainEvent).not.toHaveBeenCalled();
     });
   });

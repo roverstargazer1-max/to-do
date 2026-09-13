@@ -23,7 +23,11 @@ import type { QueryClient } from "@tanstack/react-query";
 import { workspaceMutations } from "@/lib/mutations/workspace";
 import { workspaceKeys } from "@/lib/queries/workspace-keys";
 import { publishDomainEvent } from "@/lib/events/domain-bus";
-import type { AddEdgeInput, WorkspaceEdge } from "@/lib/types/workspace";
+import type {
+  AddEdgeInput,
+  UpdateEdgeInput,
+  WorkspaceEdge,
+} from "@/lib/types/workspace";
 
 export interface EdgeCommandContext {
   readonly queryClient: QueryClient;
@@ -67,6 +71,36 @@ export const edgeCommands = {
     ctx: EdgeCommandContext,
     input: AddEdgeInput,
   ): Promise<WorkspaceEdge> => edgeCommands.add(ctx, input),
+
+  /**
+   * `edge.update` — update connection attributes such as condition labels.
+   */
+  update: async (
+    ctx: EdgeCommandContext,
+    input: UpdateEdgeInput,
+  ): Promise<WorkspaceEdge> => {
+    try {
+      const edge = await workspaceMutations.updateEdge(input);
+
+      invalidateEdgeCaches(ctx.queryClient);
+      publishDomainEvent({
+        type: "edge.updated",
+        workspaceId: input.workspaceId,
+        edgeId: edge.id,
+      });
+
+      return edge;
+    } catch (err) {
+      invalidateEdgeCaches(ctx.queryClient);
+      throw err;
+    }
+  },
+
+  /** Alias for `edge.update` */
+  updateEdge: (
+    ctx: EdgeCommandContext,
+    input: UpdateEdgeInput,
+  ): Promise<WorkspaceEdge> => edgeCommands.update(ctx, input),
 
   /**
    * `edge.remove` — cut a connection. Both endpoints survive: only the

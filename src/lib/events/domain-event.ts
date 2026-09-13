@@ -132,11 +132,16 @@ export interface EdgeAddedEvent extends EdgeEventEntityRef {
   readonly type: "edge.added";
 }
 
+export interface EdgeUpdatedEvent extends EdgeEventEntityRef {
+  readonly type: "edge.updated";
+}
+
 export interface EdgeRemovedEvent extends EdgeEventEntityRef {
   readonly type: "edge.removed";
 }
 
-export type EdgeDomainEvent = EdgeAddedEvent | EdgeRemovedEvent;
+export type EdgeDomainEvent =
+  EdgeAddedEvent | EdgeUpdatedEvent | EdgeRemovedEvent;
 
 /**
  * The full bus vocabulary. Task events from the first command tranche;

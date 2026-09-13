@@ -214,6 +214,11 @@ export const workspaceMutations = {
     workspaceId: string;
     sourceNodeId: string;
     targetNodeId: string;
+    label?: string | null;
+    source_handle?: string | null;
+    sourceHandle?: string | null;
+    target_handle?: string | null;
+    targetHandle?: string | null;
   }): Promise<WorkspaceEdge> => {
     if (isGuest()) {
       return guestWorkspaceStore.addEdge(input);
@@ -234,15 +239,107 @@ export const workspaceMutations = {
       source_node_id: input.sourceNodeId,
       target_node_id: input.targetNodeId,
     };
+    if (input.label !== undefined && input.label !== null) {
+      insertPayload.label = input.label;
+    }
+    const sourceHandle = input.source_handle ?? input.sourceHandle;
+    if (sourceHandle !== undefined && sourceHandle !== null) {
+      insertPayload.source_handle = sourceHandle;
+    }
+    const targetHandle = input.target_handle ?? input.targetHandle;
+    if (targetHandle !== undefined && targetHandle !== null) {
+      insertPayload.target_handle = targetHandle;
+    }
     if (isUuid(input.id)) {
       insertPayload.id = input.id;
     }
 
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from("workspace_edges")
       .insert(insertPayload)
       .select("*")
       .single();
+
+    // Fallback if PostgREST schema cache is stale or remote database lacks label/source_handle/target_handle columns
+    if (
+      error &&
+      (error.message.includes("schema cache") ||
+        error.message.includes("column")) &&
+      (insertPayload.label !== undefined ||
+        insertPayload.source_handle !== undefined ||
+        insertPayload.target_handle !== undefined)
+    ) {
+      console.warn(
+        "workspace_edges schema mismatch. Retrying with base edge payload:",
+        error.message,
+      );
+      const fallbackPayload: Record<string, unknown> = {
+        workspace_id: input.workspaceId,
+        user_id: userId,
+        source_node_id: input.sourceNodeId,
+        target_node_id: input.targetNodeId,
+      };
+      if (isUuid(input.id)) {
+        fallbackPayload.id = input.id;
+      }
+      const retryResult = await supabase
+        .from("workspace_edges")
+        .insert(fallbackPayload)
+        .select("*")
+        .single();
+      data = retryResult.data;
+      error = retryResult.error;
+    }
+
+    if (error) throw new Error(error.message);
+    return data as WorkspaceEdge;
+  },
+
+  /** Update edge properties such as condition label. */
+  updateEdge: async (input: {
+    id: string;
+    workspaceId: string;
+    label?: string | null;
+  }): Promise<WorkspaceEdge> => {
+    if (isGuest()) {
+      return guestWorkspaceStore.updateEdge(input.id, { label: input.label });
+    }
+    const supabase = createClient();
+    const updatePayload: Record<string, unknown> = {
+      updated_at: new Date().toISOString(),
+    };
+    if (input.label !== undefined && input.label !== null) {
+      updatePayload.label = input.label;
+    }
+
+    let { data, error } = await supabase
+      .from("workspace_edges")
+      .update(updatePayload)
+      .eq("id", input.id)
+      .select("*")
+      .single();
+
+    if (
+      error &&
+      (error.message.includes("schema cache") ||
+        error.message.includes("column")) &&
+      updatePayload.label !== undefined
+    ) {
+      console.warn(
+        "workspace_edges schema mismatch on update. Retrying without label:",
+        error.message,
+      );
+      delete updatePayload.label;
+      const retryResult = await supabase
+        .from("workspace_edges")
+        .update(updatePayload)
+        .eq("id", input.id)
+        .select("*")
+        .single();
+      data = retryResult.data;
+      error = retryResult.error;
+    }
+
     if (error) throw new Error(error.message);
     return data as WorkspaceEdge;
   },
@@ -406,6 +503,66 @@ export const workspaceMutations = {
   ): Promise<void> => {
     if (isGuest()) {
       return guestWorkspaceStore.updateDocNode(id, updates);
+    }
+    const supabase = createClient();
+    const { data: current } = await supabase
+      .from("workspace_nodes")
+      .select("display_config")
+      .eq("id", id)
+      .single();
+    const displayConfig = {
+      ...((current?.display_config as Record<string, unknown>) ?? {}),
+      ...updates,
+    };
+    const { error } = await supabase
+      .from("workspace_nodes")
+      .update({
+        display_config: displayConfig,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", id);
+    if (error) throw new Error(error.message);
+  },
+
+  /**
+   * Update the question and/or description of a decision node in display_config.
+   */
+  updateDecisionNode: async (
+    id: string,
+    updates: { question?: string; description?: string },
+  ): Promise<void> => {
+    if (isGuest()) {
+      return guestWorkspaceStore.updateDecisionNode(id, updates);
+    }
+    const supabase = createClient();
+    const { data: current } = await supabase
+      .from("workspace_nodes")
+      .select("display_config")
+      .eq("id", id)
+      .single();
+    const displayConfig = {
+      ...((current?.display_config as Record<string, unknown>) ?? {}),
+      ...updates,
+    };
+    const { error } = await supabase
+      .from("workspace_nodes")
+      .update({
+        display_config: displayConfig,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", id);
+    if (error) throw new Error(error.message);
+  },
+
+  /**
+   * Update the title and/or description of a procedural step node in display_config.
+   */
+  updateStepNode: async (
+    id: string,
+    updates: { title?: string; description?: string },
+  ): Promise<void> => {
+    if (isGuest()) {
+      return guestWorkspaceStore.updateStepNode(id, updates);
     }
     const supabase = createClient();
     const { data: current } = await supabase

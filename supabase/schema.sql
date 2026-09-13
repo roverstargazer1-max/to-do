@@ -1500,6 +1500,10 @@ CREATE TABLE IF NOT EXISTS public.workspace_edges (
   source_node_id UUID NOT NULL REFERENCES public.workspace_nodes(id) ON DELETE CASCADE,
   target_node_id UUID NOT NULL REFERENCES public.workspace_nodes(id) ON DELETE CASCADE,
 
+  label TEXT NULL DEFAULT NULL,
+  source_handle TEXT NULL DEFAULT NULL,
+  target_handle TEXT NULL DEFAULT NULL,
+
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
 
