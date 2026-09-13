@@ -42,6 +42,7 @@ export const workspace = {
   "workspace.canvas.disconnectFailed": "移除连线失败",
   "workspace.canvas.quickTaskPlaceholder": "新建任务标题，按 Enter 创建...",
   "workspace.canvas.pickExistingTask": "选择已有任务",
+  "workspace.canvas.pickExistingProject": "选择已有项目",
   "workspace.canvas.fitView": "适应画板",
   "workspace.canvas.taskCreated": "任务已创建并添加到画布",
   "workspace.canvas.taskCreateFailed": "创建任务失败",
@@ -68,6 +69,13 @@ export const workspace = {
   "workspace.addEvent.emptyDescription": "请先创建事件——画布存放的是引用。",
   "workspace.addEvent.added": "事件已添加到画布",
   "workspace.addEvent.addFailed": "添加事件到画布失败",
+  "workspace.addProject.title": "添加项目到画布",
+  "workspace.addProject.description":
+    "把项目放为节点——在画布上实时查看项目进度及待办任务。",
+  "workspace.addProject.emptyTitle": "没有可放置的项目",
+  "workspace.addProject.emptyDescription": "请先创建项目——画布存放的是引用。",
+  "workspace.addProject.added": "项目已添加到画布",
+  "workspace.addProject.addFailed": "添加项目到画布失败",
 
   // --- Nodes (shared) ---
   "workspace.node.removeFailed": "移除节点失败",
@@ -78,6 +86,7 @@ export const workspace = {
   "workspace.node.removeEventAria": "移除事件节点",
   "workspace.node.removeFocusAria": "移除专注节点",
   "workspace.node.removeDocAria": "移除文档节点",
+  "workspace.node.removeProjectAria": "移除项目节点",
   "workspace.node.removeUnknownAria": "移除未知节点",
   "workspace.node.doneToday": "今日已完成",
   "workspace.node.today": "今天",
@@ -89,6 +98,7 @@ export const workspace = {
   "workspace.node.kindEvent": "事件",
   "workspace.node.kindFocus": "专注",
   "workspace.node.kindDoc": "文档",
+  "workspace.node.kindProject": "项目",
   "workspace.node.kindUnknown": "未知",
 
   // --- Doc node ---
@@ -110,6 +120,17 @@ export const workspace = {
   "workspace.focusNode.stopAria": "停止计时器",
   "workspace.focusNode.session": (params: TranslationParams) =>
     `第 ${params.number} 轮`,
+
+  // --- Project node ---
+  "workspace.project.noTasks": "暂无待办任务",
+  "workspace.project.allCompleted": "所有任务已完成",
+  "workspace.project.completedRatio": (params: TranslationParams) =>
+    `${params.completed}/${params.total} 任务完成 (${params.percent}%)`,
+  "workspace.project.viewMoreTasks": (params: TranslationParams) =>
+    `查看剩余 ${params.count} 项待办 →`,
+  "workspace.project.openProject": "打开项目视图",
+  "workspace.project.activeTaskCount": (params: TranslationParams) =>
+    `${params.count} 个待办`,
 
   // --- Orphan body ---
   "workspace.orphan.body": (params: TranslationParams) =>

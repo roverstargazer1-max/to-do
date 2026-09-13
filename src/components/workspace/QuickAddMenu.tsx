@@ -18,6 +18,7 @@ import {
   Calendar,
   CheckSquare,
   FileText,
+  FolderKanban,
   Maximize2,
   Plus,
   Repeat,
@@ -31,6 +32,7 @@ export interface QuickAddMenuProps {
   onClose: () => void;
   onQuickCreateTask: (title: string) => void | Promise<void>;
   onPickExistingTask: () => void;
+  onPickExistingProject: () => void;
   onAddHabit: () => void;
   onAddEvent: () => void;
   onAddFocus: () => void;
@@ -44,6 +46,7 @@ export function QuickAddMenu({
   onClose,
   onQuickCreateTask,
   onPickExistingTask,
+  onPickExistingProject,
   onAddHabit,
   onAddEvent,
   onAddFocus,
@@ -170,6 +173,21 @@ export function QuickAddMenu({
             strokeWidth={2.25}
           />
           <span>{t("workspace.canvas.pickExistingTask")}</span>
+        </DropdownMenuItem>
+
+        <DropdownMenuItem
+          data-testid="quick-add-pick-project"
+          onClick={() => {
+            onPickExistingProject();
+            onClose();
+          }}
+          className="gap-2.5 text-xs cursor-pointer"
+        >
+          <FolderKanban
+            className="h-4 w-4 text-muted-foreground"
+            strokeWidth={2.25}
+          />
+          <span>{t("workspace.canvas.pickExistingProject")}</span>
         </DropdownMenuItem>
 
         <DropdownMenuItem

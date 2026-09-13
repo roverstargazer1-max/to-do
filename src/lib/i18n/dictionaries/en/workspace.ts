@@ -48,6 +48,7 @@ export const workspace = {
   "workspace.canvas.quickTaskPlaceholder":
     "New task title, press Enter to create...",
   "workspace.canvas.pickExistingTask": "Select existing task",
+  "workspace.canvas.pickExistingProject": "Select existing project",
   "workspace.canvas.fitView": "Fit view",
   "workspace.canvas.taskCreated": "Task created and added to canvas",
   "workspace.canvas.taskCreateFailed": "Failed to create task",
@@ -77,6 +78,14 @@ export const workspace = {
     "Create an event first — the canvas holds references.",
   "workspace.addEvent.added": "Event added to canvas",
   "workspace.addEvent.addFailed": "Failed to add event to canvas",
+  "workspace.addProject.title": "Add project to canvas",
+  "workspace.addProject.description":
+    "Place a project as a node — view live progress and active tasks without leaving the canvas.",
+  "workspace.addProject.emptyTitle": "No projects to place",
+  "workspace.addProject.emptyDescription":
+    "Create a project first — the canvas holds references.",
+  "workspace.addProject.added": "Project added to canvas",
+  "workspace.addProject.addFailed": "Failed to add project to canvas",
 
   // --- Nodes (shared) ---
   "workspace.node.removeFailed": "Failed to remove node",
@@ -87,6 +96,7 @@ export const workspace = {
   "workspace.node.removeEventAria": "Remove event node",
   "workspace.node.removeFocusAria": "Remove focus node",
   "workspace.node.removeDocAria": "Remove doc node",
+  "workspace.node.removeProjectAria": "Remove project node",
   "workspace.node.removeUnknownAria": "Remove unknown node",
   // Habit node state labels (habits.ts owns the page's equivalents; the
   // node reuses the same words in its own namespace).
@@ -102,6 +112,7 @@ export const workspace = {
   "workspace.node.kindEvent": "Event",
   "workspace.node.kindFocus": "Focus",
   "workspace.node.kindDoc": "Doc",
+  "workspace.node.kindProject": "Project",
   "workspace.node.kindUnknown": "Unknown",
 
   // --- Doc node (DocNode.tsx) ---
@@ -123,6 +134,17 @@ export const workspace = {
   "workspace.focusNode.stopAria": "Stop timer",
   "workspace.focusNode.session": (params: TranslationParams) =>
     `Session ${params.number}`,
+
+  // --- Project node (ProjectNode.tsx) ---
+  "workspace.project.noTasks": "No active tasks",
+  "workspace.project.allCompleted": "All tasks completed",
+  "workspace.project.completedRatio": (params: TranslationParams) =>
+    `${params.completed}/${params.total} completed (${params.percent}%)`,
+  "workspace.project.viewMoreTasks": (params: TranslationParams) =>
+    `View ${params.count} more tasks →`,
+  "workspace.project.openProject": "Open project view",
+  "workspace.project.activeTaskCount": (params: TranslationParams) =>
+    `${params.count} active`,
 
   // --- Orphan body (NodeOrphanBody.tsx) ---
   "workspace.orphan.body": (params: TranslationParams) =>

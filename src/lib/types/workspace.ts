@@ -90,6 +90,7 @@ export const WORKSPACE_NODE_KINDS = [
   "focus",
   "group",
   "doc",
+  "project",
 ] as const;
 
 export type WorkspaceNodeKind = (typeof WORKSPACE_NODE_KINDS)[number];
@@ -111,6 +112,7 @@ export interface NodePosition {
  * registry is the single declarative source (spec: UI).
  */
 export interface AddNodeInput {
+  id?: string;
   workspaceId: string;
   kind: string;
   entityType: string | null;

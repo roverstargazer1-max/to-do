@@ -71,6 +71,7 @@ import { workspaceEdgeTypes } from "./WorkspaceEdge";
 import { useNodePositionWrites } from "./useNodePositionWrites";
 import { useNodeSizeWrites } from "./useNodeSizeWrites";
 import { AddTaskNodeDialog } from "./AddTaskNodeDialog";
+import { AddProjectNodeDialog } from "./AddProjectNodeDialog";
 import { AddHabitNodeDialog } from "./AddHabitNodeDialog";
 import { AddEventNodeDialog } from "./AddEventNodeDialog";
 import { QuickAddMenu } from "./QuickAddMenu";
@@ -90,7 +91,7 @@ interface WorkspaceCanvasProps {
 }
 
 /** Which node-kind picker the Add menu opens. */
-type AddNodeDialogKind = "task" | "habit" | "event";
+type AddNodeDialogKind = "task" | "habit" | "event" | "project";
 
 /**
  * The workspace's infinite canvas. Nodes are read through the registry
@@ -153,6 +154,23 @@ export function WorkspaceCanvas({ workspaceId }: WorkspaceCanvasProps) {
     }
   }, [editingTask]);
   const activeTaskForPanel = editingTask ?? preservedEditingTask;
+
+  useEffect(() => {
+    const handleOpenTaskDetail = (event: Event) => {
+      const customEvent = event as CustomEvent<{ taskId?: string }>;
+      if (customEvent.detail?.taskId) {
+        setEditingTaskId(customEvent.detail.taskId);
+      }
+    };
+
+    window.addEventListener("workspace:open-task-detail", handleOpenTaskDetail);
+    return () => {
+      window.removeEventListener(
+        "workspace:open-task-detail",
+        handleOpenTaskDetail,
+      );
+    };
+  }, []);
 
   const [nodes, setNodes, onNodesChange] = useNodesState<WorkspaceFlowNode>([]);
   const [edges, setEdges] = useState<WorkspaceFlowEdge[]>([]);
@@ -1391,6 +1409,7 @@ export function WorkspaceCanvas({ workspaceId }: WorkspaceCanvasProps) {
         }}
         onQuickCreateTask={handleQuickCreateTask}
         onPickExistingTask={() => openAddDialog("task", addPosition)}
+        onPickExistingProject={() => openAddDialog("project", addPosition)}
         onAddHabit={() => openAddDialog("habit", addPosition)}
         onAddEvent={() => openAddDialog("event", addPosition)}
         onAddFocus={() => void addFocusNode(addPosition)}
@@ -1406,6 +1425,16 @@ export function WorkspaceCanvas({ workspaceId }: WorkspaceCanvasProps) {
         open={addDialogKind === "task"}
         onOpenChange={(open) => {
           setAddDialogKind(open ? "task" : null);
+          if (!open) setPendingSourceNodeId(null);
+        }}
+        onNodeAdded={(node) => connectPendingSource(node.id)}
+      />
+      <AddProjectNodeDialog
+        workspaceId={workspaceId}
+        position={addPosition}
+        open={addDialogKind === "project"}
+        onOpenChange={(open) => {
+          setAddDialogKind(open ? "project" : null);
           if (!open) setPendingSourceNodeId(null);
         }}
         onNodeAdded={(node) => connectPendingSource(node.id)}

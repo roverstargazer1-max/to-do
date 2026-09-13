@@ -159,6 +159,16 @@ describe("node-kind registry", () => {
     expect(spec?.schema).toBeDefined();
   });
 
+  it("registers the project kind once with kind, defaults, component, commands, schema", () => {
+    const spec = getNodeKindSpec("project");
+    expect(spec).toBeDefined();
+    expect(spec?.kind).toBe("project");
+    expect(spec?.defaults).toEqual({ width: 280, height: null });
+    expect(spec?.component).toBeDefined();
+    expect(Object.keys(spec?.commands ?? {})).toEqual(["add"]);
+    expect(spec?.schema).toBeDefined();
+  });
+
   it("resolves a well-formed task row to the task spec", () => {
     expect(resolveNodeKind(makeRow()).kind).toBe("task");
   });
@@ -206,6 +216,16 @@ describe("node-kind registry", () => {
         }),
       ).kind,
     ).toBe("doc");
+    expect(
+      resolveNodeKind(
+        makeRow({
+          id: "node-p",
+          kind: "project",
+          entity_type: "project",
+          entity_id: "project-1",
+        }),
+      ).kind,
+    ).toBe("project");
   });
 
   it("degrades a doc row that carries an entity pair — the doc kind references nothing", () => {
@@ -287,6 +307,7 @@ describe("node-kind registry", () => {
         "focus",
         "group",
         "habit",
+        "project",
         "task",
       ].sort(),
     );

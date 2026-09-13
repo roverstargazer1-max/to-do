@@ -18,6 +18,7 @@ import { EventNode } from "./EventNode";
 import { FocusNode } from "./FocusNode";
 import { GroupNode } from "./GroupNode";
 import { DocNode } from "./DocNode";
+import { ProjectNode } from "./ProjectNode";
 import { UnknownNode } from "./UnknownNode";
 
 /**
@@ -324,6 +325,44 @@ const docNodeSpec: NodeKindSpec = {
   schema: DocNodeRowSchema,
 };
 
+/** The project row's soft-reference contract: kind, pair, and a real target. */
+const ProjectNodeRowSchema = z.object({
+  kind: z.literal("project"),
+  entity_type: z.literal("project"),
+  entity_id: z.string().min(1),
+});
+
+export type ProjectNodeCommands = {
+  add: (
+    ctx: NodeCommandContext,
+    input: {
+      workspaceId: string;
+      projectId: string;
+      position: NodePosition;
+    },
+  ) => Promise<WorkspaceNode>;
+};
+
+const projectNodeSpec: NodeKindSpec = {
+  kind: "project",
+  label: "Project",
+  defaults: { width: 280, height: null },
+  component: ProjectNode,
+  commands: {
+    add: (ctx: NodeCommandContext, input) =>
+      nodeCommands.add(ctx, {
+        workspaceId: input.workspaceId,
+        kind: "project",
+        entityType: "project",
+        entityId: input.projectId,
+        position: input.position,
+        width: projectNodeSpec.defaults.width,
+        height: projectNodeSpec.defaults.height,
+      }),
+  } satisfies ProjectNodeCommands,
+  schema: ProjectNodeRowSchema,
+};
+
 /** The fallback kind — never registered, never throws. */
 export const UNKNOWN_NODE_KIND = "unknown";
 
@@ -349,6 +388,7 @@ registerNodeKind(eventNodeSpec);
 registerNodeKind(focusNodeSpec);
 registerNodeKind(groupNodeSpec);
 registerNodeKind(docNodeSpec);
+registerNodeKind(projectNodeSpec);
 
 /** Look up a registered kind spec (undefined for unknown kinds). */
 export function getNodeKindSpec(kind: string): NodeKindSpec | undefined {

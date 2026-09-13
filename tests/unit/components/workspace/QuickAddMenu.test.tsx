@@ -10,6 +10,7 @@ describe("QuickAddMenu", () => {
     anchor: { x: 300, y: 400 },
     onQuickCreateTask: vi.fn(),
     onPickExistingTask: vi.fn(),
+    onPickExistingProject: vi.fn(),
     onAddHabit: vi.fn(),
     onAddEvent: vi.fn(),
     onAddFocus: vi.fn(),
@@ -27,6 +28,7 @@ describe("QuickAddMenu", () => {
     expect(screen.getByTestId("quick-add-menu")).toBeDefined();
     expect(screen.getByTestId("quick-add-task-input")).toBeDefined();
     expect(screen.getByTestId("quick-add-pick-task")).toBeDefined();
+    expect(screen.getByTestId("quick-add-pick-project")).toBeDefined();
     expect(screen.getByTestId("quick-add-habit")).toBeDefined();
     expect(screen.getByTestId("quick-add-event")).toBeDefined();
     expect(screen.getByTestId("quick-add-focus")).toBeDefined();
@@ -77,6 +79,14 @@ describe("QuickAddMenu", () => {
 
     fireEvent.click(screen.getByTestId("quick-add-pick-task"));
     expect(defaultProps.onPickExistingTask).toHaveBeenCalled();
+    expect(defaultProps.onClose).toHaveBeenCalled();
+  });
+
+  it("invokes onPickExistingProject when clicking pick project item", () => {
+    render(<QuickAddMenu {...defaultProps} />);
+
+    fireEvent.click(screen.getByTestId("quick-add-pick-project"));
+    expect(defaultProps.onPickExistingProject).toHaveBeenCalled();
     expect(defaultProps.onClose).toHaveBeenCalled();
   });
 
