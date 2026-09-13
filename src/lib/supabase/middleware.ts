@@ -12,12 +12,14 @@ export async function updateSession(request: NextRequest) {
   const isLocalSingleUser =
     process.env.NEXT_PUBLIC_LOCAL_SINGLE_USER === "true";
 
-  if (
-    isLocalSingleUser &&
-    (request.nextUrl.pathname === "/login" ||
-      request.nextUrl.pathname === "/signup")
-  ) {
-    return NextResponse.redirect(new URL("/", request.url));
+  if (isLocalSingleUser) {
+    if (
+      request.nextUrl.pathname === "/login" ||
+      request.nextUrl.pathname === "/signup"
+    ) {
+      return NextResponse.redirect(new URL("/", request.url));
+    }
+    return supabaseResponse;
   }
 
   const supabase = createServerClient(
@@ -51,13 +53,17 @@ export async function updateSession(request: NextRequest) {
     return redirect;
   };
 
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser();
-
-  if (isLocalSingleUser) {
-    return supabaseResponse;
+  let user = null;
+  let error: { message?: string; status?: number } | null = null;
+  try {
+    const result = await supabase.auth.getUser();
+    user = result.data.user;
+    error = result.error;
+  } catch (err: unknown) {
+    error = {
+      message: err instanceof Error ? err.message : String(err),
+      status: 0,
+    };
   }
 
   // Distinct from AUTH_STANDALONE_ROUTES: gates server auth redirects

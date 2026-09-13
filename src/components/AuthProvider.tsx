@@ -30,12 +30,12 @@ type AuthContextType = {
   signUpWithPassword: (
     email: string,
     password: string,
-    captchaToken: string,
+    captchaToken?: string,
   ) => Promise<{ error: AuthError | null }>;
   signInWithPassword: (
     email: string,
     password: string,
-    captchaToken: string,
+    captchaToken?: string,
   ) => Promise<{ error: AuthError | null }>;
   resetPasswordForEmail: (
     email: string,
@@ -142,6 +142,15 @@ export function AuthProvider({
           return;
         }
         if (error) {
+          const isNetworkError =
+            error.message?.toLowerCase().includes("fetch") ||
+            error.status === 0 ||
+            !error.status;
+          if (isNetworkError) {
+            applyNoRealSession();
+            setLoading(false);
+            return;
+          }
           const { data: signUpData } = await supabase.auth.signUp({
             email: localEmail,
             password: localPassword,
@@ -159,17 +168,28 @@ export function AuthProvider({
       setLoading(false);
     };
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        applyRealSession(session);
-        setLoading(false);
-      } else if (isLocalSingleUser) {
-        autoSignInLocal();
-      } else {
-        applyNoRealSession();
-        setLoading(false);
-      }
-    });
+    supabase.auth
+      .getSession()
+      .then(({ data: { session } }) => {
+        if (session) {
+          applyRealSession(session);
+          setLoading(false);
+        } else if (isLocalSingleUser) {
+          autoSignInLocal();
+        } else {
+          applyNoRealSession();
+          setLoading(false);
+        }
+      })
+      .catch((err) => {
+        console.warn("Supabase getSession failed, falling back:", err);
+        if (isLocalSingleUser) {
+          autoSignInLocal();
+        } else {
+          applyNoRealSession();
+          setLoading(false);
+        }
+      });
 
     const {
       data: { subscription },
@@ -216,7 +236,7 @@ export function AuthProvider({
   );
 
   const signUpWithPassword = useCallback(
-    async (email: string, password: string, captchaToken: string) => {
+    async (email: string, password: string, captchaToken?: string) => {
       const { error } = await supabase.auth.signUp({
         email,
         password,
@@ -231,7 +251,7 @@ export function AuthProvider({
   );
 
   const signInWithPassword = useCallback(
-    async (email: string, password: string, captchaToken: string) => {
+    async (email: string, password: string, captchaToken?: string) => {
       const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
