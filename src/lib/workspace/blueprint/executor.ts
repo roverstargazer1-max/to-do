@@ -1,8 +1,10 @@
 import { QueryClient } from "@tanstack/react-query";
 import type {
+  BlueprintDecisionItem,
   BlueprintDocItem,
   BlueprintHabitItem,
   BlueprintProjectItem,
+  BlueprintStepItem,
   BlueprintTaskItem,
   WorkspaceBlueprint,
 } from "./types";
@@ -182,6 +184,55 @@ export async function buildWorkspaceFromBlueprint(
         continue;
       }
 
+      if (layoutNode.kind === "decision") {
+        const decisionItem = layoutNode.item as
+          BlueprintDecisionItem | undefined;
+        const decisionNode = await nodeCommands.add(cmdCtx, {
+          id: layoutNode.id,
+          workspaceId,
+          kind: "decision",
+          entityType: null,
+          entityId: null,
+          position: layoutNode.position,
+          width: layoutNode.width,
+          height: layoutNode.height,
+          groupId: layoutNode.groupId
+            ? (itemIdToNodeId.get(layoutNode.groupId) ?? layoutNode.groupId)
+            : null,
+          displayConfig: {
+            question: decisionItem?.question ?? layoutNode.title ?? "",
+            description: decisionItem?.description ?? "",
+          },
+        });
+        createdNodes.push(decisionNode);
+        itemIdToNodeId.set(layoutNode.id, decisionNode.id);
+        continue;
+      }
+
+      if (layoutNode.kind === "step") {
+        const stepItem = layoutNode.item as BlueprintStepItem | undefined;
+        const stepNode = await nodeCommands.add(cmdCtx, {
+          id: layoutNode.id,
+          workspaceId,
+          kind: "step",
+          entityType: null,
+          entityId: null,
+          position: layoutNode.position,
+          width: layoutNode.width,
+          height: layoutNode.height,
+          groupId: layoutNode.groupId
+            ? (itemIdToNodeId.get(layoutNode.groupId) ?? layoutNode.groupId)
+            : null,
+          displayConfig: {
+            title: stepItem?.title ?? layoutNode.title ?? "",
+            description: stepItem?.description ?? "",
+          },
+        });
+        createdNodes.push(stepNode);
+        itemIdToNodeId.set(layoutNode.id, stepNode.id);
+        continue;
+      }
+
       if (layoutNode.kind === "task") {
         const taskItem = layoutNode.item as BlueprintTaskItem;
         let taskId: string;
@@ -336,6 +387,9 @@ export async function buildWorkspaceFromBlueprint(
         workspaceId,
         sourceNodeId,
         targetNodeId,
+        label: edge.label ?? null,
+        source_handle: edge.sourceHandle ?? null,
+        target_handle: edge.targetHandle ?? null,
       });
       createdEdges.push(createdEdge);
     }

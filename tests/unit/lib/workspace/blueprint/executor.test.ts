@@ -508,4 +508,90 @@ describe("Workspace Blueprint Execution Engine (executor.ts)", () => {
       "ws-test-123",
     );
   });
+
+  it("builds a multi-branch flowchart with Decision nodes, Step nodes, and labeled edges", async () => {
+    const blueprint: WorkspaceBlueprint = {
+      name: "Decision Tree Flow",
+      sections: [
+        {
+          id: "sec-flow",
+          title: "Logic Flow",
+          isGroup: false,
+          items: [
+            {
+              id: "dec-1",
+              kind: "decision",
+              question: "Is Payment Authorized?",
+              description: "Check Stripe webhook status",
+            },
+            {
+              id: "step-1",
+              kind: "step",
+              title: "Fulfill Order",
+              description: "Ship package to customer",
+            },
+          ],
+        },
+      ],
+      flows: [
+        {
+          fromItemId: "dec-1",
+          toItemId: "step-1",
+          label: "Approved",
+          fromPort: "out",
+        },
+      ],
+    };
+
+    const result = await buildWorkspaceFromBlueprint(blueprint, {
+      queryClient,
+    });
+    expect(result.nodeCount).toBe(2);
+    expect(result.edgeCount).toBe(1);
+
+    // Verify Decision node creation call
+    expect(nodeCommands.add).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        id: "dec-1",
+        kind: "decision",
+        entityType: null,
+        entityId: null,
+        width: 240,
+        height: 120,
+        displayConfig: {
+          question: "Is Payment Authorized?",
+          description: "Check Stripe webhook status",
+        },
+      }),
+    );
+
+    // Verify Step node creation call
+    expect(nodeCommands.add).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        id: "step-1",
+        kind: "step",
+        entityType: null,
+        entityId: null,
+        width: 280,
+        height: 88,
+        displayConfig: {
+          title: "Fulfill Order",
+          description: "Ship package to customer",
+        },
+      }),
+    );
+
+    // Verify labeled edge creation with port
+    expect(edgeCommands.add).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        sourceNodeId: "dec-1",
+        targetNodeId: "step-1",
+        label: "Approved",
+        source_handle: "out",
+      }),
+    );
+  });
 });

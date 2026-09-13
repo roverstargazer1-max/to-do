@@ -11,6 +11,7 @@ export interface BlueprintDocItem {
   kind: "doc";
   title: string;
   content: string; // Markdown text
+  branch?: boolean;
 }
 
 export interface BlueprintTaskItem {
@@ -21,6 +22,7 @@ export interface BlueprintTaskItem {
   dueDate?: string;
   projectName?: string; // Links to existing or creates new project
   existingTaskId?: string; // Reuses an existing task if specified
+  branch?: boolean;
 }
 
 export interface BlueprintHabitItem {
@@ -29,6 +31,7 @@ export interface BlueprintHabitItem {
   name: string;
   color?: string;
   existingHabitId?: string; // Reuses an existing habit if specified
+  branch?: boolean;
 }
 
 export interface BlueprintProjectItem {
@@ -37,11 +40,38 @@ export interface BlueprintProjectItem {
   name: string;
   color?: string;
   existingProjectId?: string; // Reuses an existing project if specified
+  branch?: boolean;
 }
 
 export interface BlueprintFocusItem {
   id: string;
   kind: "focus";
+  branch?: boolean;
+}
+
+export interface BlueprintDecisionItem {
+  id: string;
+  kind: "decision";
+  question: string;
+  description?: string;
+  branch?: boolean;
+}
+
+export interface BlueprintStepItem {
+  id: string;
+  kind: "step";
+  title: string;
+  description?: string;
+  branch?: boolean;
+}
+
+export interface BlueprintEventItem {
+  id: string;
+  kind: "event";
+  title: string;
+  date?: string;
+  existingEventId?: string;
+  branch?: boolean;
 }
 
 export type BlueprintItem =
@@ -49,13 +79,19 @@ export type BlueprintItem =
   | BlueprintTaskItem
   | BlueprintHabitItem
   | BlueprintProjectItem
-  | BlueprintFocusItem;
+  | BlueprintFocusItem
+  | BlueprintDecisionItem
+  | BlueprintStepItem
+  | BlueprintEventItem;
 
 export type BlueprintItemKind = BlueprintItem["kind"];
 
 export interface BlueprintFlow {
   fromItemId: string;
   toItemId: string;
+  label?: string;
+  fromPort?: "out" | "out-top" | "out-bottom";
+  toPort?: "in" | "in-top" | "in-bottom";
 }
 
 export interface BlueprintSection {
@@ -94,6 +130,9 @@ export interface CompiledLayoutEdge {
   id: string;
   sourceNodeId: string;
   targetNodeId: string;
+  label?: string | null;
+  sourceHandle?: string | null;
+  targetHandle?: string | null;
 }
 
 export interface CompiledLayoutBounds {
@@ -127,11 +166,25 @@ export interface UpdateDocPatch {
   content?: string;
 }
 
+export interface UpdateDecisionPatch {
+  nodeId: string;
+  question?: string;
+  description?: string;
+}
+
+export interface UpdateStepPatch {
+  nodeId: string;
+  title?: string;
+  description?: string;
+}
+
 export interface BlueprintPatch {
   workspaceId: string;
   addItems?: AddPatchItem[];
   removeNodeIds?: string[];
   updateDocs?: UpdateDocPatch[];
+  updateDecisions?: UpdateDecisionPatch[];
+  updateSteps?: UpdateStepPatch[];
   addFlows?: BlueprintFlow[];
   removeEdgeIds?: string[];
 }
@@ -145,6 +198,7 @@ export const BlueprintDocItemSchema = z.object({
   kind: z.literal("doc"),
   title: z.string(),
   content: z.string(),
+  branch: z.boolean().optional(),
 });
 
 export const BlueprintTaskItemSchema = z.object({
@@ -157,6 +211,7 @@ export const BlueprintTaskItemSchema = z.object({
   dueDate: z.string().optional(),
   projectName: z.string().optional(),
   existingTaskId: z.string().optional(),
+  branch: z.boolean().optional(),
 });
 
 export const BlueprintHabitItemSchema = z.object({
@@ -165,6 +220,7 @@ export const BlueprintHabitItemSchema = z.object({
   name: z.string().min(1),
   color: z.string().optional(),
   existingHabitId: z.string().optional(),
+  branch: z.boolean().optional(),
 });
 
 export const BlueprintProjectItemSchema = z.object({
@@ -173,11 +229,38 @@ export const BlueprintProjectItemSchema = z.object({
   name: z.string().min(1),
   color: z.string().optional(),
   existingProjectId: z.string().optional(),
+  branch: z.boolean().optional(),
 });
 
 export const BlueprintFocusItemSchema = z.object({
   id: z.string().min(1),
   kind: z.literal("focus"),
+  branch: z.boolean().optional(),
+});
+
+export const BlueprintDecisionItemSchema = z.object({
+  id: z.string().min(1),
+  kind: z.literal("decision"),
+  question: z.string().min(1),
+  description: z.string().optional(),
+  branch: z.boolean().optional(),
+});
+
+export const BlueprintStepItemSchema = z.object({
+  id: z.string().min(1),
+  kind: z.literal("step"),
+  title: z.string().min(1),
+  description: z.string().optional(),
+  branch: z.boolean().optional(),
+});
+
+export const BlueprintEventItemSchema = z.object({
+  id: z.string().min(1),
+  kind: z.literal("event"),
+  title: z.string().min(1),
+  date: z.string().optional(),
+  existingEventId: z.string().optional(),
+  branch: z.boolean().optional(),
 });
 
 export const BlueprintItemSchema = z.discriminatedUnion("kind", [
@@ -186,11 +269,17 @@ export const BlueprintItemSchema = z.discriminatedUnion("kind", [
   BlueprintHabitItemSchema,
   BlueprintProjectItemSchema,
   BlueprintFocusItemSchema,
+  BlueprintDecisionItemSchema,
+  BlueprintStepItemSchema,
+  BlueprintEventItemSchema,
 ]);
 
 export const BlueprintFlowSchema = z.object({
   fromItemId: z.string().min(1),
   toItemId: z.string().min(1),
+  label: z.string().optional(),
+  fromPort: z.enum(["out", "out-top", "out-bottom"]).optional(),
+  toPort: z.enum(["in", "in-top", "in-bottom"]).optional(),
 });
 
 export const BlueprintSectionSchema = z.object({
@@ -220,11 +309,25 @@ export const UpdateDocPatchSchema = z.object({
   content: z.string().optional(),
 });
 
+export const UpdateDecisionPatchSchema = z.object({
+  nodeId: z.string().min(1),
+  question: z.string().optional(),
+  description: z.string().optional(),
+});
+
+export const UpdateStepPatchSchema = z.object({
+  nodeId: z.string().min(1),
+  title: z.string().optional(),
+  description: z.string().optional(),
+});
+
 export const BlueprintPatchSchema = z.object({
   workspaceId: z.string().min(1),
   addItems: z.array(AddPatchItemSchema).optional(),
   removeNodeIds: z.array(z.string()).optional(),
   updateDocs: z.array(UpdateDocPatchSchema).optional(),
+  updateDecisions: z.array(UpdateDecisionPatchSchema).optional(),
+  updateSteps: z.array(UpdateStepPatchSchema).optional(),
   addFlows: z.array(BlueprintFlowSchema).optional(),
   removeEdgeIds: z.array(z.string()).optional(),
 });

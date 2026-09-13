@@ -1,6 +1,8 @@
 import type { NodePosition } from "@/lib/types/workspace";
 import type {
+  BlueprintFlow,
   BlueprintItem,
+  BlueprintSection,
   CompiledBlueprintLayout,
   CompiledLayoutBounds,
   CompiledLayoutEdge,
@@ -13,30 +15,34 @@ import type {
  * (Parent: .scratch/workspace-ai-builder/spec.md - Implementation Decision 3)
  */
 export const LAYOUT_CONSTANTS = {
-  /** Horizontal column/lane gap */
-  COLUMN_GAP: 80,
-  /** Vertical card gap within a column or group */
-  CARD_GAP: 20,
-  /** Inner padding for group containers (left, right, bottom) */
-  GROUP_PADDING: 24,
-  /** Header clearance inside group container from top edge to first child */
-  GROUP_HEADER_CLEARANCE: 48,
+  /** Horizontal column/lane gap expanded from 80px to 120px */
+  COLUMN_GAP: 120,
+  /** Vertical card gap expanded from 20px to 40px */
+  CARD_GAP: 40,
+  /** Inner padding for group containers expanded from 24px to 32px */
+  GROUP_PADDING: 32,
+  /** Header clearance inside group container */
+  GROUP_HEADER_CLEARANCE: 52,
   /** Minimum group container dimensions */
-  GROUP_MIN_WIDTH: 240,
-  GROUP_MIN_HEIGHT: 160,
+  GROUP_MIN_WIDTH: 320,
+  GROUP_MIN_HEIGHT: 200,
   /** Standard card dimensions (px) */
   CARD_DIMENSIONS: {
-    task: { width: 260, height: 96 },
-    habit: { width: 240, height: 88 },
-    project: { width: 280, height: 120 },
-    focus: { width: 220, height: 100 },
+    task: { width: 280, height: 96 },
+    habit: { width: 260, height: 88 },
+    event: { width: 260, height: 88 },
+    project: { width: 300, height: 120 },
+    focus: { width: 240, height: 100 },
+    decision: { width: 240, height: 120 },
+    step: { width: 280, height: 88 },
     doc: {
-      width: 280,
+      width: 360,
       minHeight: 160,
-      defaultHeight: 180,
-      baseChrome: 60,
-      lineHeight: 20,
-      charsPerLine: 32,
+      defaultHeight: 200,
+      maxHeight: 480,
+      baseChrome: 76,
+      lineHeight: 22,
+      charsPerLine: 38,
     },
   },
 } as const;
@@ -46,12 +52,71 @@ export interface LayoutOptions {
   origin?: NodePosition;
   /** Horizontal column/lane gap override (default: 80) */
   columnGap?: number;
-  /** Vertical card gap override (default: 20) */
+  /** Vertical card gap override (default: 32) */
   cardGap?: number;
   /** Group inner padding override (default: 24) */
   groupPadding?: number;
   /** Group header clearance override (default: 48) */
   groupHeaderClearance?: number;
+}
+
+export interface NodeGeometricInfo {
+  position?: { x: number; y: number };
+  position_x?: number;
+  position_y?: number;
+  width?: number | null;
+  groupId?: string | null;
+  group_id?: string | null;
+}
+
+export interface OptimalHandles {
+  sourceHandle: "out-bottom" | "out";
+  targetHandle: "in-top" | "in";
+}
+
+/**
+ * Pure topological helper to resolve optimal connection handles based on relative geometric bounds.
+ *
+ * Routing rules:
+ * - When target.y > source.y AND horizontal centers are aligned (diverge by <= 80px):
+ *   route vertically via out-bottom -> in-top.
+ * - Otherwise (lateral flows, cross-column branches with diff > 80px, or target.y <= source.y):
+ *   preserve standard horizontal left-to-right routing via out -> in.
+ */
+export function resolveOptimalHandles(
+  sourceNode?: NodeGeometricInfo | null,
+  targetNode?: NodeGeometricInfo | null,
+): OptimalHandles {
+  if (!sourceNode || !targetNode) {
+    return { sourceHandle: "out", targetHandle: "in" };
+  }
+
+  const sourceX = sourceNode.position?.x ?? sourceNode.position_x ?? 0;
+  const sourceY = sourceNode.position?.y ?? sourceNode.position_y ?? 0;
+  const targetX = targetNode.position?.x ?? targetNode.position_x ?? 0;
+  const targetY = targetNode.position?.y ?? targetNode.position_y ?? 0;
+
+  const sourceWidth = sourceNode.width ?? 0;
+  const targetWidth = targetNode.width ?? 0;
+
+  const sourceCenter = sourceX + sourceWidth / 2;
+  const targetCenter = targetX + targetWidth / 2;
+  const horizontalCenterDiff = Math.abs(sourceCenter - targetCenter);
+
+  // Vertical sequential flow only applies when nodes belong to the same aligned column
+  const isVerticalFlow = targetY > sourceY && horizontalCenterDiff <= 80;
+
+  if (isVerticalFlow) {
+    return {
+      sourceHandle: "out-bottom",
+      targetHandle: "in-top",
+    };
+  }
+
+  return {
+    sourceHandle: "out",
+    targetHandle: "in",
+  };
 }
 
 export interface NodeBounds {
@@ -62,10 +127,19 @@ export interface NodeBounds {
 }
 
 /**
- * Estimate dynamic height for a Doc card based on Markdown text volume.
- * Kagelin Doc cards have a fixed width of 280px, a header with title (~60px base chrome),
- * and Markdown body with line-height ~20px and ~32 characters per wrapped line.
- * Minimum height is 160px; default height for empty/minimal content is 180px.
+ * Element-aware Markdown height estimation model.
+ *
+ * Parses block-level Markdown elements:
+ * - Base chrome: 76px (card header, inner padding, border)
+ * - Heading lines (H1/H2 `#`, `##`): 48px per line
+ * - Subheadings (H3-H6 `###`): 36px per line
+ * - Blank line paragraph breaks: 16px vertical gap
+ * - Bullet/numbered lists (`-`, `*`, `1.`): 26px per item
+ * - Code blocks (```): 32px per code line + 16px block margin
+ * - Standard prose: 22px per visual line (based on charsPerLine)
+ * - Safety margin: +24px padding added to all estimated heights
+ *
+ * Bounded by minHeight (160px) and maxHeight (480px).
  */
 export function estimateDocHeight(content?: string, _title?: string): number {
   if (content === undefined || content === null) {
@@ -76,23 +150,97 @@ export function estimateDocHeight(content?: string, _title?: string): number {
     return LAYOUT_CONSTANTS.CARD_DIMENSIONS.doc.defaultHeight;
   }
 
-  const { baseChrome, lineHeight, charsPerLine, minHeight } =
-    LAYOUT_CONSTANTS.CARD_DIMENSIONS.doc;
+  const {
+    baseChrome = 76,
+    lineHeight = 22,
+    charsPerLine = 38,
+    minHeight = 160,
+  } = LAYOUT_CONSTANTS.CARD_DIMENSIONS.doc;
+  const maxHeight =
+    (LAYOUT_CONSTANTS.CARD_DIMENSIONS.doc as { maxHeight?: number })
+      .maxHeight ?? 480;
 
   const lines = trimmed.split("\n");
-  let visualLines = 0;
+  let totalHeight = baseChrome;
+  let inCodeBlock = false;
 
-  for (const line of lines) {
-    const lineLength = line.trimEnd().length;
-    if (lineLength === 0) {
-      visualLines += 1;
-    } else {
-      visualLines += Math.max(1, Math.ceil(lineLength / charsPerLine));
+  for (const rawLine of lines) {
+    const line = rawLine.trimEnd();
+
+    // Code block fences
+    if (line.trim().startsWith("```")) {
+      if (!inCodeBlock) {
+        inCodeBlock = true;
+        totalHeight += 16;
+      } else {
+        inCodeBlock = false;
+        totalHeight += 16;
+      }
+      continue;
     }
+
+    if (inCodeBlock) {
+      totalHeight += 32;
+      continue;
+    }
+
+    const trimmedLine = line.trim();
+
+    // Blank line / paragraph breaks
+    if (trimmedLine.length === 0) {
+      totalHeight += 16;
+      continue;
+    }
+
+    // Heading lines (H1/H2): 48px per line
+    if (/^#{1,2}\s+/.test(trimmedLine)) {
+      const headingText = trimmedLine.replace(/^#{1,2}\s+/, "");
+      const wrapCount = Math.max(
+        1,
+        Math.ceil(
+          headingText.length / Math.max(1, Math.round(charsPerLine * 0.7)),
+        ),
+      );
+      totalHeight += wrapCount * 48;
+      continue;
+    }
+
+    // Subheadings (H3-H6): 36px per line
+    if (/^#{3,6}\s+/.test(trimmedLine)) {
+      const headingText = trimmedLine.replace(/^#{3,6}\s+/, "");
+      const wrapCount = Math.max(
+        1,
+        Math.ceil(
+          headingText.length / Math.max(1, Math.round(charsPerLine * 0.8)),
+        ),
+      );
+      totalHeight += wrapCount * 36;
+      continue;
+    }
+
+    // Bullet/numbered lists: 26px per item
+    if (/^(\s*[-*+]|\s*\d+\.)\s+/.test(line)) {
+      const itemText = line.replace(/^(\s*[-*+]|\s*\d+\.)\s+/, "");
+      const wrapCount = Math.max(
+        1,
+        Math.ceil(itemText.length / Math.max(1, charsPerLine - 4)),
+      );
+      totalHeight += 26 + (wrapCount - 1) * lineHeight;
+      continue;
+    }
+
+    // Standard prose: 22px per visual line
+    const visualLines = Math.max(
+      1,
+      Math.ceil(trimmedLine.length / charsPerLine),
+    );
+    totalHeight += visualLines * lineHeight;
   }
 
-  const estimated = baseChrome + visualLines * lineHeight;
-  return Math.max(minHeight, estimated);
+  // Safety buffer: +24px padding added to all estimated heights
+  const estimated = totalHeight + 24;
+  const bounded = Math.max(minHeight, estimated);
+  return Math.min(maxHeight, bounded);
 }
 
 /**
@@ -113,6 +261,11 @@ export function getItemDimensions(item: BlueprintItem): {
         width: LAYOUT_CONSTANTS.CARD_DIMENSIONS.habit.width,
         height: LAYOUT_CONSTANTS.CARD_DIMENSIONS.habit.height,
       };
+    case "event":
+      return {
+        width: LAYOUT_CONSTANTS.CARD_DIMENSIONS.event.width,
+        height: LAYOUT_CONSTANTS.CARD_DIMENSIONS.event.height,
+      };
     case "project":
       return {
         width: LAYOUT_CONSTANTS.CARD_DIMENSIONS.project.width,
@@ -122,6 +275,16 @@ export function getItemDimensions(item: BlueprintItem): {
       return {
         width: LAYOUT_CONSTANTS.CARD_DIMENSIONS.focus.width,
         height: LAYOUT_CONSTANTS.CARD_DIMENSIONS.focus.height,
+      };
+    case "decision":
+      return {
+        width: LAYOUT_CONSTANTS.CARD_DIMENSIONS.decision.width,
+        height: LAYOUT_CONSTANTS.CARD_DIMENSIONS.decision.height,
+      };
+    case "step":
+      return {
+        width: LAYOUT_CONSTANTS.CARD_DIMENSIONS.step.width,
+        height: LAYOUT_CONSTANTS.CARD_DIMENSIONS.step.height,
       };
     case "doc":
       return {
@@ -135,6 +298,7 @@ export function getItemDimensions(item: BlueprintItem): {
  * Extract an item's title or display label.
  */
 function getItemTitle(item: BlueprintItem): string | undefined {
+  if ("question" in item) return item.question;
   if ("title" in item) return item.title;
   if ("name" in item) return item.name;
   if ("content" in item) return item.content;
@@ -213,15 +377,77 @@ export function isNodeWithinGroup(
 }
 
 /**
+ * Identify item IDs belonging to secondary branch column within a section.
+ */
+function resolveSectionBranchItemIds(
+  section: BlueprintSection,
+  flows?: BlueprintFlow[],
+): Set<string> {
+  const branchItemIds = new Set<string>();
+  const sectionItemIds = new Set(section.items.map((it) => it.id));
+
+  // 1. Explicitly marked items (branch: true or column: "branch")
+  for (const item of section.items) {
+    if (
+      item.branch ||
+      (item as unknown as { column?: string }).column === "branch"
+    ) {
+      branchItemIds.add(item.id);
+    }
+  }
+
+  // 2. Items targeted by branch flows from within the section
+  if (flows) {
+    const isBranchLabel = (label?: string) =>
+      Boolean(
+        label &&
+        /异常|回滚|熔断|fail|abnormal|rollback|exception|deny|reject|error/i.test(
+          label,
+        ),
+      );
+
+    for (const flow of flows) {
+      if (
+        sectionItemIds.has(flow.fromItemId) &&
+        sectionItemIds.has(flow.toItemId) &&
+        isBranchLabel(flow.label)
+      ) {
+        branchItemIds.add(flow.toItemId);
+      }
+    }
+
+    // 3. Chained flows within the section (if A is branch and A -> B within section, B is also branch)
+    let changed = true;
+    while (changed) {
+      changed = false;
+      for (const flow of flows) {
+        if (
+          sectionItemIds.has(flow.fromItemId) &&
+          sectionItemIds.has(flow.toItemId) &&
+          branchItemIds.has(flow.fromItemId) &&
+          !branchItemIds.has(flow.toItemId)
+        ) {
+          branchItemIds.add(flow.toItemId);
+          changed = true;
+        }
+      }
+    }
+  }
+
+  return branchItemIds;
+}
+
+/**
  * Deterministic Auto-Layout Compiler.
  *
  * Translates a declarative WorkspaceBlueprint into collision-free canvas coordinates.
  *
  * Rules:
- * 1. Sections are laid out sequentially from left to right in columns/lanes (80px gap).
- * 2. Items within sections are stacked vertically (20px gap).
+ * 1. Sections are laid out sequentially from left to right in columns/lanes.
+ * 2. Items within sections are stacked vertically.
  * 3. Group sections (`isGroup: true`):
- *    - Wraps all member items in a parent `group` node with 24px inner padding & 48px header clearance.
+ *    - Supports dual-track branch columns when branching items exist (Offset X: +320px).
+ *    - Wraps all member items in a parent `group` node with padding & header clearance.
  *    - Member item coordinates are converted to group-relative `(x - gx, y - gy)`.
  *    - The group container precedes its members in the nodes array for proper DOM stacking.
  * 4. Non-group sections (`isGroup: false` / omitted):
@@ -273,65 +499,215 @@ export function compileBlueprintLayout(
         nodeIdSet.add(groupNode.id);
         currentX += groupWidth + columnGap;
       } else {
-        const itemDimensions = items.map((item) => getItemDimensions(item));
-        const maxChildWidth = Math.max(...itemDimensions.map((d) => d.width));
-        const groupWidth = Math.max(
-          LAYOUT_CONSTANTS.GROUP_MIN_WIDTH,
-          maxChildWidth + groupPadding * 2,
+        const branchItemIds = resolveSectionBranchItemIds(
+          section,
+          blueprint.flows,
         );
+        const hasTwoTracks =
+          branchItemIds.size > 0 &&
+          items.some((it) => !branchItemIds.has(it.id));
 
-        let currentRelY = headerClearance;
-        const memberNodes: CompiledLayoutNode[] = [];
+        if (!hasTwoTracks) {
+          // Standard single column layout within group
+          const itemDimensions = items.map((item) => getItemDimensions(item));
+          const maxChildWidth = Math.max(...itemDimensions.map((d) => d.width));
+          const groupWidth = Math.max(
+            LAYOUT_CONSTANTS.GROUP_MIN_WIDTH,
+            maxChildWidth + groupPadding * 2,
+          );
 
-        for (let i = 0; i < items.length; i++) {
-          const item = items[i];
-          const dims = itemDimensions[i];
+          let currentRelY = headerClearance;
+          const memberNodes: CompiledLayoutNode[] = [];
 
-          const memberNode: CompiledLayoutNode = {
-            id: item.id,
-            kind: item.kind,
-            position: { x: groupPadding, y: currentRelY },
-            width: dims.width,
-            height: dims.height,
-            groupId: section.id,
+          for (let i = 0; i < items.length; i++) {
+            const item = items[i];
+            const dims = itemDimensions[i];
+
+            const memberNode: CompiledLayoutNode = {
+              id: item.id,
+              kind: item.kind,
+              position: { x: groupPadding, y: currentRelY },
+              width: dims.width,
+              height: dims.height,
+              groupId: section.id,
+              sectionId: section.id,
+              title: getItemTitle(item),
+              color: getItemColor(item),
+              item,
+            };
+
+            memberNodes.push(memberNode);
+            currentRelY += dims.height + cardGap;
+          }
+
+          const lastChildBottom = currentRelY - cardGap;
+          const groupHeight = Math.max(
+            LAYOUT_CONSTANTS.GROUP_MIN_HEIGHT,
+            lastChildBottom + groupPadding,
+          );
+
+          const groupNode: CompiledLayoutNode = {
+            id: section.id,
+            kind: "group",
+            position: { x: currentX, y: origin.y },
+            width: groupWidth,
+            height: groupHeight,
+            groupId: null,
             sectionId: section.id,
-            title: getItemTitle(item),
-            color: getItemColor(item),
-            item,
+            title: section.title,
+            color: section.color,
           };
 
-          memberNodes.push(memberNode);
-          currentRelY += dims.height + cardGap;
+          nodes.push(groupNode);
+          nodeIdSet.add(groupNode.id);
+
+          for (const member of memberNodes) {
+            nodes.push(member);
+            nodeIdSet.add(member.id);
+          }
+
+          currentX += groupWidth + columnGap;
+        } else {
+          // Dual-track layout: Primary Column (left) vs Branch Column (right)
+          const primaryItems: {
+            item: BlueprintItem;
+            dims: { width: number; height: number };
+          }[] = [];
+          const branchItems: {
+            item: BlueprintItem;
+            dims: { width: number; height: number };
+          }[] = [];
+
+          for (const item of items) {
+            const dims = getItemDimensions(item);
+            if (branchItemIds.has(item.id)) {
+              branchItems.push({ item, dims });
+            } else {
+              primaryItems.push({ item, dims });
+            }
+          }
+
+          const primaryColumnWidth = Math.max(
+            ...primaryItems.map((p) => p.dims.width),
+          );
+          const branchColumnWidth = Math.max(
+            ...branchItems.map((b) => b.dims.width),
+          );
+          const interColumnGap = cardGap; // 40px breathing corridor
+
+          const calculatedGroupWidth =
+            primaryColumnWidth +
+            branchColumnWidth +
+            interColumnGap +
+            groupPadding * 2;
+          const groupWidth = Math.max(
+            LAYOUT_CONSTANTS.GROUP_MIN_WIDTH,
+            calculatedGroupWidth,
+          );
+
+          const memberNodes: CompiledLayoutNode[] = [];
+          const primaryNodePositions = new Map<
+            string,
+            { x: number; y: number; height: number }
+          >();
+
+          // 1. Layout Primary Column
+          let primaryRelY = headerClearance;
+          for (const { item, dims } of primaryItems) {
+            const pos = { x: groupPadding, y: primaryRelY };
+            primaryNodePositions.set(item.id, {
+              x: pos.x,
+              y: pos.y,
+              height: dims.height,
+            });
+
+            memberNodes.push({
+              id: item.id,
+              kind: item.kind,
+              position: pos,
+              width: dims.width,
+              height: dims.height,
+              groupId: section.id,
+              sectionId: section.id,
+              title: getItemTitle(item),
+              color: getItemColor(item),
+              item,
+            });
+
+            primaryRelY += dims.height + cardGap;
+          }
+
+          // 2. Layout Branch Column
+          const branchRelX = groupPadding + primaryColumnWidth + interColumnGap;
+          let branchRelY = headerClearance;
+
+          for (const { item, dims } of branchItems) {
+            // Find if this branch item is targeted by a flow from within the primary column
+            let anchorY = headerClearance;
+            if (blueprint.flows) {
+              for (const flow of blueprint.flows) {
+                if (
+                  flow.toItemId === item.id &&
+                  primaryNodePositions.has(flow.fromItemId)
+                ) {
+                  const sourcePos = primaryNodePositions.get(flow.fromItemId)!;
+                  anchorY = Math.max(anchorY, sourcePos.y);
+                }
+              }
+            }
+
+            const itemY = Math.max(branchRelY, anchorY);
+            const pos = { x: branchRelX, y: itemY };
+
+            memberNodes.push({
+              id: item.id,
+              kind: item.kind,
+              position: pos,
+              width: dims.width,
+              height: dims.height,
+              groupId: section.id,
+              sectionId: section.id,
+              title: getItemTitle(item),
+              color: getItemColor(item),
+              item,
+            });
+
+            branchRelY = itemY + dims.height + cardGap;
+          }
+
+          const maxChildBottom = Math.max(
+            primaryRelY - cardGap,
+            branchRelY - cardGap,
+            headerClearance,
+          );
+          const groupHeight = Math.max(
+            LAYOUT_CONSTANTS.GROUP_MIN_HEIGHT,
+            maxChildBottom + groupPadding,
+          );
+
+          const groupNode: CompiledLayoutNode = {
+            id: section.id,
+            kind: "group",
+            position: { x: currentX, y: origin.y },
+            width: groupWidth,
+            height: groupHeight,
+            groupId: null,
+            sectionId: section.id,
+            title: section.title,
+            color: section.color,
+          };
+
+          // Group container comes first so it renders behind member nodes
+          nodes.push(groupNode);
+          nodeIdSet.add(groupNode.id);
+
+          for (const member of memberNodes) {
+            nodes.push(member);
+            nodeIdSet.add(member.id);
+          }
+
+          currentX += groupWidth + columnGap;
         }
-
-        const lastChildBottom = currentRelY - cardGap;
-        const groupHeight = Math.max(
-          LAYOUT_CONSTANTS.GROUP_MIN_HEIGHT,
-          lastChildBottom + groupPadding,
-        );
-
-        const groupNode: CompiledLayoutNode = {
-          id: section.id,
-          kind: "group",
-          position: { x: currentX, y: origin.y },
-          width: groupWidth,
-          height: groupHeight,
-          groupId: null,
-          sectionId: section.id,
-          title: section.title,
-          color: section.color,
-        };
-
-        // Group container comes first so it renders behind member nodes
-        nodes.push(groupNode);
-        nodeIdSet.add(groupNode.id);
-
-        for (const member of memberNodes) {
-          nodes.push(member);
-          nodeIdSet.add(member.id);
-        }
-
-        currentX += groupWidth + columnGap;
       }
     } else {
       // Standalone section: items receive absolute canvas coordinates
@@ -369,6 +745,10 @@ export function compileBlueprintLayout(
 
   // Parse declarative flows into deterministic compiled edges
   if (blueprint.flows) {
+    const nodesById = new Map<string, CompiledLayoutNode>(
+      nodes.map((n) => [n.id, n]),
+    );
+
     for (const flow of blueprint.flows) {
       // Filter out invalid flows referencing non-existent nodes or self-loops
       if (
@@ -376,10 +756,37 @@ export function compileBlueprintLayout(
         nodeIdSet.has(flow.toItemId) &&
         flow.fromItemId !== flow.toItemId
       ) {
+        const sourceNode = nodesById.get(flow.fromItemId);
+        const targetNode = nodesById.get(flow.toItemId);
+        let optimal: OptimalHandles = {
+          sourceHandle: "out",
+          targetHandle: "in",
+        };
+
+        if (sourceNode && targetNode) {
+          const sourceAbs = getNodeAbsoluteBounds(sourceNode, nodesById);
+          const targetAbs = getNodeAbsoluteBounds(targetNode, nodesById);
+          optimal = resolveOptimalHandles(
+            {
+              position: { x: sourceAbs.x, y: sourceAbs.y },
+              width: sourceAbs.width,
+              groupId: sourceNode.groupId,
+            },
+            {
+              position: { x: targetAbs.x, y: targetAbs.y },
+              width: targetAbs.width,
+              groupId: targetNode.groupId,
+            },
+          );
+        }
+
         edges.push({
           id: `flow-${flow.fromItemId}-${flow.toItemId}`,
           sourceNodeId: flow.fromItemId,
           targetNodeId: flow.toItemId,
+          label: flow.label ?? null,
+          sourceHandle: flow.fromPort ?? optimal.sourceHandle,
+          targetHandle: flow.toPort ?? optimal.targetHandle,
         });
       }
     }

@@ -1,10 +1,12 @@
 import { QueryClient } from "@tanstack/react-query";
 import type {
   BlueprintPatch,
+  BlueprintDecisionItem,
   BlueprintDocItem,
-  BlueprintTaskItem,
   BlueprintHabitItem,
   BlueprintProjectItem,
+  BlueprintStepItem,
+  BlueprintTaskItem,
 } from "./types";
 import { BlueprintPatchSchema } from "./types";
 import { getItemDimensions, LAYOUT_CONSTANTS } from "./layout";
@@ -30,6 +32,8 @@ export interface PatchResult {
   addedNodes: WorkspaceNode[];
   removedNodeIds: string[];
   updatedDocNodeIds: string[];
+  updatedDecisionNodeIds?: string[];
+  updatedStepNodeIds?: string[];
   addedEdges: WorkspaceEdge[];
   removedEdgeIds: string[];
 }
@@ -68,6 +72,34 @@ export async function applyWorkspacePatch(
       if (target.kind !== "doc") {
         throw new Error(
           `Cannot update doc: node "${u.nodeId}" is not a doc node`,
+        );
+      }
+    }
+  }
+
+  if (patch.updateDecisions && patch.updateDecisions.length > 0) {
+    for (const u of patch.updateDecisions) {
+      const target = existingNodesById.get(u.nodeId);
+      if (!target) {
+        throw new Error(`Cannot update decision: node "${u.nodeId}" not found`);
+      }
+      if (target.kind !== "decision") {
+        throw new Error(
+          `Cannot update decision: node "${u.nodeId}" is not a decision node`,
+        );
+      }
+    }
+  }
+
+  if (patch.updateSteps && patch.updateSteps.length > 0) {
+    for (const u of patch.updateSteps) {
+      const target = existingNodesById.get(u.nodeId);
+      if (!target) {
+        throw new Error(`Cannot update step: node "${u.nodeId}" not found`);
+      }
+      if (target.kind !== "step") {
+        throw new Error(
+          `Cannot update step: node "${u.nodeId}" is not a step node`,
         );
       }
     }
@@ -147,6 +179,34 @@ export async function applyWorkspacePatch(
         content: u.content,
       });
       updatedDocNodeIds.push(u.nodeId);
+    }
+  }
+
+  // 5b. Execute decision updates
+  const updatedDecisionNodeIds: string[] = [];
+  if (patch.updateDecisions && patch.updateDecisions.length > 0) {
+    for (const u of patch.updateDecisions) {
+      await nodeCommands.updateDecisionNode(cmdCtx, {
+        workspaceId: patch.workspaceId,
+        nodeId: u.nodeId,
+        question: u.question,
+        description: u.description,
+      });
+      updatedDecisionNodeIds.push(u.nodeId);
+    }
+  }
+
+  // 5c. Execute step updates
+  const updatedStepNodeIds: string[] = [];
+  if (patch.updateSteps && patch.updateSteps.length > 0) {
+    for (const u of patch.updateSteps) {
+      await nodeCommands.updateStepNode(cmdCtx, {
+        workspaceId: patch.workspaceId,
+        nodeId: u.nodeId,
+        title: u.title,
+        description: u.description,
+      });
+      updatedStepNodeIds.push(u.nodeId);
     }
   }
 
@@ -281,6 +341,18 @@ export async function applyWorkspacePatch(
         };
       } else if (item.kind === "focus") {
         // focus node has no entity
+      } else if (item.kind === "decision") {
+        const decisionItem = item as BlueprintDecisionItem;
+        displayConfig = {
+          question: decisionItem.question,
+          description: decisionItem.description ?? "",
+        };
+      } else if (item.kind === "step") {
+        const stepItem = item as BlueprintStepItem;
+        displayConfig = {
+          title: stepItem.title,
+          description: stepItem.description ?? "",
+        };
       } else if (item.kind === "task") {
         const taskItem = item as BlueprintTaskItem;
         entityType = "task";
@@ -380,6 +452,9 @@ export async function applyWorkspacePatch(
         workspaceId: patch.workspaceId,
         sourceNodeId,
         targetNodeId,
+        label: flow.label ?? null,
+        source_handle: flow.fromPort ?? null,
+        target_handle: flow.toPort ?? null,
       });
       addedEdges.push(createdEdge);
     }
@@ -390,6 +465,8 @@ export async function applyWorkspacePatch(
     addedNodes,
     removedNodeIds,
     updatedDocNodeIds,
+    updatedDecisionNodeIds,
+    updatedStepNodeIds,
     addedEdges,
     removedEdgeIds,
   };

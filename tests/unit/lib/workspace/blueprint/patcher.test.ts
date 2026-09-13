@@ -18,6 +18,8 @@ vi.mock("@/lib/commands/node", () => ({
     ungroup: vi.fn(),
     renameGroup: vi.fn(),
     updateDocNode: vi.fn(),
+    updateDecisionNode: vi.fn(),
+    updateStepNode: vi.fn(),
     addToGroup: vi.fn(),
     removeFromGroup: vi.fn(),
     remove: vi.fn(),
@@ -227,16 +229,16 @@ describe("Incremental Semantic Patch Engine (patcher.ts)", () => {
     );
 
     // Initial member bottom is y=48 + h=120 = 168.
-    // Next item should be placed at rel y = 168 + 20 (CARD_GAP) = 188.
-    // New task height is 96. So bottom = 188 + 96 = 284.
-    // Group needed height = 284 + 24 (GROUP_PADDING) = 308 > initial height 200.
+    // Next item should be placed at rel y = 168 + 40 (CARD_GAP) = 208.
+    // New task height is 96. So bottom = 208 + 96 = 304.
+    // Group needed height = 304 + 32 (GROUP_PADDING) = 336 > initial height 200.
     // Group resize should be called!
     expect(nodeCommands.resize).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({
         workspaceId: "ws-1",
         nodeId: "group-1",
-        height: 308,
+        height: 336,
       }),
     );
 
@@ -248,7 +250,7 @@ describe("Incremental Semantic Patch Engine (patcher.ts)", () => {
         workspaceId: "ws-1",
         kind: "task",
         groupId: "group-1",
-        position: { x: 24, y: 188 },
+        position: { x: 32, y: 208 },
       }),
     );
 
@@ -281,7 +283,7 @@ describe("Incremental Semantic Patch Engine (patcher.ts)", () => {
     // group-1: x=100, width=320 -> right=420
     // node-task-1: x=500, width=260 -> right=760
     // Max X is 760.
-    // New standalone node should be placed at x = 760 + 80 (COLUMN_GAP) = 840.
+    // New standalone node should be placed at x = 760 + 120 (COLUMN_GAP) = 880.
     expect(nodeCommands.add).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({
@@ -289,7 +291,7 @@ describe("Incremental Semantic Patch Engine (patcher.ts)", () => {
         workspaceId: "ws-1",
         kind: "focus",
         groupId: null,
-        position: expect.objectContaining({ x: 840 }),
+        position: expect.objectContaining({ x: 880 }),
       }),
     );
   });
@@ -384,5 +386,165 @@ describe("Incremental Semantic Patch Engine (patcher.ts)", () => {
     expect(nodeCommands.updateDocNode).not.toHaveBeenCalled();
     expect(nodeCommands.add).not.toHaveBeenCalled();
     expect(nodeCommands.remove).not.toHaveBeenCalled();
+  });
+
+  it("adds Decision, Step nodes and labeled flows via patch", async () => {
+    const patch: BlueprintPatch = {
+      workspaceId: "ws-1",
+      addItems: [
+        {
+          item: {
+            id: "dec-gate",
+            kind: "decision",
+            question: "Is KYC completed?",
+            description: "Check compliance DB",
+          },
+        },
+        {
+          item: {
+            id: "step-approve",
+            kind: "step",
+            title: "Issue Virtual Card",
+          },
+        },
+      ],
+      addFlows: [
+        {
+          fromItemId: "dec-gate",
+          toItemId: "step-approve",
+          label: "Verified",
+          fromPort: "out",
+        },
+      ],
+    };
+
+    const result = await applyWorkspacePatch(patch, {
+      queryClient,
+      nodes: [initialGroup, initialMemberDoc, initialStandaloneTask],
+      edges: [initialEdge],
+    });
+
+    expect(result.addedNodes).toHaveLength(2);
+    expect(result.addedEdges).toHaveLength(1);
+
+    expect(nodeCommands.add).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        id: "dec-gate",
+        kind: "decision",
+        width: 240,
+        height: 120,
+        displayConfig: {
+          question: "Is KYC completed?",
+          description: "Check compliance DB",
+        },
+      }),
+    );
+
+    expect(nodeCommands.add).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        id: "step-approve",
+        kind: "step",
+        width: 280,
+        height: 88,
+        displayConfig: {
+          title: "Issue Virtual Card",
+          description: "",
+        },
+      }),
+    );
+
+    expect(edgeCommands.add).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        sourceNodeId: "dec-gate",
+        targetNodeId: "step-approve",
+        label: "Verified",
+        source_handle: "out",
+      }),
+    );
+  });
+
+  it("updates existing decision and step nodes in place", async () => {
+    const existingDecision: WorkspaceNode = {
+      id: "node-dec-1",
+      workspace_id: "ws-1",
+      user_id: "user-1",
+      kind: "decision",
+      entity_type: null,
+      entity_id: null,
+      position_x: 200,
+      position_y: 200,
+      width: 160,
+      height: 80,
+      group_id: null,
+      display_config: { question: "Old Question?", description: "Old Desc" },
+      created_at: "2026-09-01T00:00:00Z",
+      updated_at: "2026-09-01T00:00:00Z",
+    };
+
+    const existingStep: WorkspaceNode = {
+      id: "node-step-1",
+      workspace_id: "ws-1",
+      user_id: "user-1",
+      kind: "step",
+      entity_type: null,
+      entity_id: null,
+      position_x: 400,
+      position_y: 200,
+      width: 240,
+      height: 80,
+      group_id: null,
+      display_config: { title: "Old Step Title", description: "Old Desc" },
+      created_at: "2026-09-01T00:00:00Z",
+      updated_at: "2026-09-01T00:00:00Z",
+    };
+
+    const patch: BlueprintPatch = {
+      workspaceId: "ws-1",
+      updateDecisions: [
+        {
+          nodeId: "node-dec-1",
+          question: "New KYC Question?",
+          description: "New KYC Rule",
+        },
+      ],
+      updateSteps: [
+        {
+          nodeId: "node-step-1",
+          title: "New Automated Step",
+          description: "Run automated script",
+        },
+      ],
+    };
+
+    const result = await applyWorkspacePatch(patch, {
+      nodes: [existingDecision, existingStep],
+      edges: [],
+    });
+
+    expect(nodeCommands.updateDecisionNode).toHaveBeenCalledWith(
+      expect.anything(),
+      {
+        workspaceId: "ws-1",
+        nodeId: "node-dec-1",
+        question: "New KYC Question?",
+        description: "New KYC Rule",
+      },
+    );
+
+    expect(nodeCommands.updateStepNode).toHaveBeenCalledWith(
+      expect.anything(),
+      {
+        workspaceId: "ws-1",
+        nodeId: "node-step-1",
+        title: "New Automated Step",
+        description: "Run automated script",
+      },
+    );
+
+    expect(result.updatedDecisionNodeIds).toEqual(["node-dec-1"]);
+    expect(result.updatedStepNodeIds).toEqual(["node-step-1"]);
   });
 });
