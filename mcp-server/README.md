@@ -28,6 +28,8 @@ All mutations are executed strictly through Kagelin's domain command layer (`wor
    - Summary: Applies incremental semantic additions, updates, deletions, and connections to an existing workspace without moving untouched cards.
    - Parameters: `BlueprintPatch` (workspaceId, addItems?, removeNodeIds?, updateDocs?, addFlows?, removeEdgeIds?)
 
+See [`instructions.md`](instructions.md) for the detailed node taxonomy (`doc`, `task`, `habit`, `project`, `focus`, `group`, `flows`) and operational rules for AI assistants.
+
 ---
 
 ## Running Locally
