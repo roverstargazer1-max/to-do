@@ -28,8 +28,9 @@ async function currentUserId(): Promise<string> {
     data: { session },
   } = await supabase.auth.getSession();
   const user = session?.user;
-  if (!user) throw new Error("Not authenticated");
-  return user.id;
+  if (user) return user.id;
+  if (process.env.KAGELIN_MCP_USER_ID) return process.env.KAGELIN_MCP_USER_ID;
+  throw new Error("Not authenticated");
 }
 
 export const workspaceMutations = {
@@ -150,22 +151,34 @@ export const workspaceMutations = {
     }
     const userId = await currentUserId();
     const supabase = createClient();
+    const isUuid = (str?: string | null) =>
+      Boolean(
+        str &&
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+          str,
+        ),
+      );
+
+    const insertPayload: Record<string, unknown> = {
+      workspace_id: input.workspaceId,
+      user_id: userId,
+      kind: input.kind,
+      entity_type: input.entityType,
+      entity_id: input.entityId,
+      position_x: input.positionX,
+      position_y: input.positionY,
+      width: input.width,
+      height: input.height,
+      group_id: input.groupId ?? null,
+      display_config: input.displayConfig,
+    };
+    if (isUuid(input.id)) {
+      insertPayload.id = input.id;
+    }
+
     const { data, error } = await supabase
       .from("workspace_nodes")
-      .insert({
-        id: input.id,
-        workspace_id: input.workspaceId,
-        user_id: userId,
-        kind: input.kind,
-        entity_type: input.entityType,
-        entity_id: input.entityId,
-        position_x: input.positionX,
-        position_y: input.positionY,
-        width: input.width,
-        height: input.height,
-        group_id: input.groupId ?? null,
-        display_config: input.displayConfig,
-      })
+      .insert(insertPayload)
       .select("*")
       .single();
     if (error) throw new Error(error.message);
@@ -207,15 +220,27 @@ export const workspaceMutations = {
     }
     const userId = await currentUserId();
     const supabase = createClient();
+    const isUuid = (str?: string | null) =>
+      Boolean(
+        str &&
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+          str,
+        ),
+      );
+
+    const insertPayload: Record<string, unknown> = {
+      workspace_id: input.workspaceId,
+      user_id: userId,
+      source_node_id: input.sourceNodeId,
+      target_node_id: input.targetNodeId,
+    };
+    if (isUuid(input.id)) {
+      insertPayload.id = input.id;
+    }
+
     const { data, error } = await supabase
       .from("workspace_edges")
-      .insert({
-        id: input.id,
-        workspace_id: input.workspaceId,
-        user_id: userId,
-        source_node_id: input.sourceNodeId,
-        target_node_id: input.targetNodeId,
-      })
+      .insert(insertPayload)
       .select("*")
       .single();
     if (error) throw new Error(error.message);

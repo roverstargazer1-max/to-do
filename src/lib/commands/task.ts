@@ -263,6 +263,12 @@ export const taskCommands = {
     }
   },
 
+  /** Alias for `task.create` */
+  createTask: (
+    ctx: TaskCommandContext,
+    newTask: CreateTaskInputWithClientId,
+  ): Promise<Task> => taskCommands.create(ctx, newTask),
+
   /**
    * `task.update` — edit a task (or step) in place, keeping the patch-all-
    * task-and-subtask-queries optimistic policy from useUpdateTask.

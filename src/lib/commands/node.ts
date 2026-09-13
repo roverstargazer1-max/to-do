@@ -76,8 +76,8 @@ export const nodeCommands = {
     ctx: NodeCommandContext,
     input: AddNodeInput,
   ): Promise<WorkspaceNode> => {
-    const node = await workspaceMutations.addNode({
-      id: crypto.randomUUID(),
+    const payload: Parameters<typeof workspaceMutations.addNode>[0] = {
+      id: input.id ?? crypto.randomUUID(),
       workspaceId: input.workspaceId,
       kind: input.kind,
       entityType: input.entityType,
@@ -87,7 +87,11 @@ export const nodeCommands = {
       width: input.width ?? null,
       height: input.height ?? null,
       displayConfig: input.displayConfig ?? null,
-    });
+    };
+    if (input.groupId !== undefined || input.parentId !== undefined) {
+      payload.groupId = input.groupId ?? input.parentId ?? null;
+    }
+    const node = await workspaceMutations.addNode(payload);
 
     invalidateNodeCaches(ctx.queryClient);
     publishDomainEvent({
@@ -98,6 +102,12 @@ export const nodeCommands = {
 
     return node;
   },
+
+  /** Alias for `node.add` */
+  createNode: (
+    ctx: NodeCommandContext,
+    input: AddNodeInput,
+  ): Promise<WorkspaceNode> => nodeCommands.add(ctx, input),
 
   /**
    * `node.move` — persist a node's final position as a row-level PATCH.
@@ -510,4 +520,10 @@ export const nodeCommands = {
       nodeId: node.id,
     });
   },
+
+  /** Alias for `node.remove` */
+  deleteNode: (
+    ctx: NodeCommandContext,
+    node: { id: string; workspace_id: string },
+  ): Promise<void> => nodeCommands.remove(ctx, node),
 };

@@ -496,13 +496,15 @@ export function CommandMenu({ open, onOpenChange }: CommandMenuProps) {
                 <span>{t("command.copyUserId")}</span>
               </CommandItem>
             )}
-            <CommandItem
-              onSelect={() => runCommand(() => setShowSignOutConfirm(true))}
-              className="sumi-red-action"
-            >
-              <LogOut className="mr-2 h-5 w-5" />
-              <span>{t("command.signOut")}</span>
-            </CommandItem>
+            {process.env.NEXT_PUBLIC_LOCAL_SINGLE_USER !== "true" && (
+              <CommandItem
+                onSelect={() => runCommand(() => setShowSignOutConfirm(true))}
+                className="sumi-red-action"
+              >
+                <LogOut className="mr-2 h-5 w-5" />
+                <span>{t("command.signOut")}</span>
+              </CommandItem>
+            )}
           </CommandGroup>
         </CommandList>
       </CommandDialog>

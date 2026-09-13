@@ -68,6 +68,12 @@ export const workspaceCommands = {
     return workspace;
   },
 
+  /** Alias for `workspace.create` */
+  createWorkspace: (
+    ctx: WorkspaceCommandContext,
+    input: CreateWorkspaceInput,
+  ): Promise<Workspace> => workspaceCommands.create(ctx, input),
+
   /** `workspace.rename` — changes the workspace's name and optional color. */
   rename: async (
     ctx: WorkspaceCommandContext,

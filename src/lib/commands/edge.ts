@@ -62,6 +62,12 @@ export const edgeCommands = {
     }
   },
 
+  /** Alias for `edge.add` */
+  createEdge: (
+    ctx: EdgeCommandContext,
+    input: AddEdgeInput,
+  ): Promise<WorkspaceEdge> => edgeCommands.add(ctx, input),
+
   /**
    * `edge.remove` — cut a connection. Both endpoints survive: only the
    * relationship between them goes away.
@@ -79,4 +85,10 @@ export const edgeCommands = {
       edgeId: edge.id,
     });
   },
+
+  /** Alias for `edge.remove` */
+  deleteEdge: (
+    ctx: EdgeCommandContext,
+    edge: { id: string; workspace_id: string },
+  ): Promise<void> => edgeCommands.remove(ctx, edge),
 };
