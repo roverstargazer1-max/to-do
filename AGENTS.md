@@ -51,6 +51,7 @@ Kagelin (codename Kanso) is a Next.js 16 App Router monolith backed by Supabase 
 
 - [`CONTEXT.md`](CONTEXT.md) — canonical domain glossary (Habit vs Entry, Streak vs Score, Goal vs Frequency, Series/Occurrence, Stats vs Insights, calendar sync terms). Read before naming anything in these domains; conflicting terminology must be resolved, not shrugged off.
 - [`docs/adr/`](docs/adr/) — architecture decisions with the rejected alternatives and consequences (client-side calendar token handling, the server-anchored timer model, habit color overrides, frequency-aware streak computation). Check here before "fixing" something that looks like a bug but was a deliberate tradeoff.
+- [`docs/agents/workspace-node-specification.md`](docs/agents/workspace-node-specification.md) — canonical specification for Workspace canvas nodes, layout rules, and MCP blueprint & fine-tuning protocols. Consult whenever building, refactoring, or generating workspace canvas workflows.
 - [`README.md`](README.md) — product feature list and shortcuts, useful for understanding user-facing scope.
 
 ## Conventions
