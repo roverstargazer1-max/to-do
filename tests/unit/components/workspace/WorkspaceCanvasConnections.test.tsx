@@ -43,6 +43,10 @@ vi.mock("@xyflow/react", async () => {
   const React = await import("react");
   const { useState, useCallback } = React;
   return {
+    MarkerType: {
+      Arrow: "arrow",
+      ArrowClosed: "arrowclosed",
+    },
     useNodesState: (initial: unknown[]) => {
       const [nodes, setNodes] = useState(initial);
       const onNodesChange = useCallback(() => {}, []);

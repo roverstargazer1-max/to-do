@@ -26,11 +26,13 @@ import {
   Calendar,
   CheckSquare,
   FileText,
+  GitBranch,
   Group,
   Plus,
   Repeat,
   Timer,
   Ungroup,
+  Workflow,
 } from "lucide-react";
 import { useAuth } from "@/components/AuthProvider";
 import { Button } from "@/components/ui/button";
@@ -60,6 +62,8 @@ import {
   workspaceNodeTypes,
   type FocusNodeCommands,
   type DocNodeCommands,
+  type DecisionNodeCommands,
+  type StepNodeCommands,
   type TaskNodeCommands,
   type WorkspaceFlowNode,
 } from "./node-registry";
@@ -222,6 +226,47 @@ export function WorkspaceCanvas({ workspaceId }: WorkspaceCanvasProps) {
   // a ref because the projection effect reads it without re-subscribing.
   const pendingEdgeIdsRef = useRef<Set<string>>(new Set());
 
+  const handleUpdateEdgeLabel = useCallback(
+    (edgeId: string, label: string) => {
+      const trimmed = label.trim();
+      const finalLabel = trimmed === "" ? null : trimmed;
+
+      queryClient.setQueryData<WorkspaceEdge[]>(
+        workspaceKeys.edges.list(workspaceId, isGuestMode),
+        (old) =>
+          old?.map((row) =>
+            row.id === edgeId ? { ...row, label: finalLabel } : row,
+          ),
+      );
+
+      setEdges((current) =>
+        current.map((edge) => {
+          if (edge.id !== edgeId || !edge.data) return edge;
+          return {
+            ...edge,
+            data: {
+              ...edge.data,
+              edgeId: edge.data.edgeId,
+              workspaceId: edge.data.workspaceId,
+              label: finalLabel,
+            },
+          };
+        }),
+      );
+
+      void edgeCommands
+        .update(
+          { queryClient, isGuestMode },
+          { id: edgeId, workspaceId, label: finalLabel },
+        )
+        .catch((err) => {
+          console.error("Failed to update edge label:", err);
+          notify.error(t("workspace.canvas.updateEdgeLabelFailed"));
+        });
+    },
+    [queryClient, isGuestMode, workspaceId, t],
+  );
+
   // Query rows → flow nodes and flow edges via the registry and the edge
   // projection; rebuilds whenever either list refetches (add / remove /
   // connect / invalidation). Drag positions and freshly drawn lines
@@ -233,6 +278,10 @@ export function WorkspaceCanvas({ workspaceId }: WorkspaceCanvasProps) {
     const persisted = toWorkspaceFlowEdges(
       workspaceEdges ?? [],
       flowNodes.map((node) => node.id),
+      {
+        onUpdateLabel: handleUpdateEdgeLabel,
+        nodes: flowNodes,
+      },
     );
     const persistedIds = new Set(persisted.map((edge) => edge.id));
     // A drawn connection retires the moment its row lands.
@@ -247,7 +296,7 @@ export function WorkspaceCanvas({ workspaceId }: WorkspaceCanvasProps) {
           pendingEdgeIdsRef.current.has(edge.id) && !persistedIds.has(edge.id),
       ),
     ]);
-  }, [workspaceNodes, workspaceEdges, setNodes]);
+  }, [workspaceNodes, workspaceEdges, setNodes, handleUpdateEdgeLabel]);
 
   const handleMoveEnd: OnMoveEnd = useCallback(
     (_event: MouseEvent | TouchEvent | null, viewport: Viewport) => {
@@ -799,7 +848,7 @@ export function WorkspaceCanvas({ workspaceId }: WorkspaceCanvasProps) {
    */
   const handleConnect: OnConnect = useCallback(
     (connection: Connection) => {
-      const { source, target } = connection;
+      const { source, target, sourceHandle, targetHandle } = connection;
       if (!source || !target || source === target) return;
 
       const edgeId = crypto.randomUUID();
@@ -810,8 +859,16 @@ export function WorkspaceCanvas({ workspaceId }: WorkspaceCanvasProps) {
           id: edgeId,
           source,
           target,
+          sourceHandle: sourceHandle ?? undefined,
+          targetHandle: targetHandle ?? undefined,
           type: "default",
-          data: { edgeId, workspaceId },
+          data: {
+            edgeId,
+            workspaceId,
+            label: null,
+            onUpdateLabel: (newLabel: string) =>
+              handleUpdateEdgeLabel(edgeId, newLabel),
+          },
         },
       ]);
 
@@ -823,6 +880,8 @@ export function WorkspaceCanvas({ workspaceId }: WorkspaceCanvasProps) {
             workspaceId,
             sourceNodeId: source,
             targetNodeId: target,
+            ...(sourceHandle ? { source_handle: sourceHandle } : {}),
+            ...(targetHandle ? { target_handle: targetHandle } : {}),
           },
         )
         .catch((err) => {
@@ -830,7 +889,7 @@ export function WorkspaceCanvas({ workspaceId }: WorkspaceCanvasProps) {
           notify.error(t("workspace.canvas.connectFailed"));
         });
     },
-    [queryClient, isGuestMode, workspaceId, t],
+    [queryClient, isGuestMode, workspaceId, t, handleUpdateEdgeLabel],
   );
 
   const handleConnectStart: OnConnectStart = useCallback((_event, params) => {
@@ -877,7 +936,13 @@ export function WorkspaceCanvas({ workspaceId }: WorkspaceCanvasProps) {
           source,
           target: newNodeId,
           type: "default",
-          data: { edgeId, workspaceId },
+          data: {
+            edgeId,
+            workspaceId,
+            label: null,
+            onUpdateLabel: (newLabel: string) =>
+              handleUpdateEdgeLabel(edgeId, newLabel),
+          },
         },
       ]);
       void edgeCommands
@@ -894,7 +959,14 @@ export function WorkspaceCanvas({ workspaceId }: WorkspaceCanvasProps) {
           console.error("Failed to connect nodes:", err);
         });
     },
-    [pendingSourceNodeId, workspaceId, queryClient, isGuestMode, setEdges],
+    [
+      pendingSourceNodeId,
+      workspaceId,
+      queryClient,
+      isGuestMode,
+      setEdges,
+      handleUpdateEdgeLabel,
+    ],
   );
 
   /**
@@ -1226,6 +1298,74 @@ export function WorkspaceCanvas({ workspaceId }: WorkspaceCanvasProps) {
     ],
   );
 
+  // A decision node references conditional branching logic, pure layout.
+  const addDecisionNode = useCallback(
+    async (customPosition?: NodePosition) => {
+      const spec = getNodeKindSpec("decision");
+      if (!spec) return;
+      const pos = customPosition ?? addPosition ?? getCenterPosition();
+      try {
+        const createdNode = await (spec.commands as DecisionNodeCommands).add(
+          { queryClient, isGuestMode },
+          { workspaceId, position: pos },
+        );
+        notify(t("workspace.canvas.decisionAdded"));
+        if (createdNode && pendingSourceNodeId) {
+          connectPendingSource(createdNode.id);
+        }
+      } catch (err) {
+        console.error("Failed to add decision node:", err);
+        notify.error(t("workspace.canvas.decisionAddFailed"));
+      } finally {
+        setPendingSourceNodeId(null);
+      }
+    },
+    [
+      queryClient,
+      isGuestMode,
+      workspaceId,
+      addPosition,
+      getCenterPosition,
+      pendingSourceNodeId,
+      connectPendingSource,
+      t,
+    ],
+  );
+
+  // A step node references procedural intermediate states, pure layout.
+  const addStepNode = useCallback(
+    async (customPosition?: NodePosition) => {
+      const spec = getNodeKindSpec("step");
+      if (!spec) return;
+      const pos = customPosition ?? addPosition ?? getCenterPosition();
+      try {
+        const createdNode = await (spec.commands as StepNodeCommands).add(
+          { queryClient, isGuestMode },
+          { workspaceId, position: pos },
+        );
+        notify(t("workspace.canvas.stepAdded"));
+        if (createdNode && pendingSourceNodeId) {
+          connectPendingSource(createdNode.id);
+        }
+      } catch (err) {
+        console.error("Failed to add step node:", err);
+        notify.error(t("workspace.canvas.stepAddFailed"));
+      } finally {
+        setPendingSourceNodeId(null);
+      }
+    },
+    [
+      queryClient,
+      isGuestMode,
+      workspaceId,
+      addPosition,
+      getCenterPosition,
+      pendingSourceNodeId,
+      connectPendingSource,
+      t,
+    ],
+  );
+
   /**
    * Fast inline task creation: creates task directly in inbox and places node at addPosition.
    */
@@ -1379,6 +1519,22 @@ export function WorkspaceCanvas({ workspaceId }: WorkspaceCanvasProps) {
               <FileText className="h-4 w-4" strokeWidth={2.25} />
               {t("workspace.canvas.addDoc")}
             </DropdownMenuItem>
+            <DropdownMenuItem
+              data-testid="add-node-decision"
+              onClick={() => void addDecisionNode()}
+              className="gap-2.5"
+            >
+              <GitBranch className="h-4 w-4" strokeWidth={2.25} />
+              {t("workspace.canvas.addDecision")}
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              data-testid="add-node-step"
+              onClick={() => void addStepNode()}
+              className="gap-2.5"
+            >
+              <Workflow className="h-4 w-4" strokeWidth={2.25} />
+              {t("workspace.canvas.addStep")}
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
 
@@ -1414,6 +1570,8 @@ export function WorkspaceCanvas({ workspaceId }: WorkspaceCanvasProps) {
         onAddEvent={() => openAddDialog("event", addPosition)}
         onAddFocus={() => void addFocusNode(addPosition)}
         onAddDoc={() => void addDocNode(addPosition)}
+        onAddDecision={() => void addDecisionNode(addPosition)}
+        onAddStep={() => void addStepNode(addPosition)}
         onFitView={() =>
           reactFlowInstanceRef.current?.fitView({ duration: 300 })
         }

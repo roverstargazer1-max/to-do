@@ -1,4 +1,5 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
+import { MarkerType } from "@xyflow/react";
 import { toWorkspaceFlowEdges } from "@/components/workspace/edge-projection";
 import type { WorkspaceEdge } from "@/lib/types/workspace";
 
@@ -35,9 +36,122 @@ describe("toWorkspaceFlowEdges", () => {
     expect(edge.source).toBe("node-a");
     expect(edge.target).toBe("node-b");
     expect(edge.type).toBe("default");
+    expect(edge.markerEnd).toEqual({
+      type: MarkerType.ArrowClosed,
+      width: 14,
+      height: 14,
+    });
     // What a cut needs travels with the edge: its id, and the workspace it
     // belongs to. The row itself does not.
     expect(edge.data).toEqual({ edgeId: "edge-1", workspaceId: "ws-1" });
+  });
+
+  it("translates a labeled row carrying label and wires up onUpdateLabel callback", () => {
+    const onUpdate = vi.fn();
+    const [edge] = toWorkspaceFlowEdges(
+      [makeEdge({ label: "Approved" })],
+      ["node-a", "node-b"],
+      { onUpdateLabel: onUpdate },
+    );
+
+    expect(edge.data?.label).toBe("Approved");
+    expect(typeof edge.data?.onUpdateLabel).toBe("function");
+
+    edge.data?.onUpdateLabel?.("Rejected");
+    expect(onUpdate).toHaveBeenCalledWith("edge-1", "Rejected");
+  });
+
+  it("projects source_handle and target_handle to sourceHandle and targetHandle", () => {
+    const [edge] = toWorkspaceFlowEdges(
+      [
+        makeEdge({
+          source_handle: "out-top",
+          target_handle: "in-bottom",
+        }),
+      ],
+      ["node-a", "node-b"],
+    );
+
+    expect(edge.sourceHandle).toBe("out-top");
+    expect(edge.targetHandle).toBe("in-bottom");
+  });
+
+  it("dynamically resolves out-bottom -> in-top for unanchored vertical flows when nodes are provided", () => {
+    const nodes = [
+      {
+        id: "node-a",
+        position: { x: 50, y: 100 },
+        width: 240,
+        groupId: "lane-1",
+      },
+      {
+        id: "node-b",
+        position: { x: 50, y: 250 },
+        width: 240,
+        groupId: "lane-1",
+      },
+    ];
+
+    const [edge] = toWorkspaceFlowEdges(
+      [makeEdge({ source_handle: null, target_handle: null })],
+      ["node-a", "node-b"],
+      { nodes },
+    );
+
+    expect(edge.sourceHandle).toBe("out-bottom");
+    expect(edge.targetHandle).toBe("in-top");
+  });
+
+  it("dynamically resolves out -> in for unanchored horizontal flows across lanes", () => {
+    const nodes = [
+      {
+        id: "node-a",
+        position: { x: 50, y: 100 },
+        width: 240,
+        groupId: "lane-1",
+      },
+      {
+        id: "node-b",
+        position: { x: 350, y: 100 },
+        width: 240,
+        groupId: "lane-2",
+      },
+    ];
+
+    const [edge] = toWorkspaceFlowEdges(
+      [makeEdge({ source_handle: null, target_handle: null })],
+      ["node-a", "node-b"],
+      { nodes },
+    );
+
+    expect(edge.sourceHandle).toBe("out");
+    expect(edge.targetHandle).toBe("in");
+  });
+
+  it("preserves explicit persisted handles even when nodes are provided", () => {
+    const nodes = [
+      {
+        id: "node-a",
+        position: { x: 50, y: 100 },
+        width: 240,
+        groupId: "lane-1",
+      },
+      {
+        id: "node-b",
+        position: { x: 50, y: 250 },
+        width: 240,
+        groupId: "lane-1",
+      },
+    ];
+
+    const [edge] = toWorkspaceFlowEdges(
+      [makeEdge({ source_handle: "out", target_handle: "in" })],
+      ["node-a", "node-b"],
+      { nodes },
+    );
+
+    expect(edge.sourceHandle).toBe("out");
+    expect(edge.targetHandle).toBe("in");
   });
 
   it("keeps the two directions of a pair apart — A → B is not B → A", () => {
