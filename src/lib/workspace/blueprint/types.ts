@@ -180,6 +180,8 @@ export interface UpdateStepPatch {
 
 export interface BlueprintPatch {
   workspaceId: string;
+  /** Required by the MCP adapter when the patch removes canvas data. */
+  destructiveConfirmation?: boolean;
   addItems?: AddPatchItem[];
   removeNodeIds?: string[];
   updateDocs?: UpdateDocPatch[];
@@ -323,6 +325,7 @@ export const UpdateStepPatchSchema = z.object({
 
 export const BlueprintPatchSchema = z.object({
   workspaceId: z.string().min(1),
+  destructiveConfirmation: z.boolean().optional(),
   addItems: z.array(AddPatchItemSchema).optional(),
   removeNodeIds: z.array(z.string()).optional(),
   updateDocs: z.array(UpdateDocPatchSchema).optional(),

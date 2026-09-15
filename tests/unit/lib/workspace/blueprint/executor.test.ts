@@ -7,7 +7,10 @@ import { edgeCommands } from "@/lib/commands/edge";
 import { taskCommands } from "@/lib/commands/task";
 import { projectCommands } from "@/lib/commands/project";
 import { habitCommands } from "@/lib/commands/habit";
-import { buildWorkspaceFromBlueprint } from "@/lib/workspace/blueprint/executor";
+import {
+  BlueprintCompensationError,
+  buildWorkspaceFromBlueprint,
+} from "@/lib/workspace/blueprint/executor";
 import type {
   Workspace,
   WorkspaceNode,
@@ -15,6 +18,7 @@ import type {
 } from "@/lib/types/workspace";
 import type { Task, Project } from "@/lib/types/task";
 import type { Habit } from "@/lib/types/habit";
+import { toErrorPayload } from "@/lib/workspace/ai-contract";
 
 vi.mock("@/lib/commands/workspace", () => ({
   workspaceCommands: {
@@ -63,6 +67,7 @@ vi.mock("@/lib/commands/project", () => ({
   projectCommands: {
     create: vi.fn(),
     createProject: vi.fn(),
+    delete: vi.fn(),
   },
 }));
 
@@ -70,6 +75,7 @@ vi.mock("@/lib/commands/habit", () => ({
   habitCommands: {
     create: vi.fn(),
     createHabit: vi.fn(),
+    delete: vi.fn(),
   },
 }));
 
@@ -99,6 +105,8 @@ describe("Workspace Blueprint Execution Engine (executor.ts)", () => {
     );
 
     vi.mocked(workspaceCommands.delete).mockResolvedValue(undefined);
+    vi.mocked(projectCommands.delete).mockResolvedValue(undefined);
+    vi.mocked(habitCommands.delete).mockResolvedValue(undefined);
 
     vi.mocked(nodeCommands.add).mockImplementation(
       async (_ctx, input) =>
@@ -507,6 +515,165 @@ describe("Workspace Blueprint Execution Engine (executor.ts)", () => {
       expect.anything(),
       "ws-test-123",
     );
+  });
+
+  it("compensates only entities created by a failed build", async () => {
+    const defaultNodeAdd = vi.mocked(nodeCommands.add).getMockImplementation();
+    expect(defaultNodeAdd).toBeDefined();
+    vi.mocked(nodeCommands.add).mockImplementation(async (ctx, input) => {
+      if (input.id === "failing-doc") {
+        throw new Error("node write failed");
+      }
+      return defaultNodeAdd!(ctx, input);
+    });
+
+    const blueprint: WorkspaceBlueprint = {
+      name: "Compensated build",
+      sections: [
+        {
+          id: "section",
+          title: "Section",
+          items: [
+            {
+              id: "created-task",
+              kind: "task",
+              content: "Created during this operation",
+              projectName: "Temporary project",
+            },
+            {
+              id: "failing-doc",
+              kind: "doc",
+              title: "Failure",
+              content: "This node fails",
+            },
+          ],
+        },
+      ],
+    };
+
+    await expect(
+      buildWorkspaceFromBlueprint(blueprint, { queryClient }),
+    ).rejects.toThrow("node write failed");
+
+    expect(workspaceCommands.delete).toHaveBeenCalledWith(
+      expect.anything(),
+      "ws-test-123",
+    );
+    expect(taskCommands.delete).toHaveBeenCalledWith(
+      expect.anything(),
+      "task-created-1",
+    );
+    expect(projectCommands.delete).toHaveBeenCalledWith(
+      expect.anything(),
+      "project-temporary-project",
+    );
+  });
+
+  it("reports retained identifiers when entity compensation fails", async () => {
+    const defaultNodeAdd = vi.mocked(nodeCommands.add).getMockImplementation();
+    expect(defaultNodeAdd).toBeDefined();
+    vi.mocked(nodeCommands.add).mockImplementation(async (ctx, input) => {
+      if (input.id === "failing-doc") {
+        throw new Error("node write failed");
+      }
+      return defaultNodeAdd!(ctx, input);
+    });
+    vi.mocked(taskCommands.delete).mockRejectedValueOnce(
+      new Error("task cleanup unavailable"),
+    );
+
+    const blueprint: WorkspaceBlueprint = {
+      name: "Partially compensated build",
+      sections: [
+        {
+          id: "section",
+          title: "Section",
+          items: [
+            {
+              id: "created-task",
+              kind: "task",
+              content: "Created during this operation",
+            },
+            {
+              id: "failing-doc",
+              kind: "doc",
+              title: "Failure",
+              content: "This node fails",
+            },
+          ],
+        },
+      ],
+    };
+
+    let caught: unknown;
+    try {
+      await buildWorkspaceFromBlueprint(blueprint, { queryClient });
+    } catch (error) {
+      caught = error;
+    }
+
+    expect(caught).toBeInstanceOf(BlueprintCompensationError);
+    expect(caught).toMatchObject({
+      workspaceId: "ws-test-123",
+      retainedEntityIds: {
+        tasks: ["task-created-1"],
+        habits: [],
+        projects: [],
+      },
+      compensationErrors: [expect.stringContaining("task-created-1")],
+    });
+    expect(toErrorPayload(caught)).toMatchObject({
+      success: false,
+      error: {
+        category: "compensation",
+        details: {
+          status: "partial",
+          retainedEntityIds: {
+            tasks: ["task-created-1"],
+          },
+        },
+      },
+    });
+  });
+
+  it("never compensates an entity that the blueprint only referenced", async () => {
+    const defaultNodeAdd = vi.mocked(nodeCommands.add).getMockImplementation();
+    expect(defaultNodeAdd).toBeDefined();
+    vi.mocked(nodeCommands.add).mockImplementation(async (ctx, input) => {
+      if (input.id === "failing-doc") {
+        throw new Error("node write failed");
+      }
+      return defaultNodeAdd!(ctx, input);
+    });
+
+    const blueprint: WorkspaceBlueprint = {
+      name: "Referenced entity remains",
+      sections: [
+        {
+          id: "section",
+          title: "Section",
+          items: [
+            {
+              id: "existing-task",
+              kind: "task",
+              content: "Pre-existing task",
+              existingTaskId: "task-existing",
+            },
+            {
+              id: "failing-doc",
+              kind: "doc",
+              title: "Failure",
+              content: "This node fails",
+            },
+          ],
+        },
+      ],
+    };
+
+    await expect(
+      buildWorkspaceFromBlueprint(blueprint, { queryClient }),
+    ).rejects.toThrow("node write failed");
+    expect(taskCommands.delete).not.toHaveBeenCalled();
   });
 
   it("builds a multi-branch flowchart with Decision nodes, Step nodes, and labeled edges", async () => {

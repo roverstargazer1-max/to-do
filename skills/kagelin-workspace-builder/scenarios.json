@@ -1,0 +1,45 @@
+[
+  {
+    "id": "create-detailed-with-reuse",
+    "intent": "Create a detailed Workspace containing a matching existing Task",
+    "requiredToolOrder": ["inspect_app_context", "build_workspace"],
+    "optionalVerification": true,
+    "forbiddenTool": "patch_workspace"
+  },
+  {
+    "id": "create-topology-first",
+    "intent": "Create a concise flowchart from topology-first input",
+    "requiredToolOrder": ["build_workspace"],
+    "optionalVerification": true,
+    "forbiddenSemantic": "runtime automation"
+  },
+  {
+    "id": "patch-existing-target",
+    "intent": "Change one existing Workspace without disturbing untouched layout",
+    "requiredToolOrder": [
+      "list_workspaces",
+      "get_workspace_blueprint",
+      "patch_workspace"
+    ],
+    "optionalVerification": true,
+    "forbiddenTool": "build_workspace"
+  },
+  {
+    "id": "confirm-removal",
+    "intent": "Remove a selected node from an existing Workspace",
+    "requiredToolOrder": [
+      "list_workspaces",
+      "get_workspace_blueprint",
+      "patch_workspace"
+    ],
+    "requiresUserConfirmation": true,
+    "requiredMarker": "destructiveConfirmation"
+  },
+  {
+    "id": "ambiguous-existing-target",
+    "intent": "Modify a request whose Workspace target is not unique",
+    "requiredToolOrder": ["list_workspaces"],
+    "requiresClarification": true,
+    "forbiddenTool": "patch_workspace"
+  }
+]

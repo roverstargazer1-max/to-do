@@ -27,4 +27,10 @@ export const habitCommands = {
     ctx: HabitCommandContext,
     input: CreateHabitInput,
   ): Promise<Habit> => habitCommands.create(ctx, input),
+
+  /** `habit.delete` — hard-deletes a habit during an explicit domain flow. */
+  delete: async (ctx: HabitCommandContext, id: string): Promise<void> => {
+    await habitMutations.delete(id);
+    void ctx.queryClient.invalidateQueries({ queryKey: ["habits"] });
+  },
 };

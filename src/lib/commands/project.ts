@@ -35,4 +35,10 @@ export const projectCommands = {
     ctx: ProjectCommandContext,
     input: CreateProjectCommandInput,
   ): Promise<Project> => projectCommands.create(ctx, input),
+
+  /** `project.delete` — hard-deletes a project during an explicit domain flow. */
+  delete: async (ctx: ProjectCommandContext, id: string): Promise<void> => {
+    await projectMutations.delete(id);
+    void ctx.queryClient.invalidateQueries({ queryKey: ["projects"] });
+  },
 };

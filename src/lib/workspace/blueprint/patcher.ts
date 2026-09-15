@@ -10,13 +10,12 @@ import type {
 } from "./types";
 import { BlueprintPatchSchema } from "./types";
 import { getItemDimensions, LAYOUT_CONSTANTS } from "./layout";
-import { nodeCommands } from "@/lib/commands/node";
-import { edgeCommands } from "@/lib/commands/edge";
-import { taskCommands } from "@/lib/commands/task";
-import { projectCommands } from "@/lib/commands/project";
-import { habitCommands } from "@/lib/commands/habit";
 import { workspaceMutations } from "@/lib/mutations/workspace";
 import type { WorkspaceNode, WorkspaceEdge } from "@/lib/types/workspace";
+import {
+  defaultBlueprintCommandAdapters,
+  type BlueprintCommandAdapters,
+} from "./commands";
 
 export interface PatchOptions {
   queryClient?: QueryClient;
@@ -25,6 +24,7 @@ export interface PatchOptions {
   edges?: WorkspaceEdge[];
   onResolveProject?: (name: string) => Promise<string | undefined>;
   onResolveHabit?: (name: string) => Promise<string | undefined>;
+  commandAdapters?: BlueprintCommandAdapters;
 }
 
 export interface PatchResult {
@@ -36,6 +36,17 @@ export interface PatchResult {
   updatedStepNodeIds?: string[];
   addedEdges: WorkspaceEdge[];
   removedEdgeIds: string[];
+  itemNodeIds: Record<string, string>;
+  linkedEntityIds: {
+    tasks: string[];
+    habits: string[];
+    projects: string[];
+  };
+  createdEntityIds: {
+    tasks: string[];
+    habits: string[];
+    projects: string[];
+  };
 }
 
 /**
@@ -61,6 +72,7 @@ export async function applyWorkspacePatch(
   const existingEdgesById = new Map<string, WorkspaceEdge>(
     existingEdges.map((e) => [e.id, e]),
   );
+  const commands = options?.commandAdapters ?? defaultBlueprintCommandAdapters;
 
   // 3. Pre-validate IDs before executing mutations
   if (patch.updateDocs && patch.updateDocs.length > 0) {
@@ -124,6 +136,14 @@ export async function applyWorkspacePatch(
   const newAddIds = new Set<string>();
   if (patch.addItems && patch.addItems.length > 0) {
     for (const add of patch.addItems) {
+      if (newAddIds.has(add.item.id)) {
+        throw new Error(`Cannot add item: duplicate item "${add.item.id}"`);
+      }
+      if (existingNodesById.has(add.item.id)) {
+        throw new Error(
+          `Cannot add item: node "${add.item.id}" already exists`,
+        );
+      }
       newAddIds.add(add.item.id);
       const targetGroupId = add.targetGroupId ?? add.sectionId;
       if (targetGroupId) {
@@ -136,7 +156,11 @@ export async function applyWorkspacePatch(
   }
 
   if (patch.addFlows && patch.addFlows.length > 0) {
+    const requestedPairs = new Set<string>();
     for (const flow of patch.addFlows) {
+      if (flow.fromItemId === flow.toItemId) {
+        throw new Error("Cannot add flow: self-connections are not allowed");
+      }
       const hasSource =
         existingNodesById.has(flow.fromItemId) ||
         newAddIds.has(flow.fromItemId);
@@ -147,6 +171,27 @@ export async function applyWorkspacePatch(
       }
       if (!hasTarget) {
         throw new Error(`Cannot add flow: node "${flow.toItemId}" not found`);
+      }
+      if (
+        patch.removeNodeIds?.includes(flow.fromItemId) ||
+        patch.removeNodeIds?.includes(flow.toItemId)
+      ) {
+        throw new Error("Cannot add flow: an endpoint is being removed");
+      }
+      const pair = `${flow.fromItemId}\u0000${flow.toItemId}`;
+      if (requestedPairs.has(pair)) {
+        throw new Error(
+          "Cannot add flow: duplicate connections are not allowed",
+        );
+      }
+      requestedPairs.add(pair);
+      const existingPair = existingEdges.find(
+        (edge) =>
+          edge.source_node_id === flow.fromItemId &&
+          edge.target_node_id === flow.toItemId,
+      );
+      if (existingPair && !patch.removeEdgeIds?.includes(existingPair.id)) {
+        throw new Error("Cannot add flow: duplicate connection already exists");
       }
     }
   }
@@ -172,7 +217,7 @@ export async function applyWorkspacePatch(
   const updatedDocNodeIds: string[] = [];
   if (patch.updateDocs && patch.updateDocs.length > 0) {
     for (const u of patch.updateDocs) {
-      await nodeCommands.updateDocNode(cmdCtx, {
+      await commands.node.updateDocNode(cmdCtx, {
         workspaceId: patch.workspaceId,
         nodeId: u.nodeId,
         title: u.title,
@@ -186,7 +231,7 @@ export async function applyWorkspacePatch(
   const updatedDecisionNodeIds: string[] = [];
   if (patch.updateDecisions && patch.updateDecisions.length > 0) {
     for (const u of patch.updateDecisions) {
-      await nodeCommands.updateDecisionNode(cmdCtx, {
+      await commands.node.updateDecisionNode(cmdCtx, {
         workspaceId: patch.workspaceId,
         nodeId: u.nodeId,
         question: u.question,
@@ -200,7 +245,7 @@ export async function applyWorkspacePatch(
   const updatedStepNodeIds: string[] = [];
   if (patch.updateSteps && patch.updateSteps.length > 0) {
     for (const u of patch.updateSteps) {
-      await nodeCommands.updateStepNode(cmdCtx, {
+      await commands.node.updateStepNode(cmdCtx, {
         workspaceId: patch.workspaceId,
         nodeId: u.nodeId,
         title: u.title,
@@ -214,7 +259,7 @@ export async function applyWorkspacePatch(
   const removedNodeIds: string[] = [];
   if (patch.removeNodeIds && patch.removeNodeIds.length > 0) {
     for (const id of patch.removeNodeIds) {
-      await nodeCommands.remove(cmdCtx, {
+      await commands.node.remove(cmdCtx, {
         id,
         workspace_id: patch.workspaceId,
       });
@@ -227,7 +272,7 @@ export async function applyWorkspacePatch(
   const removedEdgeIds: string[] = [];
   if (patch.removeEdgeIds && patch.removeEdgeIds.length > 0) {
     for (const id of patch.removeEdgeIds) {
-      await edgeCommands.remove(cmdCtx, {
+      await commands.edge.remove(cmdCtx, {
         id,
         workspace_id: patch.workspaceId,
       });
@@ -239,6 +284,16 @@ export async function applyWorkspacePatch(
   // 8. Execute item additions
   const addedNodes: WorkspaceNode[] = [];
   const addedNodeIdMap = new Map<string, string>();
+  const linkedEntityIds = {
+    tasks: new Set<string>(),
+    habits: new Set<string>(),
+    projects: new Set<string>(),
+  };
+  const createdEntityIds = {
+    tasks: new Set<string>(),
+    habits: new Set<string>(),
+    projects: new Set<string>(),
+  };
 
   // Track group dimensions and bottom offsets
   const groupBounds = new Map<
@@ -313,7 +368,7 @@ export async function applyWorkspacePatch(
         );
 
         if (neededWidth > gInfo.width || neededHeight > gInfo.height) {
-          await nodeCommands.resize(cmdCtx, {
+          await commands.node.resize(cmdCtx, {
             workspaceId: patch.workspaceId,
             nodeId: targetGroupId,
             width: neededWidth,
@@ -356,30 +411,34 @@ export async function applyWorkspacePatch(
       } else if (item.kind === "task") {
         const taskItem = item as BlueprintTaskItem;
         entityType = "task";
+        let projectId: string | null = null;
         if (taskItem.existingTaskId) {
           entityId = taskItem.existingTaskId;
         } else {
-          let projectId: string | null = null;
           if (taskItem.projectName) {
             if (options?.onResolveProject) {
               const res = await options.onResolveProject(taskItem.projectName);
               if (res) projectId = res;
             }
             if (!projectId) {
-              const createdProj = await projectCommands.create(cmdCtx, {
+              const createdProj = await commands.project.create(cmdCtx, {
                 name: taskItem.projectName,
               });
               projectId = createdProj.id;
+              createdEntityIds.projects.add(projectId);
             }
           }
-          const createdTask = await taskCommands.create(cmdCtx, {
+          const createdTask = await commands.task.create(cmdCtx, {
             content: taskItem.content,
             priority: taskItem.priority ?? 4,
             due_date: taskItem.dueDate ?? undefined,
             project_id: projectId ?? undefined,
           });
           entityId = createdTask.id;
+          createdEntityIds.tasks.add(entityId);
         }
+        if (entityId) linkedEntityIds.tasks.add(entityId);
+        if (projectId) linkedEntityIds.projects.add(projectId);
       } else if (item.kind === "habit") {
         const habitItem = item as BlueprintHabitItem;
         entityType = "habit";
@@ -391,14 +450,16 @@ export async function applyWorkspacePatch(
             habitId = await options.onResolveHabit(habitItem.name);
           }
           if (!habitId) {
-            const createdHabit = await habitCommands.create(cmdCtx, {
+            const createdHabit = await commands.habit.create(cmdCtx, {
               name: habitItem.name,
               color: habitItem.color,
             });
             habitId = createdHabit.id;
+            createdEntityIds.habits.add(habitId);
           }
           entityId = habitId;
         }
+        if (entityId) linkedEntityIds.habits.add(entityId);
       } else if (item.kind === "project") {
         const projectItem = item as BlueprintProjectItem;
         entityType = "project";
@@ -410,17 +471,19 @@ export async function applyWorkspacePatch(
             projId = await options.onResolveProject(projectItem.name);
           }
           if (!projId) {
-            const createdProj = await projectCommands.create(cmdCtx, {
+            const createdProj = await commands.project.create(cmdCtx, {
               name: projectItem.name,
               color: projectItem.color,
             });
             projId = createdProj.id;
+            createdEntityIds.projects.add(projId);
           }
           entityId = projId;
         }
+        if (entityId) linkedEntityIds.projects.add(entityId);
       }
 
-      const createdNode = await nodeCommands.add(cmdCtx, {
+      const createdNode = await commands.node.add(cmdCtx, {
         id: item.id,
         workspaceId: patch.workspaceId,
         kind: item.kind,
@@ -447,7 +510,7 @@ export async function applyWorkspacePatch(
         addedNodeIdMap.get(flow.fromItemId) ?? flow.fromItemId;
       const targetNodeId = addedNodeIdMap.get(flow.toItemId) ?? flow.toItemId;
 
-      const createdEdge = await edgeCommands.add(cmdCtx, {
+      const createdEdge = await commands.edge.add(cmdCtx, {
         id: `edge-${flow.fromItemId}-${flow.toItemId}`,
         workspaceId: patch.workspaceId,
         sourceNodeId,
@@ -469,5 +532,16 @@ export async function applyWorkspacePatch(
     updatedStepNodeIds,
     addedEdges,
     removedEdgeIds,
+    itemNodeIds: Object.fromEntries(addedNodeIdMap),
+    linkedEntityIds: {
+      tasks: [...linkedEntityIds.tasks],
+      habits: [...linkedEntityIds.habits],
+      projects: [...linkedEntityIds.projects],
+    },
+    createdEntityIds: {
+      tasks: [...createdEntityIds.tasks],
+      habits: [...createdEntityIds.habits],
+      projects: [...createdEntityIds.projects],
+    },
   };
 }
