@@ -25,6 +25,7 @@ import {
   Timer,
   GitBranch,
   Workflow,
+  Image as ImageIcon,
 } from "lucide-react";
 import { useTranslation } from "@/lib/i18n/useTranslation";
 
@@ -41,6 +42,7 @@ export interface QuickAddMenuProps {
   onAddDoc: () => void;
   onAddDecision?: () => void;
   onAddStep?: () => void;
+  onAddImage?: () => void;
   onFitView?: () => void;
 }
 
@@ -57,6 +59,7 @@ export function QuickAddMenu({
   onAddDoc,
   onAddDecision,
   onAddStep,
+  onAddImage,
   onFitView,
 }: QuickAddMenuProps) {
   const { t } = useTranslation();
@@ -284,6 +287,23 @@ export function QuickAddMenu({
               strokeWidth={2.25}
             />
             <span>{t("workspace.canvas.addStep")}</span>
+          </DropdownMenuItem>
+        ) : null}
+
+        {onAddImage ? (
+          <DropdownMenuItem
+            data-testid="quick-add-image"
+            onClick={() => {
+              onAddImage();
+              onClose();
+            }}
+            className="gap-2.5 text-xs cursor-pointer"
+          >
+            <ImageIcon
+              className="h-4 w-4 text-muted-foreground"
+              strokeWidth={2.25}
+            />
+            <span>{t("workspace.canvas.addImage")}</span>
           </DropdownMenuItem>
         ) : null}
 

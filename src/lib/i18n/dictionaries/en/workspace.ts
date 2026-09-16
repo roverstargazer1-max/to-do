@@ -46,6 +46,9 @@ export const workspace = {
   "workspace.canvas.decisionAdded": "Decision node added to canvas",
   "workspace.canvas.decisionAddFailed": "Failed to add decision node to canvas",
   "workspace.canvas.addStep": "Step",
+  "workspace.canvas.addImage": "Image",
+  "workspace.canvas.imageAdded": "Image added to canvas",
+  "workspace.canvas.imageAddFailed": "Failed to add image to canvas",
   "workspace.canvas.stepAdded": "Step node added to canvas",
   "workspace.canvas.stepAddFailed": "Failed to add step node to canvas",
   "workspace.canvas.connectFailed": "Failed to connect the nodes",
@@ -60,6 +63,47 @@ export const workspace = {
   "workspace.canvas.fitView": "Fit view",
   "workspace.canvas.taskCreated": "Task created and added to canvas",
   "workspace.canvas.taskCreateFailed": "Failed to create task",
+  "workspace.visualRelations.open": "Visual relations",
+  "workspace.visualRelations.title": "Visual relations",
+  "workspace.visualRelations.description":
+    "Typed context links are separate from canvas Connections and never execute work.",
+  "workspace.visualRelations.createTitle": "Create relation",
+  "workspace.visualRelations.existingTitle": "Existing relations",
+  "workspace.visualRelations.source": "Source",
+  "workspace.visualRelations.target": "Target",
+  "workspace.visualRelations.relationType": "Relation type",
+  "workspace.visualRelations.chooseEndpoint": "Choose a node",
+  "workspace.visualRelations.descriptionLabel": "Relation description",
+  "workspace.visualRelations.descriptionPlaceholder":
+    "Optional context or evidence note",
+  "workspace.visualRelations.create": "Create relation",
+  "workspace.visualRelations.save": "Save",
+  "workspace.visualRelations.delete": "Delete relation",
+  "workspace.visualRelations.empty": "No Visual relations in this Workspace.",
+  "workspace.visualRelations.loading": "Loading relations…",
+  "workspace.visualRelations.invalidEndpoints":
+    "Choose two different Workspace nodes.",
+  "workspace.visualRelations.created": "Visual relation created",
+  "workspace.visualRelations.saveFailed": "Failed to save Visual relation",
+  "workspace.visualRelations.deleteFailed": "Failed to delete Visual relation",
+  "workspace.guestBridge.open": "Pair local MCP",
+  "workspace.guestBridge.title": "Pair local MCP",
+  "workspace.guestBridge.description":
+    "Give a local MCP process temporary, revocable access to this Guest Workspace. Images are read only when the MCP process asks for them.",
+  "workspace.guestBridge.endpoint": "Local bridge endpoint",
+  "workspace.guestBridge.pairingCode": "Pairing code",
+  "workspace.guestBridge.pairingCodePlaceholder":
+    "Enter the code printed by the MCP process",
+  "workspace.guestBridge.scope": (params: TranslationParams) =>
+    `Scope: Workspace ${params.workspaceId}`,
+  "workspace.guestBridge.pair": "Pair",
+  "workspace.guestBridge.pairing": "Pairing…",
+  "workspace.guestBridge.paired": "MCP paired",
+  "workspace.guestBridge.active": "Local MCP access is active",
+  "workspace.guestBridge.disconnect": "Revoke access",
+  "workspace.guestBridge.disconnected": "Local MCP access revoked",
+  "workspace.guestBridge.pairFailed": "Failed to pair local MCP",
+  "workspace.guestBridge.disconnectFailed": "Failed to revoke MCP access",
 
   // --- Add-node pickers (AddTaskNodeDialog / AddHabitNodeDialog / AddEventNodeDialog) ---
   "workspace.addTask.title": "Add task to canvas",
@@ -105,6 +149,7 @@ export const workspace = {
   "workspace.node.removeFocusAria": "Remove focus node",
   "workspace.node.removeDocAria": "Remove doc node",
   "workspace.node.removeProjectAria": "Remove project node",
+  "workspace.node.removeImageAria": "Remove image node",
   "workspace.node.removeUnknownAria": "Remove unknown node",
   // Habit node state labels (habits.ts owns the page's equivalents; the
   // node reuses the same words in its own namespace).
@@ -123,6 +168,7 @@ export const workspace = {
   "workspace.node.kindProject": "Project",
   "workspace.node.kindDecision": "Decision",
   "workspace.node.kindStep": "Step",
+  "workspace.node.kindImage": "Image",
   "workspace.node.kindUnknown": "Unknown",
 
   // --- Doc node (DocNode.tsx) ---
@@ -149,6 +195,11 @@ export const workspace = {
   "workspace.stepNode.editHint": "Double-click to edit step",
   "workspace.stepNode.removeAria": "Remove step node",
   "workspace.stepNode.updateFailed": "Failed to update step",
+
+  // --- Image node ---
+  "workspace.imageNode.loading": "Loading image…",
+  "workspace.imageNode.unavailable": "Image unavailable",
+  "workspace.imageNode.missingHint": "The asset can be restored or retried.",
 
   // --- Focus node (FocusNode.tsx) ---
   "workspace.focusNode.modeFocus": "Focus",

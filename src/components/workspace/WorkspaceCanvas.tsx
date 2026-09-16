@@ -33,6 +33,8 @@ import {
   Timer,
   Ungroup,
   Workflow,
+  Image as ImageIcon,
+  Link2,
 } from "lucide-react";
 import { useAuth } from "@/components/AuthProvider";
 import { Button } from "@/components/ui/button";
@@ -80,6 +82,7 @@ import { AddHabitNodeDialog } from "./AddHabitNodeDialog";
 import { AddEventNodeDialog } from "./AddEventNodeDialog";
 import { QuickAddMenu } from "./QuickAddMenu";
 import { taskCommands } from "@/lib/commands/task";
+import { visualCommands } from "@/lib/commands/visual";
 import { useTasks } from "@/lib/hooks/useTasks";
 import type { Task } from "@/lib/types/task";
 import {
@@ -90,6 +93,7 @@ import {
 } from "@/components/ui/sheet";
 import { TaskDetailPanel } from "@/components/tasks/TaskDetailPanel";
 
+import { VisualRelationsPanel } from "./VisualRelationsPanel";
 interface WorkspaceCanvasProps {
   workspaceId: string;
 }
@@ -140,6 +144,7 @@ export function WorkspaceCanvas({ workspaceId }: WorkspaceCanvasProps) {
   const { t } = useTranslation();
   const { data: workspaceNodes } = useWorkspaceNodes(workspaceId);
   const { data: workspaceEdges } = useWorkspaceEdges(workspaceId);
+  const [visualRelationsOpen, setVisualRelationsOpen] = useState(false);
   const { data: tasks = [] } = useTasks({ showCompleted: true });
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const editingTask = useMemo(
@@ -181,6 +186,7 @@ export function WorkspaceCanvas({ workspaceId }: WorkspaceCanvasProps) {
   const { queuePositionWrite } = useNodePositionWrites();
   const { queueSizeWrite } = useNodeSizeWrites();
   const wrapperRef = useRef<HTMLDivElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
   const reactFlowInstanceRef = useRef<ReactFlowInstance<
     WorkspaceFlowNode,
     WorkspaceFlowEdge
@@ -1220,6 +1226,87 @@ export function WorkspaceCanvas({ workspaceId }: WorkspaceCanvasProps) {
     };
   }, [workspaceId]);
 
+  const createImageFromFile = useCallback(
+    async (
+      file: File,
+      position: NodePosition = addPosition,
+      source: "upload" | "drop" | "paste" = "upload",
+    ) => {
+      if (!file.type.startsWith("image/") && file.type !== "") return;
+      try {
+        const created = await visualCommands.createImageNode(
+          { queryClient, isGuestMode },
+          {
+            workspaceId,
+            position,
+            bytes: file,
+            mimeType: file.type || undefined,
+            source,
+            title: file.name || undefined,
+          },
+        );
+        notify(t("workspace.canvas.imageAdded"));
+        if (pendingSourceNodeId) connectPendingSource(created.node.id);
+      } catch (err) {
+        console.error("Failed to add image node:", err);
+        notify.error(
+          err instanceof Error
+            ? err.message
+            : t("workspace.canvas.imageAddFailed"),
+        );
+      } finally {
+        setPendingSourceNodeId(null);
+      }
+    },
+    [
+      addPosition,
+      connectPendingSource,
+      isGuestMode,
+      pendingSourceNodeId,
+      queryClient,
+      t,
+      workspaceId,
+    ],
+  );
+
+  const handleImageInputChange = useCallback(
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0];
+      event.target.value = "";
+      if (file) void createImageFromFile(file);
+    },
+    [createImageFromFile],
+  );
+
+  const handleCanvasDrop = useCallback(
+    (event: React.DragEvent<HTMLDivElement>) => {
+      const file = event.dataTransfer.files?.[0];
+      if (!file || !file.type.startsWith("image/")) return;
+      event.preventDefault();
+      event.stopPropagation();
+      void createImageFromFile(
+        file,
+        getFlowPositionFromScreen(event.clientX, event.clientY),
+        "drop",
+      );
+    },
+    [createImageFromFile, getFlowPositionFromScreen],
+  );
+
+  const handleCanvasPaste = useCallback(
+    (event: React.ClipboardEvent<HTMLDivElement>) => {
+      const target = event.target as HTMLElement | null;
+      if (target?.closest("input, textarea, [contenteditable='true']")) return;
+      const file = Array.from(event.clipboardData.files).find((item) =>
+        item.type.startsWith("image/"),
+      );
+      if (!file) return;
+      event.preventDefault();
+      void createImageFromFile(file, getCenterPosition(), "paste");
+    },
+    [createImageFromFile, getCenterPosition],
+  );
+
   const openAddDialog = useCallback(
     (kind: AddNodeDialogKind, customPosition?: NodePosition) => {
       setAddPosition(customPosition ?? getCenterPosition());
@@ -1418,6 +1505,14 @@ export function WorkspaceCanvas({ workspaceId }: WorkspaceCanvasProps) {
       data-workspace-id={workspaceId}
       onDoubleClick={handleCanvasDoubleClick}
       onContextMenu={handleCanvasContextMenu}
+      onDragOver={(event) => {
+        if (Array.from(event.dataTransfer.types).includes("Files")) {
+          event.preventDefault();
+        }
+      }}
+      onDrop={handleCanvasDrop}
+      onPaste={handleCanvasPaste}
+      tabIndex={0}
     >
       <ReactFlow
         nodes={displayNodes}
@@ -1464,6 +1559,14 @@ export function WorkspaceCanvas({ workspaceId }: WorkspaceCanvasProps) {
       </ReactFlow>
 
       <div className="absolute top-3 right-3 z-10 flex flex-col items-end gap-2">
+        <input
+          ref={imageInputRef}
+          type="file"
+          accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml"
+          className="hidden"
+          onChange={handleImageInputChange}
+          data-testid="image-node-file-input"
+        />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button
@@ -1535,9 +1638,34 @@ export function WorkspaceCanvas({ workspaceId }: WorkspaceCanvasProps) {
               <Workflow className="h-4 w-4" strokeWidth={2.25} />
               {t("workspace.canvas.addStep")}
             </DropdownMenuItem>
+            <DropdownMenuItem
+              data-testid="add-node-image"
+              onClick={() => {
+                setAddPosition(getCenterPosition());
+                imageInputRef.current?.click();
+              }}
+              className="gap-2.5"
+            >
+              <ImageIcon className="h-4 w-4" strokeWidth={2.25} />
+              {t("workspace.canvas.addImage")}
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
 
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setVisualRelationsOpen(true)}
+          title={t("workspace.visualRelations.open")}
+          aria-label={t("workspace.visualRelations.open")}
+          data-testid="visual-relations-button"
+          className="gap-2 bg-background"
+        >
+          <Link2 className="h-4 w-4" strokeWidth={2.25} />
+          <span className="hidden sm:inline">
+            {t("workspace.visualRelations.open")}
+          </span>
+        </Button>
         {groupAction ? (
           <Button
             variant="outline"
@@ -1572,9 +1700,21 @@ export function WorkspaceCanvas({ workspaceId }: WorkspaceCanvasProps) {
         onAddDoc={() => void addDocNode(addPosition)}
         onAddDecision={() => void addDecisionNode(addPosition)}
         onAddStep={() => void addStepNode(addPosition)}
+        onAddImage={() => {
+          setAddPosition(addPosition);
+          imageInputRef.current?.click();
+        }}
         onFitView={() =>
           reactFlowInstanceRef.current?.fitView({ duration: 300 })
         }
+      />
+
+      <VisualRelationsPanel
+        workspaceId={workspaceId}
+        nodes={workspaceNodes ?? []}
+        selectedNodeIds={selectedNodes.map((node) => node.id)}
+        open={visualRelationsOpen}
+        onOpenChange={setVisualRelationsOpen}
       />
 
       <AddTaskNodeDialog

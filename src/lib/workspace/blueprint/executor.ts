@@ -3,6 +3,7 @@ import type {
   BlueprintDecisionItem,
   BlueprintDocItem,
   BlueprintHabitItem,
+  BlueprintImageItem,
   BlueprintProjectItem,
   BlueprintStepItem,
   BlueprintTaskItem,
@@ -25,6 +26,11 @@ export interface BuildOptions extends LayoutOptions {
   isGuestMode?: boolean;
   onResolveProject?: (name: string) => Promise<string | undefined>;
   onResolveHabit?: (name: string) => Promise<string | undefined>;
+  onResolveVisualAsset?: (
+    assetId: string,
+    workspaceId: string,
+    versionId?: string,
+  ) => Promise<{ assetId: string; versionId?: string } | null | undefined>;
   commandAdapters?: BlueprintCommandAdapters;
 }
 
@@ -277,6 +283,47 @@ export async function buildWorkspaceFromBlueprint(
         });
         createdNodes.push(stepNode);
         itemIdToNodeId.set(layoutNode.id, stepNode.id);
+        continue;
+      }
+
+      if (layoutNode.kind === "image") {
+        const imageItem = layoutNode.item as BlueprintImageItem | undefined;
+        if (!imageItem?.assetId) {
+          throw new Error(`Image item "${layoutNode.id}" is missing assetId`);
+        }
+        const resolved = options?.onResolveVisualAsset
+          ? await options.onResolveVisualAsset(
+              imageItem.assetId,
+              workspaceId,
+              imageItem.versionId,
+            )
+          : { assetId: imageItem.assetId, versionId: imageItem.versionId };
+        if (!resolved) {
+          throw new Error(
+            `Visual asset "${imageItem.assetId}" is not available to this Workspace`,
+          );
+        }
+        const imageNode = await commands.node.add(cmdCtx, {
+          id: layoutNode.id,
+          workspaceId,
+          kind: "image",
+          entityType: "visual_asset",
+          entityId: resolved.assetId,
+          position: layoutNode.position,
+          width: layoutNode.width,
+          height: layoutNode.height,
+          groupId: layoutNode.groupId
+            ? (itemIdToNodeId.get(layoutNode.groupId) ?? layoutNode.groupId)
+            : null,
+          displayConfig: {
+            title: imageItem.title ?? layoutNode.title ?? "",
+            role: imageItem.role ?? "",
+            altText: imageItem.altText ?? "",
+            versionId: resolved.versionId ?? null,
+          },
+        });
+        createdNodes.push(imageNode);
+        itemIdToNodeId.set(layoutNode.id, imageNode.id);
         continue;
       }
 

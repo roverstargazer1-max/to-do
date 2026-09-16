@@ -1,15 +1,18 @@
 import { z } from "zod";
+import { VisualServiceError, visualErrorToRecord } from "@/lib/visual/service";
+import { VisualValidationError } from "@/lib/visual/validation";
+import { GuestAssetBridgeError } from "@/lib/visual/guest-asset-bridge";
 
 /**
  * External Workspace AI contract versions.
  *
  * The MCP contract and the workflow Skill are intentionally versioned
  * independently.  A Skill may evolve its orchestration without changing the
- * Blueprint Engine or the five-tool MCP surface.
+ * Blueprint Engine or the MCP Workspace/Visual tool surface.
  */
-export const WORKSPACE_MCP_CONTRACT_VERSION = "1.1.0" as const;
+export const WORKSPACE_MCP_CONTRACT_VERSION = "1.2.0" as const;
 export const WORKSPACE_SKILL_VERSION = "1.0.0" as const;
-export const WORKSPACE_MCP_SERVER_VERSION = "1.1.0" as const;
+export const WORKSPACE_MCP_SERVER_VERSION = "1.2.0" as const;
 
 export const SUPPORTED_WORKSPACE_NODE_KINDS = [
   "doc",
@@ -19,6 +22,7 @@ export const SUPPORTED_WORKSPACE_NODE_KINDS = [
   "focus",
   "decision",
   "step",
+  "image",
 ] as const;
 
 export type SupportedWorkspaceNodeKind =
@@ -186,6 +190,54 @@ export function canonicalizeForReplay(value: unknown): string {
 }
 
 export function toErrorPayload(err: unknown): WorkspaceMcpErrorPayload {
+  if (err instanceof GuestAssetBridgeError) {
+    return {
+      success: false,
+      contractVersion: WORKSPACE_MCP_CONTRACT_VERSION,
+      error: {
+        category: "execution",
+        message: err.message,
+        details: {
+          ...err.details,
+          visualCode: "bridge_unavailable",
+          bridgeReason: err.reason,
+        },
+      },
+    };
+  }
+  if (
+    err instanceof VisualServiceError ||
+    err instanceof VisualValidationError
+  ) {
+    const visual = visualErrorToRecord(err);
+    const code = String(visual.code);
+    const category: WorkspaceErrorCategory =
+      code === "authorization"
+        ? "authorization"
+        : code === "version_conflict" || code === "draft_stale"
+          ? "request_conflict"
+          : code === "confirmation_required"
+            ? "confirmation_required"
+            : code === "asset_not_found" ||
+                code === "target_not_found" ||
+                code === "draft_not_found"
+              ? "invalid_reference"
+              : code === "bridge_unavailable"
+                ? "execution"
+                : code === "execution"
+                  ? "execution"
+                  : "invalid_input";
+    const details = (visual.details ?? {}) as Record<string, unknown>;
+    return {
+      success: false,
+      contractVersion: WORKSPACE_MCP_CONTRACT_VERSION,
+      error: {
+        category,
+        message: String(visual.message),
+        details: { ...details, visualCode: code },
+      },
+    };
+  }
   if (err instanceof WorkspaceMcpError) {
     const providerMessage = err.details.providerMessage;
     if (err.category === "execution" && isFetchFailure(providerMessage)) {

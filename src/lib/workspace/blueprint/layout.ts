@@ -35,6 +35,7 @@ export const LAYOUT_CONSTANTS = {
     focus: { width: 240, height: 100 },
     decision: { width: 240, height: 120 },
     step: { width: 280, height: 88 },
+    image: { width: 320, height: 240 },
     doc: {
       width: 360,
       minHeight: 160,
@@ -285,6 +286,11 @@ export function getItemDimensions(item: BlueprintItem): {
       return {
         width: LAYOUT_CONSTANTS.CARD_DIMENSIONS.step.width,
         height: LAYOUT_CONSTANTS.CARD_DIMENSIONS.step.height,
+      };
+    case "image":
+      return {
+        width: LAYOUT_CONSTANTS.CARD_DIMENSIONS.image.width,
+        height: LAYOUT_CONSTANTS.CARD_DIMENSIONS.image.height,
       };
     case "doc":
       return {

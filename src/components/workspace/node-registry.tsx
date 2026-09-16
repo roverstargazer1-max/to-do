@@ -21,6 +21,7 @@ import { DocNode } from "./DocNode";
 import { ProjectNode } from "./ProjectNode";
 import { DecisionNode } from "./DecisionNode";
 import { StepNode } from "./StepNode";
+import { ImageNode } from "./ImageNode";
 import { UnknownNode } from "./UnknownNode";
 
 /**
@@ -459,6 +460,54 @@ const stepNodeSpec: NodeKindSpec = {
   schema: StepNodeRowSchema,
 };
 
+/** Image nodes reference an independently persisted Visual asset. */
+const ImageNodeRowSchema = z.object({
+  kind: z.literal("image"),
+  entity_type: z.literal("visual_asset"),
+  entity_id: z.string().min(1),
+});
+
+export type ImageNodeCommands = {
+  addExisting: (
+    ctx: NodeCommandContext,
+    input: {
+      workspaceId: string;
+      assetId: string;
+      position: NodePosition;
+      title?: string;
+      role?: string;
+      altText?: string;
+      versionId?: string | null;
+    },
+  ) => Promise<WorkspaceNode>;
+};
+
+const imageNodeSpec: NodeKindSpec = {
+  kind: "image",
+  label: "Image",
+  defaults: { width: 320, height: 240 },
+  component: ImageNode,
+  commands: {
+    addExisting: (ctx: NodeCommandContext, input) =>
+      nodeCommands.add(ctx, {
+        workspaceId: input.workspaceId,
+        kind: "image",
+        entityType: "visual_asset",
+        entityId: input.assetId,
+        position: input.position,
+        width: imageNodeSpec.defaults.width,
+        height: imageNodeSpec.defaults.height,
+        displayConfig: {
+          title: input.title ?? "",
+          role: input.role ?? "",
+          altText: input.altText ?? "",
+          versionId: input.versionId ?? null,
+        },
+      }),
+  } satisfies ImageNodeCommands,
+  schema: ImageNodeRowSchema,
+};
+
 /** The fallback kind — never registered, never throws. */
 export const UNKNOWN_NODE_KIND = "unknown";
 
@@ -487,6 +536,7 @@ registerNodeKind(docNodeSpec);
 registerNodeKind(projectNodeSpec);
 registerNodeKind(decisionNodeSpec);
 registerNodeKind(stepNodeSpec);
+registerNodeKind(imageNodeSpec);
 
 /** Look up a registered kind spec (undefined for unknown kinds). */
 export function getNodeKindSpec(kind: string): NodeKindSpec | undefined {

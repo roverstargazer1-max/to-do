@@ -6,6 +6,7 @@ import type {
   BlueprintHabitItem,
   BlueprintProjectItem,
   BlueprintStepItem,
+  BlueprintImageItem,
   BlueprintTaskItem,
 } from "./types";
 import { BlueprintPatchSchema } from "./types";
@@ -25,6 +26,11 @@ export interface PatchOptions {
   onResolveProject?: (name: string) => Promise<string | undefined>;
   onResolveHabit?: (name: string) => Promise<string | undefined>;
   commandAdapters?: BlueprintCommandAdapters;
+  onResolveVisualAsset?: (
+    assetId: string,
+    workspaceId: string,
+    versionId?: string,
+  ) => Promise<{ assetId: string; versionId?: string } | null | undefined>;
 }
 
 export interface PatchResult {
@@ -34,6 +40,7 @@ export interface PatchResult {
   updatedDocNodeIds: string[];
   updatedDecisionNodeIds?: string[];
   updatedStepNodeIds?: string[];
+  updatedImageNodeIds?: string[];
   addedEdges: WorkspaceEdge[];
   removedEdgeIds: string[];
   itemNodeIds: Record<string, string>;
@@ -112,6 +119,25 @@ export async function applyWorkspacePatch(
       if (target.kind !== "step") {
         throw new Error(
           `Cannot update step: node "${u.nodeId}" is not a step node`,
+        );
+      }
+    }
+  }
+
+  if (patch.updateImages && patch.updateImages.length > 0) {
+    for (const u of patch.updateImages) {
+      const target = existingNodesById.get(u.nodeId);
+      if (!target) {
+        throw new Error(`Cannot update image: node "${u.nodeId}" not found`);
+      }
+      if (target.kind !== "image") {
+        throw new Error(
+          `Cannot update image: node "${u.nodeId}" is not an image node`,
+        );
+      }
+      if (!commands.node.updateImageNode) {
+        throw new Error(
+          "Cannot update image: image command adapter is unavailable",
         );
       }
     }
@@ -252,6 +278,20 @@ export async function applyWorkspacePatch(
         description: u.description,
       });
       updatedStepNodeIds.push(u.nodeId);
+    }
+  }
+
+  const updatedImageNodeIds: string[] = [];
+  if (patch.updateImages && patch.updateImages.length > 0) {
+    for (const u of patch.updateImages) {
+      await commands.node.updateImageNode!(cmdCtx, {
+        workspaceId: patch.workspaceId,
+        nodeId: u.nodeId,
+        title: u.title,
+        role: u.role,
+        altText: u.altText,
+      });
+      updatedImageNodeIds.push(u.nodeId);
     }
   }
 
@@ -408,6 +448,28 @@ export async function applyWorkspacePatch(
           title: stepItem.title,
           description: stepItem.description ?? "",
         };
+      } else if (item.kind === "image") {
+        const imageItem = item as BlueprintImageItem;
+        const resolved = options?.onResolveVisualAsset
+          ? await options.onResolveVisualAsset(
+              imageItem.assetId,
+              patch.workspaceId,
+              imageItem.versionId,
+            )
+          : { assetId: imageItem.assetId, versionId: imageItem.versionId };
+        if (!resolved) {
+          throw new Error(
+            `Visual asset "${imageItem.assetId}" is not available to this Workspace`,
+          );
+        }
+        entityType = "visual_asset";
+        entityId = resolved.assetId;
+        displayConfig = {
+          title: imageItem.title ?? "",
+          role: imageItem.role ?? "",
+          altText: imageItem.altText ?? "",
+          versionId: resolved.versionId ?? null,
+        };
       } else if (item.kind === "task") {
         const taskItem = item as BlueprintTaskItem;
         entityType = "task";
@@ -530,6 +592,7 @@ export async function applyWorkspacePatch(
     updatedDocNodeIds,
     updatedDecisionNodeIds,
     updatedStepNodeIds,
+    updatedImageNodeIds,
     addedEdges,
     removedEdgeIds,
     itemNodeIds: Object.fromEntries(addedNodeIdMap),

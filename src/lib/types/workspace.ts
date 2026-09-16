@@ -96,6 +96,7 @@ export const WORKSPACE_NODE_KINDS = [
   "project",
   "decision",
   "step",
+  "image",
 ] as const;
 
 export type WorkspaceNodeKind = (typeof WORKSPACE_NODE_KINDS)[number];
@@ -267,4 +268,14 @@ export interface UpdateStepNodeInput {
   nodeId: string;
   title?: string;
   description?: string;
+}
+
+/** Input for updating image-node display metadata without touching asset bytes. */
+export interface UpdateImageNodeInput {
+  workspaceId: string;
+  nodeId: string;
+  title?: string;
+  role?: string;
+  altText?: string;
+  versionId?: string | null;
 }

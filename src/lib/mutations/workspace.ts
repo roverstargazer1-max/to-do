@@ -589,6 +589,44 @@ export const workspaceMutations = {
     if (error) throw new Error(error.message);
   },
 
+  /** Update image-node display metadata without modifying the visual asset. */
+  updateImageNode: async (
+    id: string,
+    updates: {
+      title?: string;
+      role?: string;
+      altText?: string;
+      versionId?: string | null;
+    },
+  ): Promise<void> => {
+    if (isGuest()) {
+      return guestWorkspaceStore.updateImageNode(id, updates);
+    }
+    const supabase = createClient();
+    const { data: current } = await supabase
+      .from("workspace_nodes")
+      .select("display_config")
+      .eq("id", id)
+      .single();
+    const displayConfig = {
+      ...((current?.display_config as Record<string, unknown>) ?? {}),
+      ...(updates.title !== undefined ? { title: updates.title } : {}),
+      ...(updates.role !== undefined ? { role: updates.role } : {}),
+      ...(updates.altText !== undefined ? { altText: updates.altText } : {}),
+      ...(updates.versionId !== undefined
+        ? { versionId: updates.versionId }
+        : {}),
+    };
+    const { error } = await supabase
+      .from("workspace_nodes")
+      .update({
+        display_config: displayConfig,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", id);
+    if (error) throw new Error(error.message);
+  },
+
   /**
    * Move a single node into or out of a group container with its new coordinates.
    */

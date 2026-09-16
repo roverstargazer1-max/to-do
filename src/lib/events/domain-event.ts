@@ -99,6 +99,10 @@ export interface NodeResizedEvent extends NodeEventEntityRef {
   readonly type: "node.resized";
 }
 
+export interface NodeUpdatedEvent extends NodeEventEntityRef {
+  readonly type: "node.updated";
+}
+
 export interface NodeGroupedEvent extends NodeEventEntityRef {
   readonly type: "node.grouped";
   readonly groupId: string;
@@ -114,6 +118,7 @@ export type NodeDomainEvent =
   | NodeMovedEvent
   | NodeRemovedEvent
   | NodeResizedEvent
+  | NodeUpdatedEvent
   | NodeGroupedEvent
   | NodeUngroupedEvent;
 

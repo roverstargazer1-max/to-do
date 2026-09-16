@@ -48,6 +48,7 @@ import type {
   UpdateDocNodeInput,
   UpdateDecisionNodeInput,
   UpdateStepNodeInput,
+  UpdateImageNodeInput,
 } from "@/lib/types/workspace";
 
 export interface NodeCommandContext {
@@ -458,6 +459,52 @@ export const nodeCommands = {
       await workspaceMutations.updateStepNode(input.nodeId, {
         title: input.title,
         description: input.description,
+      });
+    } catch (err) {
+      invalidateNodeCaches(ctx.queryClient);
+      throw err;
+    }
+  },
+
+  /** `node.updateImageNode` — metadata only; asset bytes remain immutable. */
+  updateImageNode: async (
+    ctx: NodeCommandContext,
+    input: UpdateImageNodeInput,
+  ): Promise<void> => {
+    ctx.queryClient.setQueryData<WorkspaceNode[]>(
+      workspaceKeys.nodes.list(input.workspaceId, ctx.isGuestMode),
+      (old) =>
+        old?.map((n) =>
+          n.id === input.nodeId
+            ? {
+                ...n,
+                display_config: {
+                  ...(n.display_config ?? {}),
+                  ...(input.title !== undefined ? { title: input.title } : {}),
+                  ...(input.role !== undefined ? { role: input.role } : {}),
+                  ...(input.altText !== undefined
+                    ? { altText: input.altText }
+                    : {}),
+                  ...(input.versionId !== undefined
+                    ? { versionId: input.versionId }
+                    : {}),
+                },
+              }
+            : n,
+        ),
+    );
+
+    try {
+      await workspaceMutations.updateImageNode(input.nodeId, {
+        title: input.title,
+        role: input.role,
+        altText: input.altText,
+        versionId: input.versionId,
+      });
+      publishDomainEvent({
+        type: "node.updated",
+        workspaceId: input.workspaceId,
+        nodeId: input.nodeId,
       });
     } catch (err) {
       invalidateNodeCaches(ctx.queryClient);

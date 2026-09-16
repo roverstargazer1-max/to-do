@@ -41,6 +41,9 @@ export const workspace = {
   "workspace.canvas.decisionAdded": "决策节点已添加到画布",
   "workspace.canvas.decisionAddFailed": "添加决策节点到画布失败",
   "workspace.canvas.addStep": "步骤",
+  "workspace.canvas.addImage": "图片",
+  "workspace.canvas.imageAdded": "图片已添加到画布",
+  "workspace.canvas.imageAddFailed": "添加图片到画布失败",
   "workspace.canvas.stepAdded": "步骤节点已添加到画布",
   "workspace.canvas.stepAddFailed": "添加步骤节点到画布失败",
   "workspace.canvas.connectFailed": "连接节点失败",
@@ -54,6 +57,44 @@ export const workspace = {
   "workspace.canvas.fitView": "适应画板",
   "workspace.canvas.taskCreated": "任务已创建并添加到画布",
   "workspace.canvas.taskCreateFailed": "创建任务失败",
+  "workspace.visualRelations.open": "视觉关系",
+  "workspace.visualRelations.title": "视觉关系",
+  "workspace.visualRelations.description":
+    "类型化上下文关系独立于画布连线，不会触发任何执行行为。",
+  "workspace.visualRelations.createTitle": "创建关系",
+  "workspace.visualRelations.existingTitle": "已有关系",
+  "workspace.visualRelations.source": "来源",
+  "workspace.visualRelations.target": "目标",
+  "workspace.visualRelations.relationType": "关系类型",
+  "workspace.visualRelations.chooseEndpoint": "选择节点",
+  "workspace.visualRelations.descriptionLabel": "关系说明",
+  "workspace.visualRelations.descriptionPlaceholder": "可选的上下文或证据说明",
+  "workspace.visualRelations.create": "创建关系",
+  "workspace.visualRelations.save": "保存",
+  "workspace.visualRelations.delete": "删除关系",
+  "workspace.visualRelations.empty": "此工作台还没有视觉关系。",
+  "workspace.visualRelations.loading": "正在加载关系…",
+  "workspace.visualRelations.invalidEndpoints": "请选择两个不同的工作台节点。",
+  "workspace.visualRelations.created": "视觉关系已创建",
+  "workspace.visualRelations.saveFailed": "保存视觉关系失败",
+  "workspace.visualRelations.deleteFailed": "删除视觉关系失败",
+  "workspace.guestBridge.open": "配对本地 MCP",
+  "workspace.guestBridge.title": "配对本地 MCP",
+  "workspace.guestBridge.description":
+    "向本地 MCP 临时授予此访客工作台的可撤销访问权。图片只会在 MCP 明确请求时读取。",
+  "workspace.guestBridge.endpoint": "本地桥接地址",
+  "workspace.guestBridge.pairingCode": "配对码",
+  "workspace.guestBridge.pairingCodePlaceholder": "输入 MCP 进程显示的配对码",
+  "workspace.guestBridge.scope": (params: TranslationParams) =>
+    `范围：工作台 ${params.workspaceId}`,
+  "workspace.guestBridge.pair": "配对",
+  "workspace.guestBridge.pairing": "正在配对…",
+  "workspace.guestBridge.paired": "MCP 已配对",
+  "workspace.guestBridge.active": "本地 MCP 访问已启用",
+  "workspace.guestBridge.disconnect": "撤销访问",
+  "workspace.guestBridge.disconnected": "本地 MCP 访问已撤销",
+  "workspace.guestBridge.pairFailed": "配对本地 MCP 失败",
+  "workspace.guestBridge.disconnectFailed": "撤销 MCP 访问失败",
 
   // --- Add-node pickers ---
   "workspace.addTask.title": "添加任务到画布",
@@ -95,6 +136,7 @@ export const workspace = {
   "workspace.node.removeFocusAria": "移除专注节点",
   "workspace.node.removeDocAria": "移除文档节点",
   "workspace.node.removeProjectAria": "移除项目节点",
+  "workspace.node.removeImageAria": "移除图片节点",
   "workspace.node.removeUnknownAria": "移除未知节点",
   "workspace.node.doneToday": "今日已完成",
   "workspace.node.today": "今天",
@@ -109,6 +151,7 @@ export const workspace = {
   "workspace.node.kindProject": "项目",
   "workspace.node.kindDecision": "决策",
   "workspace.node.kindStep": "步骤",
+  "workspace.node.kindImage": "图片",
   "workspace.node.kindUnknown": "未知",
 
   // --- Doc node ---
@@ -135,6 +178,11 @@ export const workspace = {
   "workspace.stepNode.editHint": "双击编辑步骤",
   "workspace.stepNode.removeAria": "移除步骤节点",
   "workspace.stepNode.updateFailed": "更新步骤失败",
+
+  // --- Image node ---
+  "workspace.imageNode.loading": "正在加载图片…",
+  "workspace.imageNode.unavailable": "图片不可用",
+  "workspace.imageNode.missingHint": "可以恢复资产或重试读取。",
 
   // --- Focus node ---
   "workspace.focusNode.modeFocus": "专注",

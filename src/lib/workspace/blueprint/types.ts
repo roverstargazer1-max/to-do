@@ -65,6 +65,18 @@ export interface BlueprintStepItem {
   branch?: boolean;
 }
 
+/** An image item always references an existing Visual asset by stable ID. */
+export interface BlueprintImageItem {
+  id: string;
+  kind: "image";
+  assetId: string;
+  title?: string;
+  role?: string;
+  altText?: string;
+  versionId?: string;
+  branch?: boolean;
+}
+
 export interface BlueprintEventItem {
   id: string;
   kind: "event";
@@ -82,6 +94,7 @@ export type BlueprintItem =
   | BlueprintFocusItem
   | BlueprintDecisionItem
   | BlueprintStepItem
+  | BlueprintImageItem
   | BlueprintEventItem;
 
 export type BlueprintItemKind = BlueprintItem["kind"];
@@ -178,6 +191,13 @@ export interface UpdateStepPatch {
   description?: string;
 }
 
+export interface UpdateImagePatch {
+  nodeId: string;
+  title?: string;
+  role?: string;
+  altText?: string;
+}
+
 export interface BlueprintPatch {
   workspaceId: string;
   /** Required by the MCP adapter when the patch removes canvas data. */
@@ -187,6 +207,7 @@ export interface BlueprintPatch {
   updateDocs?: UpdateDocPatch[];
   updateDecisions?: UpdateDecisionPatch[];
   updateSteps?: UpdateStepPatch[];
+  updateImages?: UpdateImagePatch[];
   addFlows?: BlueprintFlow[];
   removeEdgeIds?: string[];
 }
@@ -256,6 +277,17 @@ export const BlueprintStepItemSchema = z.object({
   branch: z.boolean().optional(),
 });
 
+export const BlueprintImageItemSchema = z.object({
+  id: z.string().min(1),
+  kind: z.literal("image"),
+  assetId: z.string().min(1),
+  title: z.string().optional(),
+  role: z.string().optional(),
+  altText: z.string().optional(),
+  versionId: z.string().optional(),
+  branch: z.boolean().optional(),
+});
+
 export const BlueprintEventItemSchema = z.object({
   id: z.string().min(1),
   kind: z.literal("event"),
@@ -273,6 +305,7 @@ export const BlueprintItemSchema = z.discriminatedUnion("kind", [
   BlueprintFocusItemSchema,
   BlueprintDecisionItemSchema,
   BlueprintStepItemSchema,
+  BlueprintImageItemSchema,
   BlueprintEventItemSchema,
 ]);
 
@@ -323,6 +356,13 @@ export const UpdateStepPatchSchema = z.object({
   description: z.string().optional(),
 });
 
+export const UpdateImagePatchSchema = z.object({
+  nodeId: z.string().min(1),
+  title: z.string().optional(),
+  role: z.string().optional(),
+  altText: z.string().optional(),
+});
+
 export const BlueprintPatchSchema = z.object({
   workspaceId: z.string().min(1),
   destructiveConfirmation: z.boolean().optional(),
@@ -331,6 +371,7 @@ export const BlueprintPatchSchema = z.object({
   updateDocs: z.array(UpdateDocPatchSchema).optional(),
   updateDecisions: z.array(UpdateDecisionPatchSchema).optional(),
   updateSteps: z.array(UpdateStepPatchSchema).optional(),
+  updateImages: z.array(UpdateImagePatchSchema).optional(),
   addFlows: z.array(BlueprintFlowSchema).optional(),
   removeEdgeIds: z.array(z.string()).optional(),
 });

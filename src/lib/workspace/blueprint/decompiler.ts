@@ -10,6 +10,7 @@ import type { Habit } from "@/lib/types/habit";
 import { workspaceMutations } from "@/lib/mutations/workspace";
 import { mockStore } from "@/lib/mock/mock-store";
 import { taskKeys } from "@/lib/queries/task-keys";
+import type { VisualAsset, VisualRelation } from "@/lib/types/visual";
 
 export interface DecompilerContext {
   queryClient?: QueryClient;
@@ -26,6 +27,12 @@ export interface DecompilerContext {
   getHabit?: (
     habitId: string,
   ) => Promise<Habit | null | undefined> | Habit | null | undefined;
+  getVisualAsset?: (
+    assetId: string,
+  ) => Promise<VisualAsset | null | undefined> | VisualAsset | null | undefined;
+  getVisualRelations?: (
+    workspaceId: string,
+  ) => Promise<VisualRelation[]> | VisualRelation[];
 }
 
 export interface SnapshotItem {
@@ -45,6 +52,18 @@ export interface SnapshotItem {
   width?: number | null;
   height?: number | null;
   isOrphaned?: boolean;
+  visual?: {
+    assetId: string;
+    mimeType?: string;
+    byteSize?: number;
+    width?: number;
+    height?: number;
+    sha256?: string;
+    source?: string;
+    currentVersionId?: string;
+    versionCount?: number;
+    derivedCount?: number;
+  };
 }
 
 export interface SnapshotGroup {
@@ -77,6 +96,7 @@ export interface WorkspaceSnapshot {
   edges: SnapshotEdge[];
   rawNodes?: WorkspaceNode[];
   rawEdges?: WorkspaceEdge[];
+  visualRelations?: VisualRelation[];
 }
 
 /**
@@ -265,6 +285,27 @@ export async function decompileWorkspaceToSnapshot(
       item.title = (display.title as string) || "Step";
       item.content = (display.description as string) || "";
       nodeTitleMap.set(n.id, item.title);
+    } else if (n.kind === "image") {
+      const assetId = n.entity_id;
+      const visualAsset =
+        assetId && context.getVisualAsset
+          ? await context.getVisualAsset(assetId)
+          : null;
+      const imageTitle = String(display.title ?? visualAsset?.title ?? "Image");
+      item.title = imageTitle;
+      item.visual = {
+        assetId: assetId ?? "",
+        mimeType: visualAsset?.mime_type,
+        byteSize: visualAsset?.byte_size,
+        width: visualAsset?.width,
+        height: visualAsset?.height,
+        sha256: visualAsset?.sha256,
+        source: visualAsset?.source,
+        currentVersionId: visualAsset?.current_version_id,
+        versionCount: visualAsset?.version_count,
+      };
+      if (!assetId || !visualAsset) item.isOrphaned = true;
+      nodeTitleMap.set(n.id, item.title);
     } else {
       item.title = (display.title as string) || `${n.kind} node`;
       nodeTitleMap.set(n.id, item.title);
@@ -289,6 +330,10 @@ export async function decompileWorkspaceToSnapshot(
     targetTitle: nodeTitleMap.get(e.target_node_id) ?? e.target_node_id,
   }));
 
+  const visualRelations = context.getVisualRelations
+    ? await context.getVisualRelations(workspaceId)
+    : [];
+
   return {
     workspaceId,
     name: workspaceName,
@@ -298,6 +343,7 @@ export async function decompileWorkspaceToSnapshot(
     edges,
     rawNodes,
     rawEdges,
+    visualRelations,
   };
 }
 
@@ -370,6 +416,15 @@ export function formatSnapshotToMarkdown(snapshot: WorkspaceSnapshot): string {
         }
         break;
       }
+      case "image": {
+        const visual = item.visual;
+        const meta = visual
+          ? ` (${visual.mimeType ?? "unknown"}, ${visual.width ?? "?"}×${visual.height ?? "?"}, version ${visual.currentVersionId ?? "?"})`
+          : " (asset unavailable)";
+        itemLines.push(`- Image: ${item.title ?? "Image"}${meta} ${coordStr}`);
+        if (visual?.assetId) itemLines.push(`  > Asset ID: ${visual.assetId}`);
+        break;
+      }
       default: {
         itemLines.push(`- ${item.kind}: ${item.title ?? "Item"} ${coordStr}`);
         break;
@@ -409,6 +464,16 @@ export function formatSnapshotToMarkdown(snapshot: WorkspaceSnapshot): string {
       const tgt = edge.targetTitle || edge.targetNodeId;
       const arrow = edge.label ? ` --[${edge.label}]--> ` : " -> ";
       lines.push(`- ${src}${arrow}${tgt} (Edge ID: ${edge.id})`);
+    }
+    lines.push("");
+  }
+
+  if ((snapshot.visualRelations ?? []).length > 0) {
+    lines.push("## Visual Relations (non-executing)");
+    for (const relation of snapshot.visualRelations ?? []) {
+      lines.push(
+        `- ${relation.source_type}:${relation.source_id} --${relation.relation_type}--> ${relation.target_type}:${relation.target_id} (Relation ID: ${relation.id})`,
+      );
     }
     lines.push("");
   }

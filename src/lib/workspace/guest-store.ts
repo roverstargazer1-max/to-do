@@ -381,6 +381,32 @@ export const guestWorkspaceStore = {
     await persistData();
   },
 
+  /** Update image-node display metadata; the referenced asset is separate. */
+  async updateImageNode(
+    id: string,
+    updates: {
+      title?: string;
+      role?: string;
+      altText?: string;
+      versionId?: string | null;
+    },
+  ): Promise<void> {
+    const data = await loadData();
+    const node = data.nodes.find((n) => n.id === id);
+    if (!node || node.kind !== "image") throw new Error("Image node not found");
+    node.display_config = {
+      ...(node.display_config ?? {}),
+      ...(updates.title !== undefined ? { title: updates.title } : {}),
+      ...(updates.role !== undefined ? { role: updates.role } : {}),
+      ...(updates.altText !== undefined ? { altText: updates.altText } : {}),
+      ...(updates.versionId !== undefined
+        ? { versionId: updates.versionId }
+        : {}),
+    };
+    node.updated_at = nowIso();
+    await persistData();
+  },
+
   /**
    * Removing a node never touches the referenced entity — layout only.
    * If a group container node is removed, its members are restored to absolute coords.

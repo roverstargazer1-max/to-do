@@ -11,6 +11,7 @@ import type {
   UpdateDecisionNodeInput,
   UpdateDocNodeInput,
   UpdateStepNodeInput,
+  UpdateImageNodeInput,
   Workspace,
   WorkspaceEdge,
   WorkspaceNode,
@@ -62,6 +63,10 @@ export interface BlueprintCommandAdapters {
       ctx: BlueprintCommandContext,
       input: UpdateStepNodeInput,
     ) => Promise<void>;
+    updateImageNode?: (
+      ctx: BlueprintCommandContext,
+      input: UpdateImageNodeInput,
+    ) => Promise<void>;
     remove: (ctx: BlueprintCommandContext, node: NodeRemoval) => Promise<void>;
   };
   edge: {
@@ -109,6 +114,7 @@ export const defaultBlueprintCommandAdapters: BlueprintCommandAdapters = {
     updateDocNode: nodeCommands.updateDocNode,
     updateDecisionNode: nodeCommands.updateDecisionNode,
     updateStepNode: nodeCommands.updateStepNode,
+    updateImageNode: nodeCommands.updateImageNode,
     remove: nodeCommands.remove,
   },
   edge: {
