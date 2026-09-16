@@ -53,6 +53,12 @@ import {
 } from "@/lib/backup/webdav-sync";
 import { mockStore } from "@/lib/mock/mock-store";
 import { guestWorkspaceStore } from "@/lib/workspace/guest-store";
+import { guestVisualAssetStore } from "@/lib/visual/guest-store";
+import { InMemoryVisualAssetStore } from "@/lib/visual/store";
+import {
+  collectVisualBackupData,
+  restoreVisualBackupData,
+} from "@/lib/backup/visual-data";
 import { useLocationHistoryStore } from "@/lib/store/locationHistoryStore";
 import type { BackupData } from "@/lib/backup/types";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -326,6 +332,7 @@ function BackupRemindersCard() {
  * in IndexedDB, not synchronous localStorage.
  */
 async function buildGuestBackupData(): Promise<BackupData> {
+  const visual = await collectVisualBackupData(guestVisualAssetStore);
   return {
     metadata: {
       version: 1,
@@ -341,6 +348,7 @@ async function buildGuestBackupData(): Promise<BackupData> {
     location_history: useLocationHistoryStore.getState().locations,
     workspaces: await guestWorkspaceStore.listWorkspaces(),
     workspace_nodes: await guestWorkspaceStore.listAllNodes(),
+    ...visual,
   };
 }
 
@@ -350,10 +358,40 @@ async function buildGuestBackupData(): Promise<BackupData> {
  * no conflict model, overwrite-on-backup.
  */
 async function restoreGuestWorkspaceBackup(data: BackupData): Promise<void> {
-  await guestWorkspaceStore.restoreBackup(
-    data.workspaces ?? [],
-    data.workspace_nodes ?? [],
-  );
+  // Validate and hydrate the complete visual section before replacing either
+  // Guest collection. This prevents a corrupt image manifest from leaving a
+  // new canvas pointing at a partially restored asset set.
+  const validatedVisualStore = new InMemoryVisualAssetStore();
+  await restoreVisualBackupData(data, validatedVisualStore);
+
+  const previousWorkspace = {
+    workspaces: await guestWorkspaceStore.listWorkspaces(),
+    nodes: await guestWorkspaceStore.listAllNodes(),
+  };
+  const previousVisual = await guestVisualAssetStore.exportState();
+  try {
+    await guestWorkspaceStore.restoreBackup(
+      data.workspaces ?? [],
+      data.workspace_nodes ?? [],
+    );
+    await guestVisualAssetStore.importState(
+      await validatedVisualStore.exportState(),
+    );
+  } catch (error) {
+    try {
+      await guestWorkspaceStore.restoreBackup(
+        previousWorkspace.workspaces,
+        previousWorkspace.nodes,
+      );
+      await guestVisualAssetStore.importState(previousVisual);
+    } catch (rollbackError) {
+      throw new Error(
+        `Guest Backup restore failed and rollback was incomplete: ${rollbackError instanceof Error ? rollbackError.message : String(rollbackError)}`,
+        { cause: error },
+      );
+    }
+    throw error;
+  }
 }
 
 export function BackupSyncSettings() {
@@ -408,6 +446,7 @@ export function BackupSyncSettings() {
       // The restored canvas reads fresh: both workspace query families.
       queryClient.invalidateQueries({ queryKey: ["workspaces"] }),
       queryClient.invalidateQueries({ queryKey: ["workspace-nodes"] }),
+      queryClient.invalidateQueries({ queryKey: ["visual-assets"] }),
     ]);
   };
 

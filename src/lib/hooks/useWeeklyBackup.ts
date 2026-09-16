@@ -7,6 +7,8 @@ import { mockStore } from "@/lib/mock/mock-store";
 import { useUiStore } from "@/lib/store/uiStore";
 import { tr } from "@/lib/i18n/tr";
 import type { BackupData } from "@/lib/backup/types";
+import { guestVisualAssetStore } from "@/lib/visual/guest-store";
+import { collectVisualBackupData } from "@/lib/backup/visual-data";
 
 const STORAGE_KEY = "kanso_last_backup_date";
 const SESSION_KEY = "kanso_backup_prompted";
@@ -34,6 +36,7 @@ export function useWeeklyBackup() {
 
   const triggerBackup = useCallback(async () => {
     try {
+      const visual = await collectVisualBackupData(guestVisualAssetStore);
       const backupData: BackupData = {
         metadata: {
           version: 1,
@@ -46,6 +49,7 @@ export function useWeeklyBackup() {
         habit_entries: mockStore.getHabitEntries(),
         focus_logs: mockStore.getFocusLogs(),
         events: mockStore.getEvents(),
+        ...visual,
       };
 
       const { createBackupZip, downloadBackup } =
