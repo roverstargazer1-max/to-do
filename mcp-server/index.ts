@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { createKagelinMcpServer } from "./server";
+import { GuestAssetBridgeHttpHost } from "./guest-bridge-host";
 
 import { fileURLToPath } from "node:url";
 
@@ -20,11 +21,53 @@ try {
 }
 
 async function main() {
-  const server = createKagelinMcpServer();
+  const hasExplicitAccount = Boolean(
+    process.env.KAGELIN_MCP_USER_ID?.trim() ||
+    process.env.NEXT_PUBLIC_LOCAL_USER_ID?.trim() ||
+    process.env.SUPABASE_SECRET_KEY?.trim(),
+  );
+  const useGuestBridge =
+    process.env.KAGELIN_MCP_USE_GUEST_BRIDGE === "true" || !hasExplicitAccount;
+
+  let bridgeHost: GuestAssetBridgeHttpHost | null = null;
+  let bridgeAddress: Awaited<
+    ReturnType<GuestAssetBridgeHttpHost["start"]>
+  > | null = null;
+  if (useGuestBridge) {
+    const configuredPort = Number(
+      process.env.KAGELIN_GUEST_BRIDGE_PORT ?? "37373",
+    );
+    const bridgePort =
+      Number.isInteger(configuredPort) &&
+      configuredPort >= 0 &&
+      configuredPort <= 65_535
+        ? configuredPort
+        : 37_373;
+    bridgeHost = new GuestAssetBridgeHttpHost({ port: bridgePort });
+    bridgeAddress = await bridgeHost.start();
+  }
+  const server = createKagelinMcpServer({
+    useMockFallback: false,
+    ...(bridgeHost ? { guestAssetBridge: bridgeHost.connection } : {}),
+  });
   const transport = new StdioServerTransport();
+
+  const shutdown = () => {
+    void bridgeHost?.close();
+  };
+  process.once("SIGINT", shutdown);
+  process.once("SIGTERM", shutdown);
 
   await server.connect(transport);
   console.error("Kagelin Workspace AI Builder MCP Server running on stdio.");
+  if (bridgeAddress) {
+    console.error(
+      `Kagelin Guest asset bridge listening on ${bridgeAddress.url}.`,
+    );
+    console.error(
+      `Kagelin Guest asset bridge pairing code: ${bridgeAddress.pairingCode}`,
+    );
+  }
 }
 
 main().catch((err) => {

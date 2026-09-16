@@ -94,6 +94,7 @@ import {
 import { TaskDetailPanel } from "@/components/tasks/TaskDetailPanel";
 
 import { VisualRelationsPanel } from "./VisualRelationsPanel";
+import { GuestAssetBridgeButton } from "./GuestAssetBridgeButton";
 interface WorkspaceCanvasProps {
   workspaceId: string;
 }
@@ -1666,6 +1667,11 @@ export function WorkspaceCanvas({ workspaceId }: WorkspaceCanvasProps) {
             {t("workspace.visualRelations.open")}
           </span>
         </Button>
+
+        {isGuestMode ? (
+          <GuestAssetBridgeButton workspaceId={workspaceId} />
+        ) : null}
+
         {groupAction ? (
           <Button
             variant="outline"
