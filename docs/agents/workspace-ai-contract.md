@@ -5,11 +5,11 @@ adapter, and the workflow Skill.
 
 ## Ownership
 
-| Surface          | Canonical source                                                                                                  | Owns                                                                                                       |
-| ---------------- | ----------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| Workspace domain | [`workspace-node-specification.md`](workspace-node-specification.md) and ADR-0016/0018/0019/0020/0021/0022        | Node semantics, persistence rules, layout/group behavior, and visual Connection meaning                    |
-| MCP contract     | [`mcp-server/instructions.md`](../../mcp-server/instructions.md) and the schemas/types under `src/lib/workspace/` | Tool inputs, outputs, errors, safety gates, retry behavior, and the five-tool transport surface            |
-| Workflow Skill   | [`skills/kagelin-workspace-builder/SKILL.md`](../../skills/kagelin-workspace-builder/SKILL.md)                    | AI-facing trigger, create/patch sequencing, clarification, reuse, confirmation, and verification decisions |
+| Surface          | Canonical source                                                                                                  | Owns                                                                                                         |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| Workspace domain | [`workspace-node-specification.md`](workspace-node-specification.md) and ADR-0016/0018/0019/0020/0021/0022        | Node semantics, persistence rules, layout/group behavior, and visual Connection meaning                      |
+| MCP contract     | [`mcp-server/instructions.md`](../../mcp-server/instructions.md) and the schemas/types under `src/lib/workspace/` | Workspace and Visual tool inputs, outputs, errors, safety gates, retry behavior, and image-content transport |
+| Workflow Skill   | [`skills/kagelin-workspace-builder/SKILL.md`](../../skills/kagelin-workspace-builder/SKILL.md)                    | AI-facing trigger, create/patch sequencing, clarification, reuse, confirmation, and verification decisions   |
 
 The three surfaces link to one another; none is a copy of the complete content
 of another. The MCP adapter and Skill do not replace the Workspace Blueprint
@@ -17,11 +17,11 @@ Engine or write database rows directly.
 
 ## Versions
 
-| Surface                           | Version | Compatibility statement                                                                   |
-| --------------------------------- | ------- | ----------------------------------------------------------------------------------------- |
-| MCP Server                        | `1.1.0` | Implements MCP Workspace contract `1.1.0`                                                 |
-| MCP Workspace contract            | `1.1.0` | Keeps the five existing tools and accepts canonical object forms plus legacy flat aliases |
-| `kagelin-workspace-builder` Skill | `1.0.0` | Requires MCP Workspace contract `>=1.1.0 <2.0.0`                                          |
+| Surface                           | Version | Compatibility statement                                                                                 |
+| --------------------------------- | ------- | ------------------------------------------------------------------------------------------------------- |
+| MCP Server                        | `1.2.0` | Implements MCP Workspace/Visual contract `1.2.0`                                                        |
+| MCP Workspace/Visual contract     | `1.2.0` | Keeps the original Workspace tools and adds explicit image/Visual tools; legacy aliases remain accepted |
+| `kagelin-workspace-builder` Skill | `1.0.0` | Requires MCP Workspace/Visual contract `>=1.2.0 <2.0.0`                                                 |
 
 The Skill version may change when orchestration changes without changing the
 tool contract. A contract-major change requires a new compatibility statement.
@@ -42,10 +42,40 @@ tool contract. A contract-major change requires a new compatibility statement.
   and canonical input replays the receipt; a different operation or input is a
   `request_conflict` error. It is not persistent across process restarts.
 
+## 1.2 Visual boundary
+
+- `image` is one asset-backed Workspace node kind. The node stores a stable
+  asset reference and display metadata; image bytes remain in the Visual asset
+  adapter.
+- `get_workspace_blueprint` returns lightweight image descriptors and never
+  embeds image bytes. `inspect_visual` reads an explicitly targeted thumbnail,
+  crop, or original and returns a standard MCP `image` content block when the
+  client declares support.
+- `import_visual` and `update_visual` validate bounded sources and keep asset
+  versions immutable. Metadata, annotations, typed Visual relations, and
+  lifecycle changes use the shared Visual Workspace Service.
+- `draft_visual_to_flow` only writes a pending draft. `confirm_visual_flow`
+  writes native Step/Decision/Connection rows through Domain Commands and keeps
+  `derived-from` provenance; confirmation failures are compensated when the
+  adapter supports rollback.
+- Guest assets are available to a local MCP process only through an explicitly
+  paired, scoped, expiring, revocable Guest asset bridge. An unavailable bridge
+  returns a machine-readable execution error and never fabricates image data.
+  The standalone MCP entry point exposes this bridge only in Guest mode on a
+  loopback HTTP endpoint; an explicit cloud Account configuration retains the
+  existing Supabase path unless `KAGELIN_MCP_USE_GUEST_BRIDGE=true` is set.
+  Kagelin's Guest Workspace page starts pairing with a one-time code and can
+  revoke the grant without changing any external AI client's business code.
+
+Text-only clients receive metadata and ready OCR/description/summary data with
+`equivalentToImage: false`; they must not claim to have visually inspected the
+original image.
+
 ## v1 boundary
 
 The external contract supports `doc`, `task`, `habit`, `project`, `focus`,
-`decision`, and `step` nodes, visual group containers, and visual Connections.
-Event nodes are not part of the v1 MCP or Skill contract. Connections are
-layout relationships only and do not promise triggers, scheduling,
-evaluation, execution, or dependency propagation.
+`decision`, `step`, and the asset-backed `image` node, plus visual group
+containers and visual Connections. Event nodes are not part of the v1 MCP or
+Skill contract. Connections are layout relationships only; Visual relations
+are typed context links. Neither promises triggers, scheduling, evaluation,
+execution, or dependency propagation.

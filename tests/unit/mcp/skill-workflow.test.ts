@@ -30,7 +30,7 @@ describe("kagelin-workspace-builder Skill contract", () => {
   it("has one model-invoked Skill with an independent compatible version", () => {
     expect(skill).toMatch(/^---\nname: kagelin-workspace-builder\n/);
     expect(skill).toMatch(/version: 1\.0\.0/);
-    expect(skill).toMatch(/requires_mcp_contract: ">=1\.1\.0 <2\.0\.0"/);
+    expect(skill).toMatch(/requires_mcp_contract: ">=1\.2\.0 <2\.0\.0"/);
   });
 
   it("defines creation and patch sequences in the right order", () => {
@@ -56,8 +56,10 @@ describe("kagelin-workspace-builder Skill contract", () => {
   });
 
   it("keeps safety and v1 semantic ownership in the Skill/MCP boundary", () => {
-    expect(skill).toMatch(/Event nodes are outside this contract/);
-    expect(skill).toMatch(/Connections describe\s+canvas relationships only/);
+    expect(skill).toMatch(/Event nodes are outside this\s+contract/);
+    expect(skill).toMatch(
+      /Connections and typed Visual relations describe context only/,
+    );
     expect(skill).toMatch(/destructiveConfirmation: true/);
     expect(skill).toMatch(/status: partial/);
     expect(skill).not.toMatch(

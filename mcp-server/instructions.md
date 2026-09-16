@@ -9,14 +9,15 @@ behavior.
 
 ## Contract boundary
 
-- MCP contract/server version: `1.1.0`.
+- MCP contract/server version: `1.2.0`.
 - Canonical build input: `{ blueprint: WorkspaceBlueprint }`.
 - Supported topology-first input: `{ mermaid: string }`.
 - Canonical patch input: `{ patch: BlueprintPatch }`.
 - Legacy flat aliases remain accepted and return `inputForm: "legacy"` plus a
   migration warning.
-- v1 supported node kinds: `doc`, `task`, `habit`, `project`, `focus`,
-  `decision`, and `step`. Event nodes are rejected as unsupported.
+- v1.2 supported node kinds: `doc`, `task`, `habit`, `project`, `focus`,
+  `decision`, `step`, and the asset-backed `image` node. Event nodes are
+  rejected as unsupported.
 - Connections are visual layout relationships only. They have no runtime
   trigger, scheduling, evaluation, execution, or dependency-propagation
   semantics.
@@ -58,7 +59,20 @@ Input: `{ "workspaceId": "account-owned-workspace-id" }`.
 
 The result contains `markdown` and `snapshot`. The snapshot includes current
 node and Connection IDs, group membership, coordinates, sizes, semantic
-references, orphan markers, and visual edge endpoints. It is read-only.
+references, orphan markers, lightweight image descriptors, typed Visual
+relations, and visual edge endpoints. It is read-only and contains no image
+bytes.
+
+### `inspect_visual`
+
+Read one explicitly targeted Visual asset or image node. Supply a
+`workspaceId` plus `nodeId`, `assetId`, `resourceId`, or a unique image title;
+canvas selection is never a target. With no `representation`, the response is
+the lightweight descriptor. `thumbnail`, `crop`, and `original` are read only
+when requested. A client that supports MCP image content receives a standard
+`{ "type": "image", "data": "<base64>", "mimeType": "image/..." }`
+content block. A text-only client receives metadata and any ready OCR or
+description with `equivalentToImage: false`.
 
 ### `build_workspace`
 
@@ -140,6 +154,46 @@ linked/created domain IDs, counts, warnings, and the same structured-plus-text
 JSON result shape as build. `status: "replayed"` and `replayed: true` identify a
 safe request-ID replay.
 
+### Visual writes and flow conversion
+
+- `import_visual` accepts an explicit base64/byte payload, a public HTTPS URL,
+  or an already authorized asset handle. It can create one image node. A
+  replacement always creates an immutable new asset version and requires
+  `confirmed: true`.
+- `update_visual` changes node/asset metadata, version-bound annotations, or a
+  confirmed replacement. It never overwrites source bytes.
+- `create_visual_relation`, `update_visual_relation`,
+  `list_visual_relations`, and `delete_visual_relation` manage typed
+  `reference`, `supports`, `evidence-for`, and `derived-from` context links.
+  They are separate from canvas Connections and never execute work.
+- `delete_visual_asset` requires explicit confirmation and soft-deletes the
+  asset; `restore_visual_asset` restores its immutable versions and node
+  references.
+- `draft_visual_to_flow` only stores a pending Step/Decision/Connection
+  proposal. The user must inspect and confirm with `confirm_visual_flow`; a
+  rejection changes no native workflow. A source-version change makes the
+  draft stale. Confirmed writes use the existing Domain Command adapters and
+  retain `derived-from` provenance.
+
+Guest-mode visual data is available to an external local MCP process only when
+the Kagelin page supplies a paired Guest asset bridge. The bridge authorizes
+origin, Workspace/asset scopes, operation names, expiry, revocation, request
+size, and audit events. A disconnected or expired bridge returns a
+machine-readable `visualCode: "bridge_unavailable"` error; it never falls back
+to a different account or fabricated image bytes.
+
+For the standalone local process, set `KAGELIN_MCP_USE_GUEST_BRIDGE=true` (the
+process also defaults to Guest bridge mode when no explicit Account identity or
+server key is configured). The process starts a loopback-only HTTP host at
+`http://127.0.0.1:37373/kagelin/guest-asset-bridge` and prints a temporary
+pairing code to stderr. In a Guest Workspace, the user starts pairing from
+Kagelin's **Pair local MCP** button, enters that code, and confirms the current
+Workspace scope. `KAGELIN_GUEST_BRIDGE_PORT` may select another local port.
+Pairing is not implicit: an unpaired MCP request fails closed, the grant is
+short-lived and revocable, and the browser page remains the only owner of
+IndexedDB and Domain Command execution. A cloud-configured MCP process keeps
+its existing Supabase path unless Guest bridge mode is explicitly enabled.
+
 ## Errors and retry
 
 Failed calls have `isError: true` and a stable JSON error object:
@@ -147,7 +201,7 @@ Failed calls have `isError: true` and a stable JSON error object:
 ```json
 {
   "success": false,
-  "contractVersion": "1.1.0",
+  "contractVersion": "1.2.0",
   "error": {
     "category": "authentication | authorization | invalid_input | invalid_reference | confirmation_required | request_conflict | execution | compensation | unsupported_operation",
     "message": "safe human-readable summary",

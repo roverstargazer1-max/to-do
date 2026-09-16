@@ -16,7 +16,10 @@
    - 2.4 [事件节点 (Event Node)](#24-事件节点-event-node)
    - 2.5 [专注节点 (Focus Node)](#25-专注节点-focus-node)
    - 2.6 [项目节点 (Project Node)](#26-项目节点-project-node)
-   - 2.7 [分组容器 (Group Node / Section)](#27-分组容器-group-node--section)
+
+- 2.7 [分组容器 (Group Node / Section)](#27-分组容器-group-node--section)
+- 2.8 [图片节点 (Image Node)](#28-图片节点-image-node)
+
 3. [连线与流向规范 (Flow / Edge)](#3-连线与流向规范-flow--edge)
 4. [MCP 蓝图与精细化操作契约 (MCP Protocol)](#4-mcp-蓝图与精细化操作契约-mcp-protocol)
 5. [人机交互沟通与精准微调指南 (Prompting & Fine-tuning)](#5-人机交互沟通与精准微调指南-prompting--fine-tuning)
@@ -31,6 +34,7 @@ Kagelin 的工作台（Workspace）是一张高对比度、墨黑美学（Ink & 
 
 - **引用节点 (Reference Nodes - 任务/习惯/事件/项目)**：画布上的卡片是底层领域实体的**实时引用（Live Reference）**，绝不是数据的副本。在画布上移除卡片（`node.remove`）**绝对不会**删除真实的任务或习惯；修改底层任务状态会自动实时同步到画布。
 - **独立节点 (Self-contained Nodes - 文档/分组)**：文档和分组不绑定外部业务表，其数据仅存在于工作台布局层（`display_config`）。移除节点即删除该卡片内容。
+- **资产节点 (Asset-backed Nodes - 图片)**：图片节点只保存 Visual asset 引用和展示/语义元数据；图片字节、版本、哈希和生命周期由独立 Visual asset 负责。移除节点不删除资产。
 - **单例投影节点 (Singleton Projection - 专注)**：专注节点是全站唯一番茄钟计时器（`timerStore`）在画布上的视觉透镜，不产生独立倒计时。
 
 ### 1.2 零后门原则 (Zero-Backdoor Principle)
@@ -318,6 +322,45 @@ interface DocDisplayConfig {
 
 ---
 
+### 2.8 图片节点 (Image Node)
+
+- **注册标识符 (`kind`)**：`"image"`
+- **中文标准名称**：图片节点
+- **英文标准名称**：Image Node
+- **UI 菜单入口**：`+ 添加` -> `图片` (`workspace.canvas.addImage`)，或拖放/粘贴图片
+
+#### 核心定位与用途
+
+图片节点是截图、草图、参考图、状态证据和生成结果的资产型视觉上下文。它不是
+Step、Decision、Task，也不是默认可执行对象。
+
+#### 数据结构与存储
+
+- **引用模型**：资产引用，`entity_type: "visual_asset"`，`entity_id: "<asset_id>"`。
+- **节点存储**：`display_config` 只保存标题、角色、替代文本和可选版本引用；不得保存
+  base64、原始字节或无法恢复的临时 URL。
+- **资产存储**：Visual asset 独立保存 MIME、字节大小、像素尺寸、哈希、来源、版本、
+  派生信息和生命周期。一个资产可以被多个图片节点引用。
+
+#### 尺寸与布局规范
+
+- **默认宽度**：`320px`
+- **默认高度**：`240px`
+- **缩放支持**：沿用 `CardResizer`；节点移动、分组和删除沿用现有 Workspace 命令。
+
+#### 交互与 AI 访问
+
+1. 上传、拖放或粘贴先验证并保存 Visual asset，再通过 `node.add` 创建图片节点。
+2. 删除图片节点只移除布局引用，不删除共享资产；替换通过不可变新版本完成。
+3. 资产缺失或 Guest bridge 不可用时显示可恢复的明确占位状态，不伪造图片。
+4. 外部 AI 只能通过明确的 Workspace/Node/Asset/Resource ID 调用 MCP 视觉工具；画布
+   选择状态不是协议前提。`get_workspace_blueprint` 只返回轻量描述，`inspect_visual`
+   按需返回 thumbnail/crop/original 及标准 MCP `image` 内容。
+5. OCR、描述、标签、区域和图片到流程结果都是带版本来源的派生或草稿；转为原生
+   Step、Decision、Connection 前必须获得用户确认。
+
+---
+
 ## 3. 连线与流向规范 (Flow / Edge)
 
 - **注册标识符**：`WorkspaceEdge` / `Flow`
@@ -340,6 +383,16 @@ interface DocDisplayConfig {
 - **汇聚里程碑 (Milestone Convergence)**：
   `Task A (out)` $\searrow$  
   `Task B (out)` $\longrightarrow$ `Event / Project (in)`：多个任务共同汇聚于某一关键事件或里程碑。
+
+### 3.3 Visual relation（独立于 Connection）
+
+Visual relation 用于表达图片资产或图片节点与工作区对象之间的参考、支撑、证据和派生关系；
+它不参与流程执行，不替代 `workspace_edges`，也不改变 Step、Decision 或 Connection 的拓扑。
+
+- 关系端点必须通过明确的 `workspace_id`、端点类型和对象 ID 解析；不能依赖画布选中状态。
+- `reference`、`supports`、`evidence-for` 和 `derived-from` 是视觉语义，不会被解释为流程边。
+- 图片替换生成新版本；版本化关系可携带 `source_version_id` / `target_version_id`，历史版本保持可追溯。
+- 删除关系只删除关系记录，不删除端点资产或原生节点。
 
 ---
 
@@ -380,6 +433,15 @@ type BlueprintItem =
       dueDate?: string; // 截止日期，如 "2026-09-20"
       projectName?: string; // 所属项目名称（自动关联或创建）
       existingTaskId?: string; // 复用已有任务 ID（强烈推荐优先复用）
+    }
+  | {
+      id: string;
+      kind: "image";
+      assetId: string; // Visual asset stable ID; image bytes are not in the Blueprint
+      title?: string;
+      role?: string;
+      altText?: string;
+      versionId?: string;
     }
   | {
       id: string;
@@ -441,17 +503,18 @@ interface BlueprintPatch {
 
 ### 5.1 常用交互词汇对照表
 
-| 用户口头表述                    | 规范对应实体                   | AI 处理动作 / MCP 工具                     |
-| :------------------------------ | :----------------------------- | :----------------------------------------- |
-| “建一个说明卡/便签/Prompt”      | **文档节点 (`doc`)**           | 添加 `kind: "doc"`，写入 Markdown          |
-| “加一个待办/任务”               | **任务节点 (`task`)**          | 检查已有任务复用，或新建任务节点           |
-| “加一个打卡/习惯”               | **习惯节点 (`habit`)**         | 检查已有习惯，放置习惯节点                 |
-| “把XX日期的会议/考试放上去”     | **事件节点 (`event`)**         | 检索日历事件，挂载事件节点                 |
-| “放个番茄钟/倒计时”             | **专注节点 (`focus`)**         | 挂载专注单例透镜节点                       |
-| “把这几个放在一个框里/建个阶段” | **分组容器 (`group`)**         | 设定 `isGroup: true` 并包裹目标卡片        |
-| “连一根线/建立依赖”             | **连线 (`flow`)**              | 配置 `fromItemId` $\to$ `toItemId` 连线    |
-| “改一下第一阶段说明里的内容”    | **微调文档 (`updateDocs`)**    | 调用 `patch_workspace` 仅更新指定 doc 节点 |
-| “删掉那个旧任务卡片”            | **局部删除 (`removeNodeIds`)** | 调用 `patch_workspace`，不破坏其余卡片坐标 |
+| 用户口头表述                    | 规范对应实体                   | AI 处理动作 / MCP 工具                                      |
+| :------------------------------ | :----------------------------- | :---------------------------------------------------------- |
+| “建一个说明卡/便签/Prompt”      | **文档节点 (`doc`)**           | 添加 `kind: "doc"`，写入 Markdown                           |
+| “加一个待办/任务”               | **任务节点 (`task`)**          | 检查已有任务复用，或新建任务节点                            |
+| “加一个打卡/习惯”               | **习惯节点 (`habit`)**         | 检查已有习惯，放置习惯节点                                  |
+| “把XX日期的会议/考试放上去”     | **事件节点 (`event`)**         | 检索日历事件，挂载事件节点                                  |
+| “放个番茄钟/倒计时”             | **专注节点 (`focus`)**         | 挂载专注单例透镜节点                                        |
+| “把这几个放在一个框里/建个阶段” | **分组容器 (`group`)**         | 设定 `isGroup: true` 并包裹目标卡片                         |
+| “放一张截图/参考图/证据图”      | **图片节点 (`image`)**         | 引用已有 Visual asset；图片内容由 `inspect_visual` 按需读取 |
+| “连一根线/建立依赖”             | **连线 (`flow`)**              | 配置 `fromItemId` $\to$ `toItemId` 连线                     |
+| “改一下第一阶段说明里的内容”    | **微调文档 (`updateDocs`)**    | 调用 `patch_workspace` 仅更新指定 doc 节点                  |
+| “删掉那个旧任务卡片”            | **局部删除 (`removeNodeIds`)** | 调用 `patch_workspace`，不破坏其余卡片坐标                  |
 
 ### 5.2 精准指令范例
 

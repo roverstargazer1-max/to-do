@@ -3,16 +3,17 @@ name: kagelin-workspace-builder
 description: Use for requests to create or modify a Kagelin Workspace, Canvas, Flowchart, Blueprint, visual workflow, or stage/group layout. Do not use for standalone Task, Habit, Calendar, or Focus management.
 metadata:
   version: 1.0.0
-  requires_mcp_contract: ">=1.1.0 <2.0.0"
+  requires_mcp_contract: ">=1.2.0 <2.0.0"
 ---
 
 # Kagelin Workspace Builder
 
-This Skill is the workflow layer for Workspace work. The five Kagelin Workspace
-MCP tools are the capability and safety boundary: they validate inputs and
-ownership, enforce confirmation and retry rules, execute the Blueprint Engine
-through Domain Commands, and return operation receipts. Use the tools; do not
-write database rows or invent a second persistence path.
+This Skill is the workflow layer for Workspace work. The Kagelin Workspace and
+Visual MCP tools are the capability and safety boundary: they validate inputs
+and ownership, enforce confirmation and retry rules, execute the Blueprint
+Engine or Visual Workspace Service through Domain Commands, and return
+operation receipts. Use the tools; do not write database rows or invent a
+second persistence path.
 
 Read the contract and domain references only when their detail is needed:
 
@@ -58,11 +59,11 @@ an explicit ID; do not guess from a similar name.
      groups, or structured layout intent.
    - If Mermaid cannot express a required semantic field or supported kind,
      ask the smallest clarification or fall back to a canonical Blueprint.
-4. Advertise and send only v1-supported kinds: `doc`, `task`, `habit`,
-   `project`, `focus`, `decision`, and `step`, with visual groups and visual
-   Connections. Event nodes are outside this contract. Connections describe
-   canvas relationships only; they do not schedule, trigger, evaluate, run,
-   or propagate work.
+4. Advertise and send only v1.2-supported kinds: `doc`, `task`, `habit`,
+   `project`, `focus`, `decision`, `step`, and asset-backed `image`, with
+   visual groups and visual Connections. Event nodes are outside this
+   contract. Connections and typed Visual relations describe context only;
+   they do not schedule, trigger, evaluate, run, or propagate work.
 5. Call `build_workspace` with the canonical object (or Mermaid input) and a
    stable `requestId` when the client can retry. Building creates a new
    Workspace; it is not the operation for changing an existing one.
@@ -88,8 +89,8 @@ The normal creation sequence is:
    node, Connection, group, position, size, and semantic-reference IDs. Keep
    untouched layout and entity references unchanged.
 3. Build the smallest canonical `{ patch }` containing only requested
-   additions, in-place Document/Decision/Step edits, visual Connections, or
-   removals. Use `patch_workspace`; never express a local change as a full
+   additions, in-place Document/Decision/Step/Image edits, visual Connections,
+   or removals. Use `patch_workspace`; never express a local change as a full
    `build_workspace`.
 4. For node/Connection removals or a materially broad batch, explain the
    concrete affected IDs and ask for the user's confirmation. Only after that
@@ -105,6 +106,33 @@ The normal modification sequence is:
 
 `list_workspaces` → `get_workspace_blueprint` → `patch_workspace` → optional
 `get_workspace_blueprint`.
+
+## Use Visual assets deliberately
+
+1. Resolve an explicit `workspaceId` plus `nodeId`, `assetId`, `resourceId`, or
+   unique image title. Never infer a target from canvas selection or simply
+   from the existence of an image node.
+2. Read the lightweight descriptor first. Call `inspect_visual` with
+   `thumbnail`, `crop`, or `original` only when the user request needs image
+   bytes. If the client does not support MCP image content, use the returned
+   OCR/description/metadata as a clearly non-equivalent fallback.
+3. Use `update_visual` for metadata, annotations, and version-bound changes;
+   use `import_visual` for a validated base64/byte payload, public HTTPS URL,
+   or authorized asset handle. Replacements and deletes require explicit user
+   confirmation and never overwrite the old version.
+4. Use the Visual relation tools for `reference`, `supports`,
+   `evidence-for`, and `derived-from`; do not encode those meanings as a
+   native canvas Connection.
+5. For image-to-flow work, call `draft_visual_to_flow`, show the proposed
+   native Step/Decision/Connection changes and uncertainties, and wait for
+   explicit confirmation before `confirm_visual_flow`. A rejected or stale
+   draft changes no native workflow.
+6. In Guest mode, stop and explain how to pair/open Kagelin when the Guest
+   asset bridge is unavailable. The user can choose **Pair local MCP** in the
+   current Guest Workspace, enter the loopback endpoint and one-time code
+   printed by the local MCP process, and confirm the Workspace scope. The
+   bridge is scoped, expiring, revocable, and does not grant arbitrary
+   local-file access.
 
 ## Handle tool results
 
