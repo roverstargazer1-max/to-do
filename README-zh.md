@@ -58,6 +58,17 @@ _当前处于预览阶段 —— 请预期存在一些粗糙之处。_
 - **重复任务**：按任务可设为严格模式（锚定于截止日期）或弹性模式（锚定于完成日期）。
 - **笔记编辑器**：Markdown 格式工具栏，任务笔记实时预览。
 
+### 工作台与可视化工作流
+
+- **多工作台**：从侧边栏的“工作台”区域、命令面板或按 `W` 新建多个独立画布，并可分别重命名、更换颜色和删除。
+- **实时引用**：把已有任务、习惯、日历事件和项目放到画布上。任务完成、习惯打卡和项目进度会跟随底层领域数据更新。移除卡片只会移除工作台节点，绝不会删除被引用的任务、习惯、事件或项目；日历事件卡片为只读展示。
+- **原生规划卡片**：可添加 Markdown 文档、决策、步骤和专注卡片。文档支持编辑/预览与一键复制 Markdown；决策和步骤支持行内编辑；专注卡片控制全局共享的番茄钟。
+- **分组与布局**：选择多个卡片后可按阶段或泳道打组，重命名、缩放和解散分组；也可以拖动、缩放卡片，平移/缩放画布并适应全图。节点位置和尺寸会持久化，视口会在当前设备恢复。
+- **连线**：从节点右侧输出端连接到另一个节点左侧输入端，可添加/编辑标签，也可通过连线中点控件或 `Delete` 删除。连线只表示视觉布局关系，不会触发事件、安排工作、执行命令或传播运行时依赖。
+- **安全降级**：如果被引用的领域实体在其他位置被删除，画布会保留节点位置并显示孤立占位卡片，移除占位不会影响其他数据。未知节点类型也会降级为可安全移除的占位卡片，以兼容未来版本。
+
+完整的节点与拓扑规范见 [`docs/agents/workspace-node-specification.md`](docs/agents/workspace-node-specification.md)，面向用户的工作台示例见 [`docs/USER_WORKSPACE_GUIDE.md`](docs/USER_WORKSPACE_GUIDE.md)。
+
 ### 专注与习惯
 
 - **专注计时器**：支持画中画的番茄钟引擎，可在设备间接力 —— 在一台设备上暂停，所有设备同步暂停。
@@ -97,16 +108,89 @@ _当前处于预览阶段 —— 请预期存在一些粗糙之处。_
 
 ## 快捷键
 
-| 快捷键          | 操作                                           |
-| --------------- | ---------------------------------------------- |
-| `1–6`           | 快速导航（首页、习惯、日历、统计、专注、设置） |
-| `Shift+1 / 2`   | 切换视图（看板 / 列表）                        |
-| `gg / G`        | 跳转到任务列表或看板的顶部 / 底部              |
-| `yy / p / u`    | 复制任务 / 粘贴任务 / 撤销操作                 |
-| `Ctrl/Cmd+K`    | 打开命令面板                                   |
-| `Ctrl/Cmd+B`    | 切换侧边栏                                     |
-| `N / H / E / P` | 新建（任务、习惯、事件、项目）                 |
-| `Shift+H`       | 查看全部快捷键                                 |
+| 快捷键              | 操作                                           |
+| ------------------- | ---------------------------------------------- |
+| `1–6`               | 快速导航（首页、习惯、日历、统计、专注、设置） |
+| `Shift+1 / 2`       | 切换视图（看板 / 列表）                        |
+| `gg / G`            | 跳转到任务列表或看板的顶部 / 底部              |
+| `yy / p / u`        | 复制任务 / 粘贴任务 / 撤销操作                 |
+| `Ctrl/Cmd+K`        | 打开命令面板                                   |
+| `Ctrl/Cmd+B`        | 切换侧边栏                                     |
+| `N / H / E / P / W` | 新建（任务、习惯、事件、项目、工作台）         |
+| `Shift+H`           | 查看全部快捷键                                 |
+
+## AI 工作台：MCP + Skill
+
+Kagelin 将 AI 集成拆成两个层次：
+
+- **MCP Server**（`mcp-server/`）提供能力与安全边界，固定暴露五个工具：`list_workspaces`、`inspect_app_context`、`get_workspace_blueprint`、`build_workspace` 和 `patch_workspace`。
+- **Skill**（[`skills/kagelin-workspace-builder/SKILL.md`](skills/kagelin-workspace-builder/SKILL.md)）是可选的工作流编排层，负责决定何时检查上下文、复用已有实体、澄清需求、选择 Blueprint 或 Mermaid、请求确认、消费回执和验证结果；它不会直接写入数据。
+
+当前 MCP 合约版本为 `1.1.0`，Skill 版本为 `1.0.0`。AI 合约 v1 支持 `doc`、`task`、`habit`、`project`、`focus`、`decision` 和 `step` 节点。原生工作台可以显示日历事件节点，但 MCP/Skill v1 有意拒绝 `event` 节点；连线始终是纯视觉关系，不承诺运行时自动化语义。
+
+### 配置 MCP Server
+
+1. 安装依赖并创建本地环境文件：
+
+   ```bash
+   npm install
+   cp .env.example .env.local
+   ```
+
+2. 配置 Supabase 项目和 MCP 进程使用的 Account 身份。独立运行的 stdio Server 必须使用宿主提供的带会话 Supabase Client，或者使用服务端密钥。对于本地 `npm run mcp:start`，配置：
+
+   ```dotenv
+   NEXT_PUBLIC_SUPABASE_URL=https://<project>.supabase.co
+   SUPABASE_SECRET_KEY=<仅服务端使用的密钥>
+   KAGELIN_MCP_USER_ID=<已认证账号的UUID>
+   ```
+
+   `KAGELIN_MCP_USER_ID` 用来明确 Account 作用域，不是密码。服务端密钥必须只保存在本地 Server 环境中，绝不能进入浏览器代码、提交到 Git 或部署到公开环境。即使使用该密钥，适配层仍会在变更前检查工作台、节点、连线及被引用领域实体的所有权。真实模式缺少明确身份时会 fail closed；`KAGELIN_MOCK_MODE=true` 仅用于测试和本地 fixture，不是认证替代品。
+
+3. 启动一次 Server，确认 stdio 进程可用：
+
+   ```bash
+   npm run mcp:start
+   ```
+
+   MCP 客户端注册后会自行启动该进程。不要把它作为长驻 HTTP 服务运行；当前集成使用 stdio 传输。
+
+#### stdio 客户端配置示例
+
+在 Antigravity、Claude Desktop、Claude Code、Cursor 或其他支持 stdio 的客户端中，添加等价的 MCP Server 条目。将占位符替换为绝对路径和本地凭据：
+
+```json
+{
+  "mcpServers": {
+    "kagelin-workspace-builder": {
+      "command": "node",
+      "args": [
+        "<path-to-kagelin>/node_modules/tsx/dist/cli.mjs",
+        "--tsconfig",
+        "<path-to-kagelin>/tsconfig.json",
+        "<path-to-kagelin>/mcp-server/index.ts"
+      ],
+      "env": {
+        "NEXT_PUBLIC_SUPABASE_URL": "https://<project>.supabase.co",
+        "SUPABASE_SECRET_KEY": "<仅服务端使用的密钥>",
+        "KAGELIN_MCP_USER_ID": "<已认证账号的UUID>"
+      }
+    }
+  }
+}
+```
+
+通过 `mcp-server/index.ts` 启动时，Server 也会自动加载仓库根目录的 `.env.local`，因此可以把密钥留在那里，避免在客户端配置文件中重复保存。客户端专属模板见 [`mcp-server/README.md`](mcp-server/README.md)，完整工具合约见 [`mcp-server/instructions.md`](mcp-server/instructions.md)。
+
+### 配置和使用 Skill
+
+1. 在支持 Skill 的客户端中，将规范文件 [`skills/kagelin-workspace-builder/SKILL.md`](skills/kagelin-workspace-builder/SKILL.md) 以 `kagelin-workspace-builder` 的名称安装或映射到客户端的 Skill 目录。项目不维护按客户端复制的版本，请保持该文件与 MCP 合约版本同步。
+2. 将同一个客户端连接到上面的 MCP Server。Skill 负责时序和对话编排；MCP Server 仍负责校验、Account 隔离、破坏性操作门禁、回执、重试和数据完整性。
+3. 创建新画布时，描述目标、阶段、卡片和它们的关系。例如：“创建一个名为 Release flow 的工作台，分为 Prepare、Build、Verify 三个阶段；复用我已有的发布任务，并从左到右连接各阶段。” Skill 可以先检查相关项目、习惯和任务，然后调用 `build_workspace` 并返回操作回执。
+4. 修改已有画布时，明确工作台目标和局部变更。例如：“在 Release flow 工作台的 Build 分组里增加一个 Verify 步骤，保持已有卡片位置不变。” Skill 会先列出工作台、读取目标快照，再调用 `patch_workspace`；拓扑或删除操作后会重新读取验证，绝不会把局部修改改写成全量重建。
+5. 对破坏性变更明确确认。删除节点/连线或提交大批量 patch 时，MCP 边界要求 `destructiveConfirmation: true`，只在提示词中说“确认”并不能绕过服务端门禁。客户端可能重试时，请使用稳定的 `requestId`：相同输入会安全重放，复用同一 ID 但输入不同则返回冲突。
+
+如果客户端无法加载 Skill，可以请求 MCP 命名 Prompt `workspace_builder_workflow`，按照其 inspect → resolve → build/patch → receipt → verify 流程执行。通用 MCP 客户端应先用 `list_workspaces` 解析已有目标；需要复用实时实体时调用 `inspect_app_context`；修改已有工作台前先调用 `get_workspace_blueprint`，再按场景选择 `build_workspace` 或 `patch_workspace`。
 
 <details>
 <summary><strong>技术栈</strong></summary>

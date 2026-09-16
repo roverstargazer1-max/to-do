@@ -112,6 +112,39 @@ export interface WorkspaceMcpErrorPayload {
   };
 }
 
+const SUPABASE_CONNECTIVITY_ERROR_MESSAGE =
+  "MCP Server could not reach the configured Supabase endpoint.";
+
+const SUPABASE_CONNECTIVITY_ERROR_HINT =
+  "Check NEXT_PUBLIC_SUPABASE_URL, the Supabase/Docker services, and network connectivity.";
+
+function isFetchFailure(value: unknown): boolean {
+  return (
+    typeof value === "string" && /(?:TypeError:\s*)?fetch failed/i.test(value)
+  );
+}
+
+function connectivityErrorPayload(
+  providerMessage: string,
+  originalMessage?: string,
+): WorkspaceMcpErrorPayload {
+  return {
+    success: false,
+    contractVersion: WORKSPACE_MCP_CONTRACT_VERSION,
+    error: {
+      category: "execution",
+      message: SUPABASE_CONNECTIVITY_ERROR_MESSAGE,
+      details: {
+        providerMessage,
+        hint: SUPABASE_CONNECTIVITY_ERROR_HINT,
+        ...(originalMessage && originalMessage !== providerMessage
+          ? { operation: originalMessage }
+          : {}),
+      },
+    },
+  };
+}
+
 export function emptyLinkedEntityIds(): LinkedEntityIds {
   return { tasks: [], habits: [], projects: [] };
 }
@@ -154,6 +187,10 @@ export function canonicalizeForReplay(value: unknown): string {
 
 export function toErrorPayload(err: unknown): WorkspaceMcpErrorPayload {
   if (err instanceof WorkspaceMcpError) {
+    const providerMessage = err.details.providerMessage;
+    if (err.category === "execution" && isFetchFailure(providerMessage)) {
+      return connectivityErrorPayload(String(providerMessage), err.message);
+    }
     return {
       success: false,
       contractVersion: WORKSPACE_MCP_CONTRACT_VERSION,
@@ -204,6 +241,9 @@ export function toErrorPayload(err: unknown): WorkspaceMcpErrorPayload {
   }
 
   const message = err instanceof Error ? err.message : String(err);
+  if (isFetchFailure(message)) {
+    return connectivityErrorPayload(message);
+  }
   return {
     success: false,
     contractVersion: WORKSPACE_MCP_CONTRACT_VERSION,

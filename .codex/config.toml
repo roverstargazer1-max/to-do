@@ -1,0 +1,20 @@
+# Project-scoped Codex configuration for Kagelin Workspace Builder.
+# The server loads the repository .env.local itself; keep secrets out of this file.
+
+[mcp_servers."kagelin-workspace-builder"]
+command = "node"
+args = [
+  "D:/Projects/to-do/kagelin/node_modules/tsx/dist/cli.mjs",
+  "--tsconfig",
+  "D:/Projects/to-do/kagelin/tsconfig.json",
+  "D:/Projects/to-do/kagelin/mcp-server/index.ts",
+]
+env_vars = [
+  "NEXT_PUBLIC_SUPABASE_URL",
+  "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+  "SUPABASE_SECRET_KEY",
+  "KAGELIN_MCP_USER_ID",
+  "NEXT_PUBLIC_LOCAL_USER_ID",
+]
+startup_timeout_sec = 30
+tool_timeout_sec = 120

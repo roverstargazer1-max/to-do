@@ -51,11 +51,36 @@ Run with `npm run mcp:start` or directly with `tsx`:
 npm run mcp:start
 ```
 
-Real mode fails closed unless the process has an explicit authenticated Account
-identity. Configure `KAGELIN_MCP_USER_ID` to the signed-in Supabase user ID
-(alongside the Supabase URL/key in `.env.local` or the client environment).
-`KAGELIN_MOCK_MODE=true` is reserved for tests and local mock fixtures; it is
-not an authentication substitute for a real Account.
+Real mode fails closed unless the process has an explicit Account identity and
+can authenticate that identity. A standalone stdio process started through
+`mcp-server/index.ts` can use the server-side Supabase secret key:
+
+```dotenv
+NEXT_PUBLIC_SUPABASE_URL=https://<project>.supabase.co
+SUPABASE_SECRET_KEY=<server-only-secret-key>
+KAGELIN_MCP_USER_ID=<authenticated-account-id>
+```
+
+The secret key must remain in `.env.local` or another protected local server
+environment. Never expose it to browser code, commit it, or deploy it as a
+public client variable. An embedding caller may instead provide a
+session-bound Supabase client. `KAGELIN_MOCK_MODE=true` is reserved for tests
+and local mock fixtures; it is not an authentication substitute for a real
+Account.
+
+When `NEXT_PUBLIC_SUPABASE_URL` points to the local default
+`http://127.0.0.1:54321`, start the local Supabase stack before starting the
+MCP client:
+
+```bash
+npx supabase start
+curl --fail http://127.0.0.1:54321/auth/v1/health
+```
+
+If Workspace tools return `MCP Server could not reach the configured Supabase
+endpoint`, check that Docker Desktop is running, the configured URL is
+reachable from the MCP process, and the local stack or hosted Supabase project
+is healthy. The MCP server never falls back to mock data in real mode.
 
 ## Skill and generic-client distribution
 
@@ -94,7 +119,8 @@ Add the following entry to your Antigravity configuration file (e.g. in your wor
         "D:/Projects/to-do/kagelin/mcp-server/index.ts"
       ],
       "env": {
-        "KAGELIN_MOCK_MODE": "false",
+        "NEXT_PUBLIC_SUPABASE_URL": "https://<project>.supabase.co",
+        "SUPABASE_SECRET_KEY": "<server-only-secret-key>",
         "KAGELIN_MCP_USER_ID": "<authenticated-account-id>"
       }
     }
@@ -114,7 +140,7 @@ Add the following to your `claude_desktop_config.json`:
       "args": ["-y", "tsx", "<path-to-kagelin>/mcp-server/index.ts"],
       "env": {
         "NEXT_PUBLIC_SUPABASE_URL": "http://localhost:54321",
-        "NEXT_PUBLIC_SUPABASE_ANON_KEY": "<your-anon-key>",
+        "SUPABASE_SECRET_KEY": "<server-only-secret-key>",
         "KAGELIN_MCP_USER_ID": "<authenticated-account-id>"
       }
     }

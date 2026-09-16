@@ -468,6 +468,50 @@ graph LR
     }
   });
 
+  it("reports an actionable error when Supabase is unreachable", async () => {
+    const unreachableSupabaseClient = {
+      auth: {
+        getSession: async () => ({
+          data: { session: { user: { id: "user-1" } } },
+          error: null,
+        }),
+      },
+      from: () => ({
+        select: () => ({
+          eq: () => ({
+            order: () => ({
+              limit: async () => {
+                throw new TypeError("fetch failed");
+              },
+            }),
+          }),
+        }),
+      }),
+    };
+
+    const realServer = createKagelinMcpServer({
+      useMockFallback: false,
+      identity: "user-1",
+      supabaseClient: unreachableSupabaseClient as any,
+    });
+    const response = await (
+      realServer as any
+    )._registeredTools.list_workspaces.handler({});
+    const data = responseData(response);
+
+    expect(response.isError).toBe(true);
+    expect(data.error).toEqual(
+      expect.objectContaining({
+        category: "execution",
+        message: "MCP Server could not reach the configured Supabase endpoint.",
+        details: expect.objectContaining({
+          providerMessage: "fetch failed",
+          hint: expect.stringContaining("NEXT_PUBLIC_SUPABASE_URL"),
+        }),
+      }),
+    );
+  });
+
   it("keeps Workspace, node, and Connection reads account-scoped", async () => {
     const foreignNode = {
       ...mockNodes[1],
