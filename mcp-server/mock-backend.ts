@@ -5,12 +5,22 @@ import type {
   UpdateDecisionNodeInput,
   UpdateDocNodeInput,
   UpdateStepNodeInput,
+  UpdateImageNodeInput,
   Workspace,
   WorkspaceEdge,
   WorkspaceNode,
 } from "../src/lib/types/workspace";
 import type { Habit } from "../src/lib/types/habit";
 import type { Project, Task } from "../src/lib/types/task";
+import type {
+  VisualAnnotation,
+  VisualAsset,
+  VisualAssetVersion,
+  VisualDerivedInfo,
+  VisualFlowDraft,
+  VisualRelation,
+} from "../src/lib/types/visual";
+import { InMemoryVisualAssetStore } from "../src/lib/visual/store";
 
 export interface MockBackendInput {
   userId: string;
@@ -20,6 +30,12 @@ export interface MockBackendInput {
   tasks?: Task[];
   projects?: Project[];
   habits?: Habit[];
+  visualAssets?: VisualAsset[];
+  visualVersions?: VisualAssetVersion[];
+  visualAnnotations?: VisualAnnotation[];
+  visualDerived?: VisualDerivedInfo[];
+  visualRelations?: VisualRelation[];
+  visualFlowDrafts?: VisualFlowDraft[];
 }
 
 export interface MockBackendState {
@@ -29,6 +45,12 @@ export interface MockBackendState {
   tasks: Task[];
   projects: Project[];
   habits: Habit[];
+  visualAssets: VisualAsset[];
+  visualVersions: VisualAssetVersion[];
+  visualAnnotations: VisualAnnotation[];
+  visualDerived: VisualDerivedInfo[];
+  visualRelations: VisualRelation[];
+  visualFlowDrafts: VisualFlowDraft[];
 }
 
 function clone<T>(value: T): T {
@@ -53,6 +75,7 @@ export class McpMockBackend {
   private readonly tasks: Task[];
   private readonly projects: Project[];
   private readonly habits: Habit[];
+  readonly visualStore: InMemoryVisualAssetStore;
   private idCounter = 0;
 
   readonly commandAdapters: BlueprintCommandAdapters;
@@ -81,6 +104,31 @@ export class McpMockBackend {
       ...clone(item),
       user_id: item.user_id || input.userId,
     }));
+    this.visualStore = new InMemoryVisualAssetStore({
+      assets: (input.visualAssets ?? []).map((item) => ({
+        ...clone(item),
+        user_id: item.user_id || input.userId,
+      })),
+      versions: (input.visualVersions ?? []).map((item) => ({
+        ...item,
+        ...(item.data ? { data: item.data.slice() } : {}),
+        user_id: item.user_id || input.userId,
+      })),
+      annotations: (input.visualAnnotations ?? []).map((item) => ({
+        ...clone(item),
+        created_by: item.created_by || input.userId,
+      })),
+      derived: clone(input.visualDerived ?? []),
+      relations: (input.visualRelations ?? []).map((item) => ({
+        ...clone(item),
+        user_id: item.user_id || input.userId,
+        created_by: item.created_by || input.userId,
+      })),
+      drafts: (input.visualFlowDrafts ?? []).map((item) => ({
+        ...clone(item),
+        created_by: item.created_by || input.userId,
+      })),
+    });
 
     this.commandAdapters = {
       workspace: {
@@ -94,6 +142,7 @@ export class McpMockBackend {
         updateDecisionNode: async (_ctx, input) =>
           this.updateDecisionNode(input),
         updateStepNode: async (_ctx, input) => this.updateStepNode(input),
+        updateImageNode: async (_ctx, input) => this.updateImageNode(input),
         remove: async (_ctx, node) => this.removeNode(node.id),
       },
       edge: {
@@ -118,6 +167,7 @@ export class McpMockBackend {
   }
 
   getState(): MockBackendState {
+    const visualState = this.visualStore.getState();
     return {
       workspaces: clone(this.workspaces),
       nodes: clone(this.nodes),
@@ -125,7 +175,22 @@ export class McpMockBackend {
       tasks: clone(this.tasks),
       projects: clone(this.projects),
       habits: clone(this.habits),
+      // `clone` is JSON-only for the legacy domain rows and would turn
+      // Uint8Array version bytes into objects. The visual store already
+      // returns a defensive, byte-preserving snapshot.
+      visualAssets: visualState.assets,
+      visualVersions: visualState.versions,
+      visualAnnotations: visualState.annotations,
+      visualDerived: visualState.derived,
+      visualRelations: visualState.relations,
+      visualFlowDrafts: visualState.drafts,
     };
+  }
+
+  async getVisualState(): Promise<
+    ReturnType<InMemoryVisualAssetStore["getState"]>
+  > {
+    return this.visualStore.getState();
   }
 
   private nextId(prefix: string): string {
@@ -236,6 +301,21 @@ export class McpMockBackend {
       ...(input.description !== undefined
         ? { description: input.description }
         : {}),
+    };
+    node.updated_at = now();
+  }
+
+  private updateImageNode(input: UpdateImageNodeInput): void {
+    const node = this.findNode(input.nodeId);
+    if (node.kind !== "image") {
+      throw new Error(`Node "${input.nodeId}" is not an image node`);
+    }
+    node.display_config = {
+      ...(node.display_config ?? {}),
+      ...(input.title !== undefined ? { title: input.title } : {}),
+      ...(input.role !== undefined ? { role: input.role } : {}),
+      ...(input.altText !== undefined ? { altText: input.altText } : {}),
+      ...(input.versionId !== undefined ? { versionId: input.versionId } : {}),
     };
     node.updated_at = now();
   }

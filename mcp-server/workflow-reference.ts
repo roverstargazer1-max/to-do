@@ -18,6 +18,6 @@ Existing Workspace changes:
 3. Create a localized { patch } containing only requested additions/updates/removals. Never rebuild an existing Workspace. Ask for confirmation before node/Connection deletion or a broad batch, then send destructiveConfirmation: true.
 4. Consume the patch receipt. Re-read with get_workspace_blueprint after topology changes, deletion, batches, or warnings.
 
-v1 kinds: doc, task, habit, project, focus, decision, step, visual groups, and visual Connections. Event nodes are unsupported. Connections are layout relationships only: they do not execute, schedule, evaluate, trigger, or propagate runtime behavior.
+Contract ${WORKSPACE_MCP_CONTRACT_VERSION} kinds: doc, task, habit, project, focus, decision, step, image (asset reference), visual groups, and visual Connections. Visual assets are inspected explicitly with inspect_visual; typed Visual relations are separate from canvas Connections, and image-to-flow conversion stays a pending draft until the user confirms it. Event nodes are unsupported. Connections and Visual relations are non-executing relationships: they do not schedule, evaluate, trigger, or propagate runtime behavior.
 
 Every mutation is Account-scoped and validates references before writing. requestId is process-local retry protection: the same operation and canonical input replays its receipt; a conflicting reuse fails. Full MCP contract and node details: mcp-server/instructions.md.`;

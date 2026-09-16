@@ -111,13 +111,19 @@ function getPinnedAgent(target: SafeTarget): Agent {
 
 export async function ssrfSafeFetch(
   rawUrl: string,
-  init: { method: string; headers: Headers; body?: ArrayBuffer },
+  init: {
+    method: string;
+    headers: Headers;
+    body?: ArrayBuffer;
+    signal?: AbortSignal;
+  },
 ) {
   const target = await resolveSafeTarget(rawUrl);
   return undiciFetch(target.url, {
     method: init.method,
     headers: init.headers,
     body: init.body ?? null,
+    signal: init.signal,
     dispatcher: getPinnedAgent(target),
     // Redirects are manual so following a 3xx cannot bypass the pinned IP.
     redirect: "manual",

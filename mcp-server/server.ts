@@ -1,5 +1,6 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
+import { QueryClient } from "@tanstack/react-query";
 import {
   createClient as createSupabaseClient,
   type SupabaseClient,
@@ -20,6 +21,10 @@ import {
   applyWorkspacePatch,
   type PatchResult,
 } from "../src/lib/workspace/blueprint/patcher";
+import {
+  defaultBlueprintCommandAdapters,
+  type BlueprintCommandAdapters,
+} from "../src/lib/workspace/blueprint/commands";
 import {
   decompileWorkspaceToSnapshot,
   formatSnapshotToMarkdown,
@@ -49,6 +54,32 @@ import {
   type MockBackendState,
 } from "./mock-backend";
 import { GENERIC_WORKSPACE_WORKFLOW_REFERENCE } from "./workflow-reference";
+import { SupabaseVisualAssetStore } from "../src/lib/visual/supabase-store";
+import {
+  VisualServiceError,
+  VisualWorkspaceService,
+  type VisualFlowCommitResult,
+  type VisualRenderInput,
+} from "../src/lib/visual/service";
+import {
+  GuestAssetBridgeStore,
+  type GuestAssetBridgeConnection,
+} from "../src/lib/visual/guest-asset-bridge";
+import { assertSafeVisualUrl } from "../src/lib/visual/validation";
+import { ssrfSafeFetch, SsrfBlockedError } from "../src/lib/webdav/ssrf-guard";
+import type {
+  VisualAnnotation,
+  VisualAsset,
+  VisualAssetVersion,
+  VisualCrop,
+  VisualDerivedInfo,
+  VisualEndpointType,
+  VisualFlowDraft,
+  VisualRelation,
+  VisualRelationType,
+  VisualRepresentation,
+  VisualTarget,
+} from "../src/lib/types/visual";
 
 const CONTEXT_LIMIT_MAX = 100;
 const WORKSPACE_ROWS_MAX = 1000;
@@ -95,6 +126,59 @@ interface InFlightRequest {
   promise: Promise<OperationOutcome>;
 }
 
+interface VisualOperationOutcome {
+  payload: Record<string, unknown>;
+}
+
+interface CachedVisualOperation {
+  fingerprint: string;
+  outcome?: VisualOperationOutcome;
+  error?: WorkspaceMcpErrorPayload["error"];
+}
+
+type ReplayIdentitySource = {
+  get: (requestId: string) => { fingerprint: string } | undefined;
+};
+
+interface ReplayIdentityLink {
+  cache: ReplayIdentitySource;
+  inFlight: ReplayIdentitySource;
+}
+
+const replayIdentityLinks = new WeakMap<object, ReplayIdentityLink>();
+
+function assertNoCrossSurfaceRequestConflict(
+  requestId: string | undefined,
+  fingerprint: string,
+  operation: string,
+  cache?: ReplayIdentitySource,
+  inFlight?: ReplayIdentitySource,
+): void {
+  if (!requestId) return;
+  const cached = cache?.get(requestId);
+  if (cached && cached.fingerprint !== fingerprint) {
+    throw new WorkspaceMcpError(
+      "request_conflict",
+      `Request ID "${requestId}" was already used by another mutation with different input.`,
+      { requestId, operation },
+    );
+  }
+  const running = inFlight?.get(requestId);
+  if (running && running.fingerprint !== fingerprint) {
+    throw new WorkspaceMcpError(
+      "request_conflict",
+      `Request ID "${requestId}" is already running for another mutation with different input.`,
+      { requestId, operation },
+    );
+  }
+}
+
+interface VisualImageContent {
+  type: "image";
+  data: string;
+  mimeType: string;
+}
+
 export interface McpServerOptions {
   supabaseUrl?: string;
   supabaseKey?: string;
@@ -110,6 +194,14 @@ export interface McpServerOptions {
   initialTasks?: Task[];
   initialProjects?: Project[];
   initialHabits?: Habit[];
+  initialVisualAssets?: VisualAsset[];
+  initialVisualVersions?: VisualAssetVersion[];
+  initialVisualAnnotations?: VisualAnnotation[];
+  initialVisualDerived?: VisualDerivedInfo[];
+  initialVisualRelations?: VisualRelation[];
+  initialVisualFlowDrafts?: VisualFlowDraft[];
+  /** Paired browser connection used for Guest IndexedDB assets. */
+  guestAssetBridge?: GuestAssetBridgeConnection;
 }
 
 function clone<T>(value: T): T {
@@ -134,6 +226,8 @@ function inferMockIdentity(options: McpServerOptions): string {
     ...(options.initialTasks ?? []),
     ...(options.initialProjects ?? []),
     ...(options.initialHabits ?? []),
+    ...(options.initialVisualAssets ?? []),
+    ...(options.initialVisualRelations ?? []),
   ];
   return records.find((record) => record.user_id)?.user_id ?? "mock-user";
 }
@@ -149,13 +243,18 @@ function matchesQuery(
   return (value ?? "").toLocaleLowerCase().includes(query);
 }
 
-function operationResult(payload: Record<string, unknown>, isError = false) {
+function operationResult(
+  payload: Record<string, unknown>,
+  isError = false,
+  extraContent: VisualImageContent[] = [],
+) {
   const result = {
     content: [
       {
         type: "text" as const,
         text: JSON.stringify(payload, null, 2),
       },
+      ...extraContent,
     ],
     structuredContent: payload,
   };
@@ -167,6 +266,86 @@ function errorResult(err: unknown) {
     toErrorPayload(err) as unknown as Record<string, unknown>,
     true,
   );
+}
+
+async function renderMcpVisual(
+  input: VisualRenderInput,
+): Promise<{ bytes: Uint8Array; mimeType?: string }> {
+  const { default: sharp } = await import("sharp");
+  let pipeline = sharp(Buffer.from(input.bytes), { failOn: "error" });
+  if (input.representation === "thumbnail") {
+    pipeline = pipeline.resize({
+      width: 1024,
+      height: 1024,
+      fit: "inside",
+      withoutEnlargement: true,
+    });
+  } else if (input.representation === "crop" && input.crop) {
+    const left = Math.max(0, Math.floor(input.crop.x * input.width));
+    const top = Math.max(0, Math.floor(input.crop.y * input.height));
+    const width = Math.max(1, Math.floor(input.crop.width * input.width));
+    const height = Math.max(1, Math.floor(input.crop.height * input.height));
+    pipeline = pipeline.extract({ left, top, width, height });
+  }
+  const result = await pipeline.toBuffer({ resolveWithObject: true });
+  const format = String(result.info.format || "").toLocaleLowerCase();
+  const mimeType =
+    format === "jpeg" || format === "jpg"
+      ? "image/jpeg"
+      : format === "png"
+        ? "image/png"
+        : format === "webp"
+          ? "image/webp"
+          : format === "gif"
+            ? "image/gif"
+            : input.mimeType;
+  return { bytes: new Uint8Array(result.data), mimeType };
+}
+
+async function readVisualResponse(
+  response: Awaited<ReturnType<typeof ssrfSafeFetch>>,
+  maxBytes: number,
+): Promise<Uint8Array> {
+  if (!response.body) {
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    if (bytes.length > maxBytes) {
+      throw new VisualServiceError(
+        "resource_too_large",
+        "The visual URL response exceeds the configured asset limit.",
+        { byteSize: bytes.length, maxBytes },
+      );
+    }
+    return bytes;
+  }
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    while (true) {
+      const next = await reader.read();
+      if (next.done) break;
+      const chunk = new Uint8Array(next.value);
+      total += chunk.length;
+      if (total > maxBytes) {
+        await reader.cancel();
+        throw new VisualServiceError(
+          "resource_too_large",
+          "The visual URL response exceeds the configured asset limit.",
+          { byteSize: total, maxBytes },
+        );
+      }
+      chunks.push(chunk);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.length;
+  }
+  return bytes;
 }
 
 function supabaseError(
@@ -230,7 +409,7 @@ function assertSupportedBlueprint(blueprint: WorkspaceBlueprint): void {
       if (!isSupportedWorkspaceNodeKind(item.kind)) {
         throw new WorkspaceMcpError(
           "unsupported_operation",
-          `Node kind "${item.kind}" is not supported by the v1 Workspace MCP contract.`,
+          `Node kind "${item.kind}" is not supported by the v1.2 Workspace MCP contract.`,
           {
             kind: item.kind,
             supportedKinds: [...SUPPORTED_WORKSPACE_NODE_KINDS],
@@ -274,6 +453,7 @@ function patchChangeCount(patch: BlueprintPatch): number {
     (patch.updateDocs?.length ?? 0) +
     (patch.updateDecisions?.length ?? 0) +
     (patch.updateSteps?.length ?? 0) +
+    (patch.updateImages?.length ?? 0) +
     (patch.removeNodeIds?.length ?? 0) +
     (patch.addFlows?.length ?? 0) +
     (patch.removeEdgeIds?.length ?? 0)
@@ -349,6 +529,7 @@ function patchReceipt(
     ...result.updatedDocNodeIds,
     ...(result.updatedDecisionNodeIds ?? []),
     ...(result.updatedStepNodeIds ?? []),
+    ...(result.updatedImageNodeIds ?? []),
   ]);
   return {
     success: true,
@@ -386,9 +567,19 @@ async function replaySafe(
   requestId: string | undefined,
   canonicalInput: unknown,
   execute: () => Promise<OperationOutcome>,
+  crossCache?: ReplayIdentitySource,
+  crossInFlight?: ReplayIdentitySource,
 ): Promise<OperationOutcome> {
   if (!requestId) return execute();
   const fingerprint = canonicalizeForReplay({ operation, canonicalInput });
+  const linked = replayIdentityLinks.get(cache);
+  assertNoCrossSurfaceRequestConflict(
+    requestId,
+    fingerprint,
+    operation,
+    crossCache ?? linked?.cache,
+    crossInFlight ?? linked?.inFlight,
+  );
   const cached = cache.get(requestId);
   if (cached) {
     if (cached.fingerprint !== fingerprint) {
@@ -458,12 +649,102 @@ async function replaySafe(
   }
 }
 
+async function replayVisualSafe(
+  cache: Map<string, CachedVisualOperation>,
+  inFlight: Map<
+    string,
+    { fingerprint: string; promise: Promise<VisualOperationOutcome> }
+  >,
+  operation: string,
+  requestId: string | undefined,
+  canonicalInput: unknown,
+  execute: () => Promise<VisualOperationOutcome>,
+  crossCache?: ReplayIdentitySource,
+  crossInFlight?: ReplayIdentitySource,
+): Promise<VisualOperationOutcome> {
+  if (!requestId) return execute();
+  const fingerprint = canonicalizeForReplay({ operation, canonicalInput });
+  const linked = replayIdentityLinks.get(cache);
+  assertNoCrossSurfaceRequestConflict(
+    requestId,
+    fingerprint,
+    operation,
+    crossCache ?? linked?.cache,
+    crossInFlight ?? linked?.inFlight,
+  );
+  const cached = cache.get(requestId);
+  if (cached) {
+    if (cached.fingerprint !== fingerprint) {
+      throw new WorkspaceMcpError(
+        "request_conflict",
+        `Request ID "${requestId}" was already used with different input.`,
+        { requestId, operation },
+      );
+    }
+    if (cached.error) {
+      throw new WorkspaceMcpError(
+        cached.error.category,
+        cached.error.message,
+        cached.error.details,
+      );
+    }
+    if (!cached.outcome) {
+      throw new WorkspaceMcpError(
+        "execution",
+        `Request ID "${requestId}" has no replayable result.`,
+        { requestId, operation },
+      );
+    }
+    return {
+      payload: {
+        ...clone(cached.outcome.payload),
+        status: "replayed",
+        replayed: true,
+      },
+    };
+  }
+  const running = inFlight.get(requestId);
+  if (running) {
+    if (running.fingerprint !== fingerprint) {
+      throw new WorkspaceMcpError(
+        "request_conflict",
+        `Request ID "${requestId}" is already running with different input.`,
+        { requestId, operation },
+      );
+    }
+    const outcome = await running.promise;
+    return {
+      payload: {
+        ...clone(outcome.payload),
+        status: "replayed",
+        replayed: true,
+      },
+    };
+  }
+  const promise = execute();
+  inFlight.set(requestId, { fingerprint, promise });
+  try {
+    const outcome = await promise;
+    cache.set(requestId, { fingerprint, outcome: clone(outcome) });
+    return outcome;
+  } catch (error) {
+    const errorPayload = toErrorPayload(error);
+    cache.set(requestId, {
+      fingerprint,
+      error: clone(errorPayload.error),
+    });
+    throw error;
+  } finally {
+    inFlight.delete(requestId);
+  }
+}
+
 export function createKagelinMcpServer(
   options: McpServerOptions = {},
 ): McpServer {
   const server = new McpServer({
     name: "kagelin-workspace-ai-builder",
-    version: "1.1.0",
+    version: "1.2.0",
   });
   const supabaseUrl =
     options.supabaseUrl || process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -471,10 +752,11 @@ export function createKagelinMcpServer(
     options.supabaseKey ||
     process.env.SUPABASE_SECRET_KEY ||
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  const useMockFallback =
-    options.useMockFallback ??
-    (process.env.KAGELIN_MOCK_MODE === "true" ||
-      (!supabaseUrl && !options.supabaseClient));
+  const useMockFallback = options.guestAssetBridge
+    ? false
+    : (options.useMockFallback ??
+      (process.env.KAGELIN_MOCK_MODE === "true" ||
+        (!supabaseUrl && !options.supabaseClient)));
   let nodeSupabaseClient: SupabaseClient | null =
     options.supabaseClient ?? null;
   if (!useMockFallback && !nodeSupabaseClient && supabaseUrl && supabaseKey) {
@@ -487,9 +769,11 @@ export function createKagelinMcpServer(
   }
 
   const configuredIdentity = firstConfiguredIdentity(options);
-  const activeUserId = useMockFallback
-    ? (configuredIdentity ?? inferMockIdentity(options))
-    : (configuredIdentity ?? "");
+  const activeUserId = options.guestAssetBridge
+    ? "guest"
+    : useMockFallback
+      ? (configuredIdentity ?? inferMockIdentity(options))
+      : (configuredIdentity ?? "");
   const mockBackend = useMockFallback
     ? new McpMockBackend({
         userId: activeUserId,
@@ -499,6 +783,12 @@ export function createKagelinMcpServer(
         tasks: options.initialTasks,
         projects: options.initialProjects,
         habits: options.initialHabits,
+        visualAssets: options.initialVisualAssets,
+        visualVersions: options.initialVisualVersions,
+        visualAnnotations: options.initialVisualAnnotations,
+        visualDerived: options.initialVisualDerived,
+        visualRelations: options.initialVisualRelations,
+        visualFlowDrafts: options.initialVisualFlowDrafts,
       })
     : null;
   // A request ID belongs to the whole MCP mutation surface, not to one tool.
@@ -506,10 +796,24 @@ export function createKagelinMcpServer(
   // two different operations to claim the same retry key.
   const replayCache = new Map<string, CachedOperation>();
   const inFlightRequests = new Map<string, InFlightRequest>();
+  const visualReplayCache = new Map<string, CachedVisualOperation>();
+  const visualInFlightRequests = new Map<
+    string,
+    { fingerprint: string; promise: Promise<VisualOperationOutcome> }
+  >();
+  replayIdentityLinks.set(replayCache, {
+    cache: visualReplayCache,
+    inFlight: visualInFlightRequests,
+  });
+  replayIdentityLinks.set(visualReplayCache, {
+    cache: replayCache,
+    inFlight: inFlightRequests,
+  });
 
   let authPromise: Promise<void> | null = null;
   async function ensureAuthenticated(): Promise<void> {
     if (useMockFallback) return;
+    if (options.guestAssetBridge) return;
     if (!configuredIdentity) {
       throw new WorkspaceMcpError(
         "authentication",
@@ -562,6 +866,254 @@ export function createKagelinMcpServer(
     if (!mockBackend)
       throw new Error("Mock backend is unavailable in real mode");
     return mockBackend.getState();
+  }
+
+  let visualService: VisualWorkspaceService | null = null;
+
+  async function commitVisualFlow(
+    draft: VisualFlowDraft,
+  ): Promise<VisualFlowCommitResult> {
+    const adapters: BlueprintCommandAdapters | undefined =
+      mockBackend?.commandAdapters ??
+      options.guestAssetBridge?.commandAdapters ??
+      (nodeSupabaseClient ? defaultBlueprintCommandAdapters : undefined);
+    if (!adapters) {
+      throw new VisualServiceError(
+        "bridge_unavailable",
+        "The Guest asset bridge is connected for reads but has no browser-side Workspace command adapter for flow writes.",
+      );
+    }
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false },
+        mutations: { retry: false },
+      },
+    });
+    const commandContext = {
+      queryClient,
+      isGuestMode: Boolean(mockBackend || options.guestAssetBridge),
+    };
+    const createdNodeIds: string[] = [];
+    const createdEdgeIds: string[] = [];
+    try {
+      for (const draftNode of draft.nodes) {
+        const node = await adapters.node.add(commandContext, {
+          id: draftNode.id,
+          workspaceId: draft.workspace_id,
+          kind: draftNode.kind,
+          entityType: null,
+          entityId: null,
+          position: draftNode.position,
+          width: draftNode.width ?? (draftNode.kind === "decision" ? 320 : 300),
+          height:
+            draftNode.height ?? (draftNode.kind === "decision" ? 180 : 150),
+          displayConfig:
+            draftNode.kind === "decision"
+              ? {
+                  question: draftNode.title,
+                  description: draftNode.description ?? "",
+                }
+              : {
+                  title: draftNode.title,
+                  description: draftNode.description ?? "",
+                },
+        });
+        createdNodeIds.push(node.id);
+      }
+      for (const draftEdge of draft.edges) {
+        const edge = await adapters.edge.add(commandContext, {
+          id: draftEdge.id,
+          workspaceId: draft.workspace_id,
+          sourceNodeId: draftEdge.fromNodeId,
+          targetNodeId: draftEdge.toNodeId,
+          label: draftEdge.label ?? null,
+        });
+        createdEdgeIds.push(edge.id);
+      }
+      return { createdNodeIds, createdEdgeIds };
+    } catch (error) {
+      for (const edgeId of [...createdEdgeIds].reverse()) {
+        try {
+          await adapters.edge.remove(commandContext, {
+            id: edgeId,
+            workspace_id: draft.workspace_id,
+          });
+        } catch {
+          // Preserve the original commit failure; the domain adapter owns
+          // its own cleanup/error reporting.
+        }
+      }
+      for (const nodeId of [...createdNodeIds].reverse()) {
+        try {
+          await adapters.node.remove(commandContext, {
+            id: nodeId,
+            workspace_id: draft.workspace_id,
+          });
+        } catch {
+          // Preserve the original commit failure.
+        }
+      }
+      throw error;
+    }
+  }
+
+  async function rollbackVisualFlow(
+    draft: VisualFlowDraft,
+    result: VisualFlowCommitResult,
+  ): Promise<void> {
+    const adapters = currentCommandAdapters();
+    if (!adapters) {
+      throw new VisualServiceError(
+        "bridge_unavailable",
+        "The Workspace command adapter disconnected before visual-flow rollback could finish.",
+      );
+    }
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false },
+        mutations: { retry: false },
+      },
+    });
+    const commandContext = {
+      queryClient,
+      isGuestMode: Boolean(mockBackend || options.guestAssetBridge),
+    };
+    const failures: string[] = [];
+    for (const edgeId of [...result.createdEdgeIds].reverse()) {
+      try {
+        await adapters.edge.remove(commandContext, {
+          id: edgeId,
+          workspace_id: draft.workspace_id,
+        });
+      } catch (error) {
+        failures.push(
+          `edge ${edgeId}: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    }
+    for (const nodeId of [...result.createdNodeIds].reverse()) {
+      try {
+        await adapters.node.remove(commandContext, {
+          id: nodeId,
+          workspace_id: draft.workspace_id,
+        });
+      } catch (error) {
+        failures.push(
+          `node ${nodeId}: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    }
+    if (failures.length > 0) {
+      throw new Error(`Visual-flow rollback failed: ${failures.join("; ")}`);
+    }
+  }
+
+  function getVisualService(): VisualWorkspaceService {
+    if (visualService) return visualService;
+    if (mockBackend) {
+      visualService = new VisualWorkspaceService(mockBackend.visualStore, {
+        userId: activeUserId,
+        getWorkspace: (workspaceId) =>
+          currentMockState().workspaces.find(
+            (workspace) => workspace.id === workspaceId,
+          ),
+        listNodes: (workspaceId) =>
+          currentMockState().nodes.filter(
+            (node) => node.workspace_id === workspaceId,
+          ),
+        commitFlow: commitVisualFlow,
+        rollbackFlow: rollbackVisualFlow,
+        renderVisual: renderMcpVisual,
+      });
+      return visualService;
+    }
+    if (options.guestAssetBridge) {
+      visualService = new VisualWorkspaceService(
+        new GuestAssetBridgeStore(options.guestAssetBridge.client),
+        {
+          userId: activeUserId,
+          getWorkspace: options.guestAssetBridge.getWorkspace,
+          listNodes: options.guestAssetBridge.listNodes,
+          commitFlow: commitVisualFlow,
+          rollbackFlow: rollbackVisualFlow,
+          renderVisual: renderMcpVisual,
+        },
+      );
+      return visualService;
+    }
+    if (!nodeSupabaseClient) {
+      throw new VisualServiceError(
+        "bridge_unavailable",
+        "Guest asset bridge is unavailable; open Kagelin and pair this MCP process before reading local assets.",
+      );
+    }
+    visualService = new VisualWorkspaceService(
+      new SupabaseVisualAssetStore(nodeSupabaseClient),
+      {
+        userId: activeUserId,
+        getWorkspace: async (workspaceId) => {
+          const state = await readWorkspaceState(workspaceId);
+          return state.workspace;
+        },
+        listNodes: async (workspaceId) => {
+          const state = await readWorkspaceState(workspaceId);
+          return state.nodes;
+        },
+        commitFlow: commitVisualFlow,
+        rollbackFlow: rollbackVisualFlow,
+        renderVisual: renderMcpVisual,
+      },
+    );
+    return visualService;
+  }
+
+  async function resolveVisualAssetForWorkspace(
+    assetId: string,
+    workspaceId: string,
+    versionId?: string,
+  ): Promise<{ assetId: string; versionId?: string }> {
+    const service = getVisualService();
+    const resolved = await service.resolveTarget({ workspaceId, assetId });
+    if (!versionId) return { assetId: resolved.asset.id };
+    const version = await service.store.getVersion(assetId, versionId);
+    if (!version) {
+      throw new VisualServiceError(
+        "target_not_found",
+        `Visual asset version "${versionId}" was not found.`,
+        { assetId, versionId },
+      );
+    }
+    return { assetId: resolved.asset.id, versionId: version.id };
+  }
+
+  async function resolveVisualAssetForBuild(
+    assetId: string,
+    _workspaceId: string,
+    versionId?: string,
+  ): Promise<{ assetId: string; versionId?: string }> {
+    // A Visual asset is reusable by reference when building a new Workspace;
+    // ownership and the optional version are still checked before any node is
+    // written. Workspace-local mounting is represented by the new image node.
+    const service = getVisualService();
+    const resolved = await service.resolveTarget({ assetId });
+    if (!versionId) return { assetId: resolved.asset.id };
+    const version = await service.store.getVersion(assetId, versionId);
+    if (!version) {
+      throw new VisualServiceError(
+        "target_not_found",
+        `Visual asset version "${versionId}" was not found.`,
+        { assetId, versionId },
+      );
+    }
+    return { assetId: resolved.asset.id, versionId: version.id };
+  }
+
+  function currentCommandAdapters(): BlueprintCommandAdapters | undefined {
+    return (
+      mockBackend?.commandAdapters ??
+      options.guestAssetBridge?.commandAdapters ??
+      (nodeSupabaseClient ? defaultBlueprintCommandAdapters : undefined)
+    );
   }
 
   async function fetchEntityRecord(
@@ -649,6 +1201,19 @@ export function createKagelinMcpServer(
         }
       }
       for (const edge of edges) {
+        if (
+          edge.user_id &&
+          edge.user_id !== activeUserId &&
+          edge.user_id !== "guest"
+        ) {
+          throw new WorkspaceMcpError(
+            "authorization",
+            `Connection "${edge.id}" is not owned by the paired Guest page.`,
+            { edgeId: edge.id, workspaceId },
+          );
+        }
+      }
+      for (const edge of edges) {
         if (!isOwnedByMockAccount(edge, activeUserId)) {
           throw new WorkspaceMcpError(
             "authorization",
@@ -664,6 +1229,53 @@ export function createKagelinMcpServer(
         tasks: state.tasks,
         projects: state.projects,
         habits: state.habits,
+      };
+    }
+    if (options.guestAssetBridge) {
+      const workspace =
+        await options.guestAssetBridge.getWorkspace(workspaceId);
+      if (!workspace) {
+        throw new WorkspaceMcpError(
+          "invalid_reference",
+          `Workspace "${workspaceId}" was not found in the paired Guest page.`,
+          { workspaceId },
+        );
+      }
+      if (
+        workspace.user_id &&
+        workspace.user_id !== activeUserId &&
+        workspace.user_id !== "guest"
+      ) {
+        throw new WorkspaceMcpError(
+          "authorization",
+          `Workspace "${workspaceId}" belongs to another Account.`,
+          { workspaceId },
+        );
+      }
+      const nodes = await options.guestAssetBridge.listNodes(workspaceId);
+      const edges = options.guestAssetBridge.listEdges
+        ? await options.guestAssetBridge.listEdges(workspaceId)
+        : [];
+      for (const node of nodes) {
+        if (
+          node.user_id &&
+          node.user_id !== activeUserId &&
+          node.user_id !== "guest"
+        ) {
+          throw new WorkspaceMcpError(
+            "authorization",
+            `Node "${node.id}" is not owned by the paired Guest page.`,
+            { nodeId: node.id, workspaceId },
+          );
+        }
+      }
+      return {
+        workspace: clone(workspace),
+        nodes: clone(nodes),
+        edges: clone(edges),
+        tasks: [],
+        projects: [],
+        habits: [],
       };
     }
     if (!nodeSupabaseClient)
@@ -766,6 +1378,37 @@ export function createKagelinMcpServer(
           await assertEntityReference("habit", item.existingHabitId);
         if (item.kind === "project" && item.existingProjectId)
           await assertEntityReference("project", item.existingProjectId);
+        if (item.kind === "image") {
+          const service = getVisualService();
+          const asset = await service.store.getAsset(item.assetId);
+          if (!asset) {
+            throw new VisualServiceError(
+              "target_not_found",
+              `Visual asset "${item.assetId}" was not found.`,
+              { assetId: item.assetId },
+            );
+          }
+          if (asset.user_id && asset.user_id !== activeUserId) {
+            throw new VisualServiceError(
+              "authorization",
+              `Visual asset "${item.assetId}" belongs to another Account.`,
+              { assetId: item.assetId },
+            );
+          }
+          if (item.versionId) {
+            const version = await service.store.getVersion(
+              item.assetId,
+              item.versionId,
+            );
+            if (!version) {
+              throw new VisualServiceError(
+                "target_not_found",
+                `Visual asset version "${item.versionId}" was not found.`,
+                { assetId: item.assetId, versionId: item.versionId },
+              );
+            }
+          }
+        }
       }
     }
   }
@@ -787,6 +1430,10 @@ export function createKagelinMcpServer(
     assertUniquePatchTargets(
       patch.updateSteps?.map((update) => update.nodeId),
       "step updates",
+    );
+    assertUniquePatchTargets(
+      patch.updateImages?.map((update) => update.nodeId),
+      "image updates",
     );
     for (const node of state.nodes) {
       if (node.user_id && node.user_id !== activeUserId)
@@ -859,11 +1506,31 @@ export function createKagelinMcpServer(
           { nodeId: update.nodeId },
         );
     }
+    for (const update of patch.updateImages ?? []) {
+      const target = nodesById.get(update.nodeId);
+      if (target?.kind !== "image" || target.entity_type !== "visual_asset")
+        throw new WorkspaceMcpError(
+          "invalid_reference",
+          `Image node "${update.nodeId}" is not a valid target.`,
+          { nodeId: update.nodeId },
+        );
+      if (!target.entity_id)
+        throw new WorkspaceMcpError(
+          "invalid_reference",
+          `Image node "${update.nodeId}" has no visual asset reference.`,
+          { nodeId: update.nodeId },
+        );
+      await getVisualService().resolveTarget({
+        workspaceId: patch.workspaceId,
+        nodeId: update.nodeId,
+      });
+    }
     const removedNodeIds = new Set(patch.removeNodeIds ?? []);
     for (const update of [
       ...(patch.updateDocs ?? []),
       ...(patch.updateDecisions ?? []),
       ...(patch.updateSteps ?? []),
+      ...(patch.updateImages ?? []),
     ]) {
       if (removedNodeIds.has(update.nodeId)) {
         throw new WorkspaceMcpError(
@@ -885,7 +1552,7 @@ export function createKagelinMcpServer(
       if (!isSupportedWorkspaceNodeKind(add.item.kind))
         throw new WorkspaceMcpError(
           "unsupported_operation",
-          `Node kind "${add.item.kind}" is not supported by the v1 Workspace MCP contract.`,
+          `Node kind "${add.item.kind}" is not supported by the v1.2 Workspace MCP contract.`,
           {
             kind: add.item.kind,
             supportedKinds: [...SUPPORTED_WORKSPACE_NODE_KINDS],
@@ -904,6 +1571,13 @@ export function createKagelinMcpServer(
         await assertEntityReference("habit", add.item.existingHabitId);
       if (add.item.kind === "project" && add.item.existingProjectId)
         await assertEntityReference("project", add.item.existingProjectId);
+      if (add.item.kind === "image") {
+        await resolveVisualAssetForWorkspace(
+          add.item.assetId,
+          patch.workspaceId,
+          add.item.versionId,
+        );
+      }
     }
     const pairs = new Set<string>();
     for (const flow of patch.addFlows ?? []) {
@@ -1002,10 +1676,11 @@ export function createKagelinMcpServer(
     await ensureAuthenticated();
     await validateBuild(input.blueprint);
     const result = await buildWorkspaceFromBlueprint(input.blueprint, {
-      isGuestMode: Boolean(mockBackend),
-      commandAdapters: mockBackend?.commandAdapters,
+      isGuestMode: Boolean(mockBackend || options.guestAssetBridge),
+      commandAdapters: currentCommandAdapters(),
       onResolveProject: resolveProjectByName,
       onResolveHabit: resolveHabitByName,
+      onResolveVisualAsset: resolveVisualAssetForBuild,
     });
     return { receipt: buildReceipt(result, input) };
   }
@@ -1014,12 +1689,13 @@ export function createKagelinMcpServer(
     await ensureAuthenticated();
     const state = await validatePatch(input.patch);
     const result = await applyWorkspacePatch(input.patch, {
-      isGuestMode: Boolean(mockBackend),
+      isGuestMode: Boolean(mockBackend || options.guestAssetBridge),
       nodes: state.nodes,
       edges: state.edges,
-      commandAdapters: mockBackend?.commandAdapters,
+      commandAdapters: currentCommandAdapters(),
       onResolveProject: resolveProjectByName,
       onResolveHabit: resolveHabitByName,
+      onResolveVisualAsset: resolveVisualAssetForWorkspace,
     });
     return {
       receipt: patchReceipt(result, input),
@@ -1083,6 +1759,7 @@ export function createKagelinMcpServer(
     updateDocs?: unknown[];
     updateDecisions?: unknown[];
     updateSteps?: unknown[];
+    updateImages?: unknown[];
     addFlows?: unknown[];
     removeEdgeIds?: string[];
     destructiveConfirmation?: boolean;
@@ -1106,6 +1783,7 @@ export function createKagelinMcpServer(
           updateDocs: args.updateDocs,
           updateDecisions: args.updateDecisions,
           updateSteps: args.updateSteps,
+          updateImages: args.updateImages,
           addFlows: args.addFlows,
           removeEdgeIds: args.removeEdgeIds,
           destructiveConfirmation: marker,
@@ -1122,6 +1800,338 @@ export function createKagelinMcpServer(
     };
   }
 
+  function targetFromInput(
+    input: {
+      target?: Partial<VisualTarget>;
+      workspaceId?: string;
+      nodeId?: string;
+      assetId?: string;
+      resourceId?: string;
+      title?: string;
+    },
+    options: { includeTitle?: boolean } = {},
+  ): VisualTarget {
+    return {
+      workspaceId: input.workspaceId ?? input.target?.workspaceId,
+      nodeId: input.nodeId ?? input.target?.nodeId,
+      assetId: input.assetId ?? input.target?.assetId,
+      resourceId: input.resourceId ?? input.target?.resourceId,
+      ...(options.includeTitle === false
+        ? {}
+        : { title: input.title ?? input.target?.title }),
+    };
+  }
+
+  function requestIdFromInput(input: {
+    requestId?: string;
+    request_id?: string;
+  }): string | undefined {
+    return input.requestId ?? input.request_id;
+  }
+
+  function visualSuccess(
+    payload: Record<string, unknown>,
+    requestId?: string,
+  ): VisualOperationOutcome {
+    return {
+      payload: {
+        success: true,
+        contractVersion: WORKSPACE_MCP_CONTRACT_VERSION,
+        requestId,
+        status: "succeeded",
+        replayed: false,
+        ...payload,
+      },
+    };
+  }
+
+  function visualCommandContext(): {
+    queryClient: QueryClient;
+    isGuestMode: boolean;
+  } {
+    return {
+      queryClient: new QueryClient({
+        defaultOptions: {
+          queries: { retry: false },
+          mutations: { retry: false },
+        },
+      }),
+      isGuestMode: Boolean(mockBackend || options.guestAssetBridge),
+    };
+  }
+
+  function visualAdapters(): BlueprintCommandAdapters {
+    const adapters = currentCommandAdapters();
+    if (!adapters) {
+      throw new VisualServiceError(
+        "bridge_unavailable",
+        "No Workspace command adapter is connected; pair Kagelin before writing Guest data.",
+      );
+    }
+    return adapters;
+  }
+
+  function decodeBase64(value: unknown): Uint8Array {
+    if (value instanceof Uint8Array) return value.slice();
+    if (
+      Array.isArray(value) &&
+      value.every(
+        (item) =>
+          Number.isInteger(item) &&
+          (item as number) >= 0 &&
+          (item as number) <= 255,
+      )
+    ) {
+      return Uint8Array.from(value as number[]);
+    }
+    if (typeof value !== "string" || !value.trim()) {
+      throw new VisualServiceError(
+        "invalid_input",
+        "An explicit base64 image payload is required for this import source.",
+      );
+    }
+    const raw = value.includes(",")
+      ? value.slice(value.indexOf(",") + 1)
+      : value;
+    if (!/^[A-Za-z0-9+/]*={0,2}$/.test(raw) || raw.length % 4 === 1) {
+      throw new VisualServiceError(
+        "invalid_input",
+        "The image base64 payload is invalid.",
+      );
+    }
+    return new Uint8Array(Buffer.from(raw, "base64"));
+  }
+
+  async function bytesFromImportSource(input: {
+    source?: unknown;
+    sourceType?: string;
+    data?: unknown;
+    base64?: unknown;
+    url?: string;
+    assetId?: string;
+    versionId?: string;
+    mimeType?: string;
+  }): Promise<{
+    bytes?: Uint8Array;
+    mimeType?: string;
+    source: "url" | "asset-handle" | "upload" | "local-file";
+    sourceUri?: string | null;
+    sourceAssetId?: string | null;
+  }> {
+    const sourceObject =
+      input.source && typeof input.source === "object"
+        ? (input.source as Record<string, unknown>)
+        : undefined;
+    const sourceType = String(
+      sourceObject?.type ??
+        input.sourceType ??
+        (input.url ? "url" : input.assetId ? "asset-handle" : "base64"),
+    );
+    const data =
+      sourceObject?.data ?? sourceObject?.base64 ?? input.data ?? input.base64;
+    const url = String(sourceObject?.url ?? input.url ?? "");
+    const assetId = String(sourceObject?.assetId ?? input.assetId ?? "");
+    const versionId = String(sourceObject?.versionId ?? input.versionId ?? "");
+    const mimeType =
+      String(sourceObject?.mimeType ?? input.mimeType ?? "") || undefined;
+
+    if (
+      sourceType === "base64" ||
+      sourceType === "bytes" ||
+      sourceType === "upload"
+    ) {
+      return { bytes: decodeBase64(data), mimeType, source: "upload" };
+    }
+    if (sourceType === "local-file" || sourceType === "local_file") {
+      return { bytes: decodeBase64(data), mimeType, source: "local-file" };
+    }
+    if (sourceType === "asset-handle" || sourceType === "asset_handle") {
+      if (!assetId)
+        throw new VisualServiceError(
+          "invalid_input",
+          "asset-handle import requires assetId.",
+        );
+      const service = getVisualService();
+      const resolved = await service.resolveTarget({ assetId });
+      const bytes = await service.readVersion(
+        resolved.asset.id,
+        versionId || undefined,
+      );
+      const version = await service.store.getVersion(
+        resolved.asset.id,
+        versionId || undefined,
+      );
+      return {
+        bytes,
+        mimeType: version?.mime_type ?? resolved.asset.mime_type,
+        source: "asset-handle",
+        sourceAssetId: resolved.asset.id,
+      };
+    }
+    if (sourceType === "url" || sourceType === "https") {
+      if (!url)
+        throw new VisualServiceError(
+          "invalid_input",
+          "URL import requires url.",
+        );
+      const parsed = assertSafeVisualUrl(url);
+      const maxBytes = getVisualService().limits.maxBytes;
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 15_000);
+      let response: Awaited<ReturnType<typeof ssrfSafeFetch>>;
+      let fetched: Uint8Array;
+      try {
+        response = await ssrfSafeFetch(parsed.toString(), {
+          method: "GET",
+          headers: new Headers(),
+          signal: controller.signal,
+        });
+        if (response.status >= 300 && response.status < 400) {
+          throw new VisualServiceError(
+            "invalid_input",
+            "Visual URL redirects are not allowed; provide the final public HTTPS image URL.",
+            { url: parsed.toString(), status: response.status },
+          );
+        }
+        if (!response.ok) {
+          throw new VisualServiceError(
+            "execution",
+            `Visual URL returned HTTP ${response.status}.`,
+            { url: parsed.toString(), status: response.status },
+          );
+        }
+        const contentLength = Number(
+          response.headers.get("content-length") ?? 0,
+        );
+        if (Number.isFinite(contentLength) && contentLength > maxBytes) {
+          throw new VisualServiceError(
+            "resource_too_large",
+            "The visual URL is larger than the configured asset limit.",
+            { contentLength, maxBytes },
+          );
+        }
+        fetched = await readVisualResponse(response, maxBytes);
+      } catch (error) {
+        if (error instanceof VisualServiceError) throw error;
+        if (error instanceof SsrfBlockedError) {
+          throw new VisualServiceError(
+            "invalid_input",
+            "The visual URL resolves to a private or otherwise disallowed network address.",
+            { url: parsed.toString() },
+          );
+        }
+        if (controller.signal.aborted) {
+          throw new VisualServiceError(
+            "execution",
+            "The visual URL request timed out before the image was fully read.",
+            { url: parsed.toString(), timeoutMs: 15_000 },
+          );
+        }
+        throw new VisualServiceError(
+          "execution",
+          "The visual URL could not be read.",
+          {
+            url: parsed.toString(),
+            cause: error instanceof Error ? error.message : String(error),
+          },
+        );
+      } finally {
+        clearTimeout(timeout);
+      }
+      return {
+        bytes: fetched,
+        mimeType: mimeType ?? response.headers.get("content-type") ?? undefined,
+        source: "url",
+        sourceUri: parsed.toString(),
+      };
+    }
+    throw new VisualServiceError(
+      "invalid_input",
+      `Import source "${sourceType}" is not supported. Use an explicit base64 payload, public HTTPS URL, or asset handle.`,
+    );
+  }
+
+  async function addImageReferenceThroughCommands(input: {
+    workspaceId: string;
+    assetId: string;
+    versionId: string;
+    nodeId?: string;
+    position?: { x: number; y: number };
+    title?: string | null;
+    role?: string;
+    altText?: string | null;
+  }): Promise<WorkspaceNode> {
+    const service = getVisualService();
+    const asset = await service.store.getAsset(input.assetId);
+    if (!asset) {
+      throw new VisualServiceError(
+        "asset_not_found",
+        `Visual asset "${input.assetId}" was not found.`,
+        { assetId: input.assetId },
+      );
+    }
+    const adapters = visualAdapters();
+    return adapters.node.add(visualCommandContext(), {
+      id: input.nodeId,
+      workspaceId: input.workspaceId,
+      kind: "image",
+      entityType: "visual_asset",
+      entityId: input.assetId,
+      position: input.position ?? { x: 0, y: 0 },
+      width: 320,
+      height: 240,
+      displayConfig: {
+        title: input.title ?? asset.title ?? "",
+        role: input.role ?? "",
+        altText: input.altText ?? asset.alt_text ?? "",
+        versionId: input.versionId,
+      },
+    });
+  }
+
+  function imageCapability(input: {
+    supportsImage?: boolean;
+    supportsImages?: boolean;
+    supportsImageContent?: boolean;
+    clientCapabilities?: { supportsImage?: boolean; supportsImages?: boolean };
+  }): boolean {
+    const values = [
+      input.supportsImage,
+      input.supportsImages,
+      input.supportsImageContent,
+      input.clientCapabilities?.supportsImage,
+      input.clientCapabilities?.supportsImages,
+    ].filter((value): value is boolean => value !== undefined);
+    return values.length === 0 || values.every(Boolean);
+  }
+
+  async function visualFallback(
+    service: VisualWorkspaceService,
+    descriptor: Awaited<ReturnType<VisualWorkspaceService["describeVisual"]>>,
+  ): Promise<Record<string, unknown>> {
+    const derived = await service.store.listDerived(
+      descriptor.assetId,
+      descriptor.currentVersionId,
+    );
+    const usable = derived
+      .filter((item) => item.status === "ready")
+      .map((item) => ({
+        kind: item.kind,
+        value: item.value,
+        confidence: item.confidence ?? null,
+        versionId: item.version_id,
+      }));
+    return {
+      equivalentToImage: false,
+      reason:
+        "This client did not declare MCP image-content support; the following text is metadata or derived information, not equivalent visual understanding.",
+      metadata: descriptor,
+      derived: usable,
+      nextAction:
+        "Use a client with image-content support or request OCR/description explicitly.",
+    };
+  }
+
   server.tool(
     "list_workspaces",
     "List the active Account's Workspaces with IDs, names, colors, and bounded node counts. Use this to resolve an existing target before patching; it is read-only and account-scoped.",
@@ -1134,6 +2144,11 @@ export function createKagelinMcpServer(
           workspaces = currentMockState().workspaces.filter((workspace) =>
             isOwnedByMockAccount(workspace, activeUserId),
           );
+        else if (options.guestAssetBridge?.listWorkspaces)
+          workspaces = (await options.guestAssetBridge.listWorkspaces()).filter(
+            (workspace) => !workspace.user_id || workspace.user_id === "guest",
+          );
+        else if (options.guestAssetBridge) workspaces = [];
         else if (nodeSupabaseClient) {
           const { data, error } = await nodeSupabaseClient
             .from("workspaces")
@@ -1340,7 +2355,7 @@ export function createKagelinMcpServer(
 
   server.tool(
     "get_workspace_blueprint",
-    "Read the current Account-owned Workspace semantic snapshot before patching. Returns Markdown and structured state with current node/Connection IDs, groups, positions, sizes, orphan visibility, and visual-only edges; it never mutates data.",
+    "Read the current Account-owned Workspace semantic snapshot before patching. Returns Markdown and structured state with current node/Connection IDs, groups, positions, sizes, orphan visibility, lightweight image descriptors, Visual relations, and visual-only edges; it never mutates data or image bytes.",
     { workspaceId: z.string().min(1).describe("Account-owned Workspace ID.") },
     async ({ workspaceId }) => {
       try {
@@ -1353,6 +2368,32 @@ export function createKagelinMcpServer(
           getTask: (id) => resolveOwnedEntity("task", id, state.tasks),
           getProject: (id) => resolveOwnedEntity("project", id, state.projects),
           getHabit: (id) => resolveOwnedEntity("habit", id, state.habits),
+          getVisualAsset: async (id) => {
+            const asset = await getVisualService().store.getAsset(id);
+            if (!asset) return null;
+            if (asset.user_id && asset.user_id !== activeUserId) {
+              throw new VisualServiceError(
+                "authorization",
+                `Visual asset "${id}" belongs to another Account.`,
+                { assetId: id, workspaceId },
+              );
+            }
+            const mounted = state.nodes.some(
+              (node) =>
+                node.kind === "image" &&
+                node.entity_type === "visual_asset" &&
+                node.entity_id === id,
+            );
+            if (
+              !mounted &&
+              asset.workspace_id &&
+              asset.workspace_id !== workspaceId
+            ) {
+              return null;
+            }
+            return asset;
+          },
+          getVisualRelations: (id) => getVisualService().listRelations(id),
         });
         return operationResult({
           contractVersion: WORKSPACE_MCP_CONTRACT_VERSION,
@@ -1367,7 +2408,7 @@ export function createKagelinMcpServer(
 
   server.tool(
     "build_workspace",
-    "Create a new Workspace from the canonical blueprint object or Mermaid input. Inspect context first when reuse matters. Writes go through the Blueprint Engine and Domain Commands; optional requestId makes retries safe within this local MCP process. Returns a structured operation receipt and JSON text. Never use this to modify an existing Workspace. v1 supports doc, task, habit, project, focus, decision, and step; event nodes and runtime automation semantics are unsupported. Legacy flat name/color/sections/flows fields remain accepted with a warning.",
+    "Create a new Workspace from the canonical blueprint object or Mermaid input. Inspect context first when reuse matters. Writes go through the Blueprint Engine and Domain Commands; optional requestId makes retries safe within this local MCP process. Returns a structured operation receipt and JSON text. Never use this to modify an existing Workspace. Contract 1.2 supports doc, task, habit, project, focus, decision, step, and image asset references; event nodes and runtime automation semantics are unsupported. Legacy flat name/color/sections/flows fields remain accepted with a warning.",
     {
       blueprint: WorkspaceBlueprintSchema.optional().describe(
         "Canonical structured WorkspaceBlueprint.",
@@ -1441,6 +2482,7 @@ export function createKagelinMcpServer(
       updateDocs: z.array(z.unknown()).optional(),
       updateDecisions: z.array(z.unknown()).optional(),
       updateSteps: z.array(z.unknown()).optional(),
+      updateImages: z.array(z.unknown()).optional(),
       addFlows: z.array(z.unknown()).optional(),
       removeEdgeIds: z.array(z.string()).optional(),
       destructiveConfirmation: z
@@ -1483,6 +2525,1134 @@ export function createKagelinMcpServer(
     },
   );
 
+  server.tool(
+    "inspect_visual",
+    "Inspect one explicitly targeted Visual asset or image node. The default is a lightweight descriptor; request representation thumbnail, crop, or original only when the client needs image bytes. Canvas selection is never used. Clients without image-content support receive an honest metadata/OCR/description fallback.",
+    {
+      target: z
+        .object({
+          workspaceId: z.string().min(1).optional(),
+          nodeId: z.string().min(1).optional(),
+          assetId: z.string().min(1).optional(),
+          resourceId: z.string().min(1).optional(),
+          title: z.string().min(1).optional(),
+        })
+        .optional(),
+      workspaceId: z.string().min(1).optional(),
+      nodeId: z.string().min(1).optional(),
+      assetId: z.string().min(1).optional(),
+      resourceId: z.string().min(1).optional(),
+      title: z.string().min(1).optional(),
+      representation: z.enum(["thumbnail", "crop", "original"]).optional(),
+      crop: z
+        .object({
+          x: z.number(),
+          y: z.number(),
+          width: z.number(),
+          height: z.number(),
+          coordinateSpace: z.enum(["normalized", "pixels"]).optional(),
+        })
+        .optional(),
+      versionId: z.string().min(1).optional(),
+      expectedVersionId: z.string().min(1).optional(),
+      maxResponseBytes: z.number().int().positive().optional(),
+      purpose: z.string().max(500).optional(),
+      supportsImage: z.boolean().optional(),
+      supportsImages: z.boolean().optional(),
+      supportsImageContent: z.boolean().optional(),
+      clientCapabilities: z
+        .object({
+          supportsImage: z.boolean().optional(),
+          supportsImages: z.boolean().optional(),
+        })
+        .optional(),
+      requestId: z.string().min(1).optional(),
+      request_id: z.string().min(1).optional(),
+    },
+    async (args) => {
+      try {
+        await ensureAuthenticated();
+        const service = getVisualService();
+        const target = targetFromInput(args);
+        const descriptor = await service.describeVisual(target);
+        const supportsImage = imageCapability(args);
+        if (!supportsImage) {
+          return operationResult(
+            visualSuccess(
+              {
+                operation: "inspect_visual",
+                target,
+                purpose: args.purpose ?? null,
+                descriptor,
+                fallback: await visualFallback(service, descriptor),
+              },
+              requestIdFromInput(args),
+            ).payload,
+          );
+        }
+        const inspection = await service.inspectVisual(target, {
+          representation: args.representation as
+            VisualRepresentation | undefined,
+          crop: args.crop as VisualCrop | undefined,
+          versionId: args.versionId,
+          expectedVersionId: args.expectedVersionId,
+          maxResponseBytes: args.maxResponseBytes,
+        });
+        const payload = visualSuccess(
+          {
+            operation: "inspect_visual",
+            target,
+            purpose: args.purpose ?? null,
+            descriptor,
+            representation: inspection.representation,
+            crop: inspection.crop ?? null,
+            version: inspection.version,
+            transformed: inspection.transformed,
+          },
+          requestIdFromInput(args),
+        ).payload;
+        return operationResult(payload, false, [
+          {
+            type: "image",
+            data: Buffer.from(inspection.bytes).toString("base64"),
+            mimeType:
+              inspection.responseMimeType ?? inspection.version.mime_type,
+          },
+        ]);
+      } catch (err) {
+        return errorResult(err);
+      }
+    },
+  );
+
+  server.tool(
+    "import_visual",
+    "Import a visual asset from an explicit base64 payload, public HTTPS URL, or already authorized asset handle. The operation may create or mount one image node; replacing an existing asset always requires confirmed: true and creates an immutable new version.",
+    {
+      workspaceId: z.string().min(1),
+      source: z
+        .union([
+          z.enum([
+            "base64",
+            "bytes",
+            "upload",
+            "local-file",
+            "url",
+            "asset-handle",
+          ]),
+          z.object({
+            type: z.string(),
+            data: z.any().optional(),
+            base64: z.any().optional(),
+            url: z.string().optional(),
+            assetId: z.string().optional(),
+            versionId: z.string().optional(),
+            mimeType: z.string().optional(),
+          }),
+        ])
+        .optional(),
+      sourceType: z.string().optional(),
+      data: z.any().optional(),
+      base64: z.any().optional(),
+      url: z.string().optional(),
+      assetId: z.string().optional(),
+      versionId: z.string().optional(),
+      mimeType: z.string().optional(),
+      createNode: z.boolean().optional(),
+      nodeId: z.string().min(1).optional(),
+      position: z.object({ x: z.number(), y: z.number() }).optional(),
+      title: z.string().optional(),
+      role: z.string().optional(),
+      altText: z.string().optional(),
+      deduplicate: z.boolean().optional(),
+      replaceAssetId: z.string().optional(),
+      replaceNodeId: z.string().optional(),
+      expectedVersionId: z.string().optional(),
+      confirmed: z.boolean().optional(),
+      requireConfirmation: z.boolean().optional(),
+      requestId: z.string().min(1).optional(),
+      request_id: z.string().min(1).optional(),
+    },
+    async (args) => {
+      try {
+        await ensureAuthenticated();
+        const requestId = requestIdFromInput(args);
+        const source = args.source;
+        const sourceObject =
+          source && typeof source === "object"
+            ? (source as Record<string, unknown>)
+            : undefined;
+        const sourceType = String(
+          sourceObject?.type ??
+            args.sourceType ??
+            (args.url ? "url" : args.assetId ? "asset-handle" : "base64"),
+        );
+        const canonicalInput = {
+          workspaceId: args.workspaceId,
+          source,
+          sourceType: args.sourceType,
+          data: args.data,
+          base64: args.base64,
+          url: args.url,
+          assetId: args.assetId,
+          versionId: args.versionId,
+          mimeType: args.mimeType,
+          createNode: args.createNode,
+          nodeId: args.nodeId,
+          position: args.position,
+          title: args.title,
+          role: args.role,
+          altText: args.altText,
+          deduplicate: args.deduplicate,
+          replaceAssetId: args.replaceAssetId,
+          replaceNodeId: args.replaceNodeId,
+          expectedVersionId: args.expectedVersionId,
+          confirmed: args.confirmed,
+        };
+        const outcome = await replayVisualSafe(
+          visualReplayCache,
+          visualInFlightRequests,
+          "import_visual",
+          requestId,
+          canonicalInput,
+          async () => {
+            const service = getVisualService();
+            if (args.requireConfirmation && args.confirmed !== true) {
+              throw new VisualServiceError(
+                "confirmation_required",
+                "This visual import is waiting for explicit user confirmation; retry with confirmed: true.",
+                { workspaceId: args.workspaceId, operation: "import_visual" },
+              );
+            }
+            if (args.replaceAssetId) {
+              if (args.confirmed !== true) {
+                throw new VisualServiceError(
+                  "confirmation_required",
+                  "Replacing a visual asset creates a new immutable version and requires confirmed: true.",
+                  { assetId: args.replaceAssetId, operation: "import_visual" },
+                );
+              }
+              const sourceResult = await bytesFromImportSource({
+                source: args.source,
+                sourceType: args.sourceType,
+                data: args.data,
+                base64: args.base64,
+                url: args.url,
+                assetId: args.assetId,
+                versionId: args.versionId,
+                mimeType: args.mimeType,
+              });
+              if (!sourceResult.bytes) {
+                throw new VisualServiceError(
+                  "invalid_input",
+                  "Replacement source did not provide image bytes.",
+                );
+              }
+              const replaced = await service.replaceVersion({
+                assetId: args.replaceAssetId,
+                bytes: sourceResult.bytes,
+                mimeType: sourceResult.mimeType,
+                source: sourceResult.source,
+                sourceUri: sourceResult.sourceUri,
+                sourceAssetId: sourceResult.sourceAssetId,
+                expectedVersionId: args.expectedVersionId,
+              });
+              const nodeId = args.replaceNodeId;
+              if (nodeId) {
+                const adapters = visualAdapters();
+                await adapters.node.updateImageNode?.(visualCommandContext(), {
+                  workspaceId: args.workspaceId,
+                  nodeId,
+                  versionId: replaced.version.id,
+                });
+              }
+              return visualSuccess(
+                {
+                  operation: "import_visual",
+                  mode: "replace-version",
+                  asset: replaced.asset,
+                  version: replaced.version,
+                  nodeId: nodeId ?? null,
+                },
+                requestId,
+              );
+            }
+
+            const isAssetHandle =
+              sourceType === "asset-handle" || sourceType === "asset_handle";
+            if (isAssetHandle) {
+              const sourceAssetId = String(
+                sourceObject?.assetId ?? args.assetId ?? "",
+              );
+              if (!sourceAssetId) {
+                throw new VisualServiceError(
+                  "invalid_input",
+                  "asset-handle import requires assetId.",
+                );
+              }
+              const resolved = await service.resolveTarget({
+                workspaceId: args.workspaceId,
+                assetId: sourceAssetId,
+              });
+              const version = await service.store.getVersion(
+                resolved.asset.id,
+                String(sourceObject?.versionId ?? args.versionId ?? "") ||
+                  undefined,
+              );
+              if (!version) {
+                throw new VisualServiceError(
+                  "target_not_found",
+                  "The asset-handle version was not found.",
+                  { assetId: sourceAssetId, versionId: args.versionId ?? null },
+                );
+              }
+              const node =
+                args.createNode === false
+                  ? null
+                  : await addImageReferenceThroughCommands({
+                      workspaceId: args.workspaceId,
+                      assetId: resolved.asset.id,
+                      versionId: version.id,
+                      nodeId: args.nodeId,
+                      position: args.position,
+                      title: args.title,
+                      role: args.role,
+                      altText: args.altText,
+                    });
+              return visualSuccess(
+                {
+                  operation: "import_visual",
+                  mode: "mount-existing-asset",
+                  asset: resolved.asset,
+                  version,
+                  node: node ?? null,
+                },
+                requestId,
+              );
+            }
+
+            const sourceResult = await bytesFromImportSource({
+              source: args.source,
+              sourceType: args.sourceType,
+              data: args.data,
+              base64: args.base64,
+              url: args.url,
+              assetId: args.assetId,
+              versionId: args.versionId,
+              mimeType: args.mimeType,
+            });
+            if (!sourceResult.bytes) {
+              throw new VisualServiceError(
+                "invalid_input",
+                "Import source did not provide image bytes.",
+              );
+            }
+            const created = await service.ingest({
+              workspaceId: args.workspaceId,
+              bytes: sourceResult.bytes,
+              mimeType: sourceResult.mimeType,
+              source: sourceResult.source,
+              sourceUri: sourceResult.sourceUri,
+              title: args.title,
+              altText: args.altText,
+              deduplicate: args.deduplicate,
+            });
+            try {
+              const node =
+                args.createNode === false
+                  ? null
+                  : await addImageReferenceThroughCommands({
+                      workspaceId: args.workspaceId,
+                      assetId: created.asset.id,
+                      versionId: created.version.id,
+                      nodeId: args.nodeId,
+                      position: args.position,
+                      title: args.title,
+                      role: args.role,
+                      altText: args.altText,
+                    });
+              return visualSuccess(
+                {
+                  operation: "import_visual",
+                  mode: created.reused ? "reuse-asset" : "create-asset",
+                  asset: created.asset,
+                  version: created.version,
+                  node: node ?? null,
+                },
+                requestId,
+              );
+            } catch (error) {
+              if (!created.reused)
+                await service.store.removeAsset(created.asset.id);
+              throw error;
+            }
+          },
+        );
+        return operationResult(outcome.payload);
+      } catch (err) {
+        return errorResult(err);
+      }
+    },
+  );
+
+  server.tool(
+    "update_visual",
+    "Apply non-destructive Visual asset changes: image-node metadata, asset metadata, version-bound annotations, or an explicitly confirmed immutable version replacement. The original version is never overwritten and expectedVersionId detects concurrent changes.",
+    {
+      target: z
+        .object({
+          workspaceId: z.string().min(1).optional(),
+          nodeId: z.string().min(1).optional(),
+          assetId: z.string().min(1).optional(),
+          resourceId: z.string().min(1).optional(),
+          title: z.string().min(1).optional(),
+        })
+        .optional(),
+      workspaceId: z.string().min(1).optional(),
+      nodeId: z.string().min(1).optional(),
+      assetId: z.string().min(1).optional(),
+      resourceId: z.string().min(1).optional(),
+      title: z.string().optional(),
+      role: z.string().optional(),
+      altText: z.string().optional(),
+      description: z.string().optional(),
+      sourceUri: z.string().optional(),
+      metadata: z.record(z.string(), z.unknown()).optional(),
+      versionId: z.string().optional(),
+      expectedVersionId: z.string().optional(),
+      annotation: z.any().optional(),
+      replacement: z
+        .object({
+          source: z.any().optional(),
+          sourceType: z.string().optional(),
+          data: z.any().optional(),
+          base64: z.any().optional(),
+          url: z.string().optional(),
+          assetId: z.string().optional(),
+          versionId: z.string().optional(),
+          mimeType: z.string().optional(),
+        })
+        .optional(),
+      confirmed: z.boolean().optional(),
+      requestId: z.string().min(1).optional(),
+      request_id: z.string().min(1).optional(),
+    },
+    async (args) => {
+      try {
+        await ensureAuthenticated();
+        const requestId = requestIdFromInput(args);
+        const hasExplicitIdentifier = Boolean(
+          args.nodeId ??
+          args.assetId ??
+          args.resourceId ??
+          args.target?.nodeId ??
+          args.target?.assetId ??
+          args.target?.resourceId,
+        );
+        const target = targetFromInput(args, {
+          includeTitle: !hasExplicitIdentifier,
+        });
+        const outcome = await replayVisualSafe(
+          visualReplayCache,
+          visualInFlightRequests,
+          "update_visual",
+          requestId,
+          {
+            target,
+            title: args.title,
+            role: args.role,
+            altText: args.altText,
+            description: args.description,
+            sourceUri: args.sourceUri,
+            metadata: args.metadata,
+            versionId: args.versionId,
+            expectedVersionId: args.expectedVersionId,
+            annotation: args.annotation,
+            replacement: args.replacement,
+            confirmed: args.confirmed,
+          },
+          async () => {
+            const service = getVisualService();
+            const resolved = await service.resolveTarget(target);
+            const hasReplacement = Boolean(args.replacement);
+            if (hasReplacement && args.confirmed !== true) {
+              throw new VisualServiceError(
+                "confirmation_required",
+                "Replacing a visual asset creates a new immutable version and requires confirmed: true.",
+                { assetId: resolved.asset.id, operation: "update_visual" },
+              );
+            }
+
+            let asset = resolved.asset;
+            let replacement: {
+              asset: VisualAsset;
+              version: VisualAssetVersion;
+            } | null = null;
+            if (args.replacement) {
+              const sourceResult = await bytesFromImportSource(
+                args.replacement,
+              );
+              if (!sourceResult.bytes) {
+                throw new VisualServiceError(
+                  "invalid_input",
+                  "Replacement source did not provide image bytes.",
+                );
+              }
+              replacement = await service.replaceVersion({
+                assetId: resolved.asset.id,
+                bytes: sourceResult.bytes,
+                mimeType: sourceResult.mimeType,
+                source: sourceResult.source,
+                sourceUri: sourceResult.sourceUri,
+                sourceAssetId: sourceResult.sourceAssetId,
+                expectedVersionId: args.expectedVersionId,
+              });
+              asset = replacement.asset;
+            }
+
+            const hasAssetMetadata =
+              args.title !== undefined ||
+              args.altText !== undefined ||
+              args.sourceUri !== undefined ||
+              args.metadata !== undefined ||
+              args.description !== undefined;
+            if (hasAssetMetadata) {
+              asset = await service.updateMetadata(
+                asset.id,
+                {
+                  ...(args.title !== undefined ? { title: args.title } : {}),
+                  ...(args.altText !== undefined
+                    ? { altText: args.altText }
+                    : {}),
+                  ...(args.sourceUri !== undefined
+                    ? { sourceUri: args.sourceUri }
+                    : {}),
+                  ...(args.metadata !== undefined ||
+                  args.description !== undefined
+                    ? {
+                        metadata: {
+                          ...(asset.metadata ?? {}),
+                          ...(args.metadata ?? {}),
+                          ...(args.description !== undefined
+                            ? { description: args.description }
+                            : {}),
+                        },
+                      }
+                    : {}),
+                },
+                replacement ? undefined : args.expectedVersionId,
+              );
+            }
+
+            let annotation: VisualAnnotation | null = null;
+            if (args.annotation) {
+              if (!target.workspaceId) {
+                throw new VisualServiceError(
+                  "invalid_input",
+                  "workspaceId is required when adding a visual annotation.",
+                );
+              }
+              annotation = await service.addAnnotation({
+                ...(args.annotation as Record<string, unknown>),
+                workspaceId: target.workspaceId,
+                assetId: asset.id,
+                versionId: (args.annotation as Record<string, unknown>)
+                  .versionId as string | undefined,
+              } as Parameters<VisualWorkspaceService["addAnnotation"]>[0]);
+            }
+
+            const nodeId = resolved.node?.id ?? target.nodeId ?? args.nodeId;
+            if (
+              !nodeId &&
+              (args.role !== undefined || args.versionId !== undefined)
+            ) {
+              throw new VisualServiceError(
+                "invalid_input",
+                "nodeId is required for image-node role or version changes.",
+              );
+            }
+            const hasNodeMetadata =
+              Boolean(nodeId) &&
+              (args.title !== undefined ||
+                args.role !== undefined ||
+                args.altText !== undefined ||
+                args.versionId !== undefined ||
+                replacement !== null);
+            if (hasNodeMetadata) {
+              if (!nodeId) {
+                throw new VisualServiceError(
+                  "invalid_input",
+                  "nodeId is required for image-node metadata changes.",
+                );
+              }
+              const versionId = replacement?.version.id ?? args.versionId;
+              if (versionId) {
+                const version = await service.store.getVersion(
+                  asset.id,
+                  versionId,
+                );
+                if (!version) {
+                  throw new VisualServiceError(
+                    "target_not_found",
+                    `Visual asset version "${versionId}" was not found.`,
+                    { assetId: asset.id, versionId },
+                  );
+                }
+              }
+              const adapters = visualAdapters();
+              if (!adapters.node.updateImageNode) {
+                throw new VisualServiceError(
+                  "execution",
+                  "The image-node Domain Command adapter is unavailable.",
+                );
+              }
+              await adapters.node.updateImageNode(visualCommandContext(), {
+                workspaceId: target.workspaceId ?? asset.workspace_id ?? "",
+                nodeId,
+                title: args.title,
+                role: args.role,
+                altText: args.altText,
+                versionId: versionId ?? undefined,
+              });
+            }
+            return visualSuccess(
+              {
+                operation: "update_visual",
+                asset,
+                version: replacement?.version ?? null,
+                nodeId: nodeId ?? null,
+                annotation,
+              },
+              requestId,
+            );
+          },
+        );
+        return operationResult(outcome.payload);
+      } catch (err) {
+        return errorResult(err);
+      }
+    },
+  );
+
+  server.tool(
+    "list_visual_relations",
+    "List typed, non-executing Visual relations for one Account-owned Workspace. Relations are separate from visual-only canvas Connections and never trigger tasks, scheduling, or automation.",
+    {
+      workspaceId: z.string().min(1),
+      requestId: z.string().min(1).optional(),
+      request_id: z.string().min(1).optional(),
+    },
+    async ({ workspaceId, requestId, request_id }) => {
+      try {
+        await ensureAuthenticated();
+        const relations = await getVisualService().listRelations(workspaceId);
+        return operationResult(
+          visualSuccess(
+            {
+              operation: "list_visual_relations",
+              workspaceId,
+              relations,
+            },
+            requestId ?? request_id,
+          ).payload,
+        );
+      } catch (err) {
+        return errorResult(err);
+      }
+    },
+  );
+
+  server.tool(
+    "create_visual_relation",
+    "Create a directional reference, supports, evidence-for, or derived-from relation between a Visual asset/image node and an existing Workspace object. Endpoint, Workspace, Account, and version context are validated; this does not create a runtime Connection.",
+    {
+      workspaceId: z.string().min(1),
+      relationType: z.enum([
+        "reference",
+        "supports",
+        "evidence-for",
+        "derived-from",
+      ]),
+      sourceType: z.enum([
+        "visual_asset",
+        "image_node",
+        "workspace_node",
+        "step",
+        "decision",
+        "doc",
+        "task",
+        "habit",
+        "project",
+        "focus",
+      ]),
+      sourceId: z.string().min(1),
+      targetType: z.enum([
+        "visual_asset",
+        "image_node",
+        "workspace_node",
+        "step",
+        "decision",
+        "doc",
+        "task",
+        "habit",
+        "project",
+        "focus",
+      ]),
+      targetId: z.string().min(1),
+      sourceVersionId: z.string().optional(),
+      targetVersionId: z.string().optional(),
+      description: z.string().optional(),
+      relationId: z.string().optional(),
+      requestId: z.string().min(1).optional(),
+      request_id: z.string().min(1).optional(),
+    },
+    async (args) => {
+      try {
+        await ensureAuthenticated();
+        const requestId = requestIdFromInput(args);
+        const outcome = await replayVisualSafe(
+          visualReplayCache,
+          visualInFlightRequests,
+          "create_visual_relation",
+          requestId,
+          args,
+          async () =>
+            visualSuccess(
+              {
+                operation: "create_visual_relation",
+                relation: await getVisualService().createRelation({
+                  workspaceId: args.workspaceId,
+                  relationType: args.relationType as VisualRelationType,
+                  sourceType: args.sourceType as VisualEndpointType,
+                  sourceId: args.sourceId,
+                  targetType: args.targetType as VisualEndpointType,
+                  targetId: args.targetId,
+                  sourceVersionId: args.sourceVersionId ?? null,
+                  targetVersionId: args.targetVersionId ?? null,
+                  description: args.description ?? null,
+                  relationId: args.relationId,
+                }),
+              },
+              requestId,
+            ),
+        );
+        return operationResult(outcome.payload);
+      } catch (err) {
+        return errorResult(err);
+      }
+    },
+  );
+
+  server.tool(
+    "update_visual_relation",
+    "Update a typed Visual relation after revalidating both endpoints and optional expectedUpdatedAt concurrency condition. The relation remains non-executing.",
+    {
+      workspaceId: z.string().min(1),
+      relationId: z.string().min(1),
+      relationType: z
+        .enum(["reference", "supports", "evidence-for", "derived-from"])
+        .optional(),
+      sourceType: z
+        .enum([
+          "visual_asset",
+          "image_node",
+          "workspace_node",
+          "step",
+          "decision",
+          "doc",
+          "task",
+          "habit",
+          "project",
+          "focus",
+        ])
+        .optional(),
+      sourceId: z.string().min(1).optional(),
+      targetType: z
+        .enum([
+          "visual_asset",
+          "image_node",
+          "workspace_node",
+          "step",
+          "decision",
+          "doc",
+          "task",
+          "habit",
+          "project",
+          "focus",
+        ])
+        .optional(),
+      targetId: z.string().min(1).optional(),
+      sourceVersionId: z.string().nullable().optional(),
+      targetVersionId: z.string().nullable().optional(),
+      description: z.string().nullable().optional(),
+      expectedUpdatedAt: z.string().optional(),
+      requestId: z.string().min(1).optional(),
+      request_id: z.string().min(1).optional(),
+    },
+    async (args) => {
+      try {
+        await ensureAuthenticated();
+        const requestId = requestIdFromInput(args);
+        const outcome = await replayVisualSafe(
+          visualReplayCache,
+          visualInFlightRequests,
+          "update_visual_relation",
+          requestId,
+          args,
+          async () => {
+            const service = getVisualService();
+            const existing = (
+              await service.listRelations(args.workspaceId)
+            ).find((relation) => relation.id === args.relationId);
+            if (!existing) {
+              throw new VisualServiceError(
+                "target_not_found",
+                `Visual relation "${args.relationId}" was not found.`,
+                { relationId: args.relationId },
+              );
+            }
+            const relation = await service.updateRelation({
+              workspaceId: args.workspaceId,
+              relationId: args.relationId,
+              relationType: (args.relationType ??
+                existing.relation_type) as VisualRelationType,
+              sourceType: (args.sourceType ??
+                existing.source_type) as VisualEndpointType,
+              sourceId: args.sourceId ?? existing.source_id,
+              targetType: (args.targetType ??
+                existing.target_type) as VisualEndpointType,
+              targetId: args.targetId ?? existing.target_id,
+              sourceVersionId:
+                args.sourceVersionId === undefined
+                  ? existing.source_version_id
+                  : args.sourceVersionId,
+              targetVersionId:
+                args.targetVersionId === undefined
+                  ? existing.target_version_id
+                  : args.targetVersionId,
+              description:
+                args.description === undefined
+                  ? existing.description
+                  : args.description,
+              expectedUpdatedAt: args.expectedUpdatedAt,
+            });
+            return visualSuccess(
+              { operation: "update_visual_relation", relation },
+              requestId,
+            );
+          },
+        );
+        return operationResult(outcome.payload);
+      } catch (err) {
+        return errorResult(err);
+      }
+    },
+  );
+
+  server.tool(
+    "delete_visual_relation",
+    "Delete one typed Visual relation after Workspace authorization. Endpoints and existing visual-only Connections remain unchanged.",
+    {
+      workspaceId: z.string().min(1),
+      relationId: z.string().min(1),
+      confirmed: z.boolean().optional(),
+      requestId: z.string().min(1).optional(),
+      request_id: z.string().min(1).optional(),
+    },
+    async (args) => {
+      try {
+        await ensureAuthenticated();
+        const requestId = requestIdFromInput(args);
+        const outcome = await replayVisualSafe(
+          visualReplayCache,
+          visualInFlightRequests,
+          "delete_visual_relation",
+          requestId,
+          args,
+          async () => {
+            await getVisualService().removeRelation(
+              args.workspaceId,
+              args.relationId,
+            );
+            return visualSuccess(
+              {
+                operation: "delete_visual_relation",
+                workspaceId: args.workspaceId,
+                relationId: args.relationId,
+              },
+              requestId,
+            );
+          },
+        );
+        return operationResult(outcome.payload);
+      } catch (err) {
+        return errorResult(err);
+      }
+    },
+  );
+
+  server.tool(
+    "delete_visual_asset",
+    "Soft-delete one Visual asset after explicit confirmation. Image nodes and native workflow objects are not deleted; they become an explainable missing/orphan reference until the asset is restored or removed from the workspace.",
+    {
+      assetId: z.string().min(1),
+      confirmed: z.boolean(),
+      expectedVersionId: z.string().optional(),
+      requestId: z.string().min(1).optional(),
+      request_id: z.string().min(1).optional(),
+    },
+    async (args) => {
+      try {
+        await ensureAuthenticated();
+        const requestId = requestIdFromInput(args);
+        const outcome = await replayVisualSafe(
+          visualReplayCache,
+          visualInFlightRequests,
+          "delete_visual_asset",
+          requestId,
+          args,
+          async () =>
+            visualSuccess(
+              {
+                operation: "delete_visual_asset",
+                asset: await getVisualService().deleteAsset(
+                  args.assetId,
+                  args.confirmed,
+                  args.expectedVersionId,
+                ),
+              },
+              requestId,
+            ),
+        );
+        return operationResult(outcome.payload);
+      } catch (err) {
+        return errorResult(err);
+      }
+    },
+  );
+
+  server.tool(
+    "restore_visual_asset",
+    "Restore a previously soft-deleted Visual asset by stable asset ID. Its immutable versions and existing image-node references remain intact.",
+    {
+      assetId: z.string().min(1),
+      requestId: z.string().min(1).optional(),
+      request_id: z.string().min(1).optional(),
+    },
+    async (args) => {
+      try {
+        await ensureAuthenticated();
+        const requestId = requestIdFromInput(args);
+        const outcome = await replayVisualSafe(
+          visualReplayCache,
+          visualInFlightRequests,
+          "restore_visual_asset",
+          requestId,
+          args,
+          async () =>
+            visualSuccess(
+              {
+                operation: "restore_visual_asset",
+                asset: await getVisualService().restoreAsset(args.assetId),
+              },
+              requestId,
+            ),
+        );
+        return operationResult(outcome.payload);
+      } catch (err) {
+        return errorResult(err);
+      }
+    },
+  );
+
+  server.tool(
+    "draft_visual_to_flow",
+    "Create a pending, inspectable conversion draft from an explicitly targeted image asset/node to native Step and Decision candidates plus flow edges. This tool never changes the canvas, native workflow, or source image.",
+    {
+      workspaceId: z.string().min(1),
+      target: z
+        .object({
+          workspaceId: z.string().min(1).optional(),
+          nodeId: z.string().min(1).optional(),
+          assetId: z.string().min(1).optional(),
+          resourceId: z.string().min(1).optional(),
+          title: z.string().min(1).optional(),
+        })
+        .optional(),
+      nodeId: z.string().min(1).optional(),
+      assetId: z.string().min(1).optional(),
+      resourceId: z.string().min(1).optional(),
+      title: z.string().min(1).optional(),
+      nodes: z.array(z.any()).optional(),
+      edges: z.array(z.any()).optional(),
+      draft: z
+        .object({
+          nodes: z.array(z.any()),
+          edges: z.array(z.any()).optional(),
+          confidence: z.number().nullable().optional(),
+          uncertainties: z.array(z.string()).optional(),
+          provenance: z.record(z.string(), z.unknown()).nullable().optional(),
+        })
+        .optional(),
+      confidence: z.number().nullable().optional(),
+      uncertainties: z.array(z.string()).optional(),
+      provenance: z.record(z.string(), z.unknown()).nullable().optional(),
+      requestId: z.string().min(1).optional(),
+      request_id: z.string().min(1).optional(),
+    },
+    async (args) => {
+      try {
+        await ensureAuthenticated();
+        const requestId = requestIdFromInput(args);
+        const target = targetFromInput(args);
+        const draftInput = (args.draft ?? {}) as {
+          nodes?: unknown[];
+          edges?: unknown[];
+          confidence?: number | null;
+          uncertainties?: string[];
+          provenance?: Record<string, unknown> | null;
+        };
+        const nodes = args.nodes ?? draftInput.nodes ?? [];
+        const edges = args.edges ?? draftInput.edges ?? [];
+        const outcome = await replayVisualSafe(
+          visualReplayCache,
+          visualInFlightRequests,
+          "draft_visual_to_flow",
+          requestId,
+          { workspaceId: args.workspaceId, target, nodes, edges, args },
+          async () => {
+            const draft = await getVisualService().createFlowDraft({
+              workspaceId: args.workspaceId,
+              target: {
+                ...target,
+                workspaceId: args.workspaceId,
+              },
+              nodes: nodes as VisualFlowDraft["nodes"],
+              edges: edges as VisualFlowDraft["edges"],
+              confidence: args.confidence ?? draftInput.confidence ?? null,
+              uncertainties:
+                args.uncertainties ?? draftInput.uncertainties ?? [],
+              provenance: args.provenance ?? draftInput.provenance ?? null,
+              requestId,
+            });
+            return visualSuccess(
+              {
+                operation: "draft_visual_to_flow",
+                draft,
+                writesPerformed: false,
+              },
+              requestId,
+            );
+          },
+        );
+        return operationResult(outcome.payload);
+      } catch (err) {
+        return errorResult(err);
+      }
+    },
+  );
+
+  server.tool(
+    "get_visual_flow_draft",
+    "Read one visual-to-flow draft by stable draft ID, including source asset version, candidate native nodes, edges, confidence, provenance, and uncertainties; this is read-only.",
+    {
+      draftId: z.string().min(1),
+      requestId: z.string().min(1).optional(),
+      request_id: z.string().min(1).optional(),
+    },
+    async ({ draftId, requestId, request_id }) => {
+      try {
+        await ensureAuthenticated();
+        const draft = await getVisualService().getDraft(draftId);
+        return operationResult(
+          visualSuccess(
+            { operation: "get_visual_flow_draft", draft },
+            requestId ?? request_id,
+          ).payload,
+        );
+      } catch (err) {
+        return errorResult(err);
+      }
+    },
+  );
+
+  server.tool(
+    "confirm_visual_flow",
+    "Commit a pending visual-to-flow draft only after the user confirms the specific proposed Step, Decision, and Connection changes. Repeating the same confirmed request is idempotent; a changed source version is rejected as stale.",
+    {
+      draftId: z.string().min(1),
+      confirmed: z.boolean(),
+      requestId: z.string().min(1).optional(),
+      request_id: z.string().min(1).optional(),
+    },
+    async (args) => {
+      try {
+        await ensureAuthenticated();
+        const requestId = requestIdFromInput(args);
+        const outcome = await replayVisualSafe(
+          visualReplayCache,
+          visualInFlightRequests,
+          "confirm_visual_flow",
+          requestId,
+          args,
+          async () => {
+            const result = await getVisualService().confirmFlowDraft(
+              args.draftId,
+              args.confirmed,
+            );
+            return visualSuccess(
+              {
+                operation: "confirm_visual_flow",
+                draft: result.draft,
+                result: result.result ?? null,
+                writesPerformed: Boolean(result.result),
+              },
+              requestId,
+            );
+          },
+        );
+        return operationResult(outcome.payload);
+      } catch (err) {
+        return errorResult(err);
+      }
+    },
+  );
+
+  server.tool(
+    "reject_visual_flow",
+    "Reject or cancel a pending visual-to-flow draft without changing the source image, existing nodes, or native workflow.",
+    {
+      draftId: z.string().min(1),
+      requestId: z.string().min(1).optional(),
+      request_id: z.string().min(1).optional(),
+    },
+    async (args) => {
+      try {
+        await ensureAuthenticated();
+        const requestId = requestIdFromInput(args);
+        const outcome = await replayVisualSafe(
+          visualReplayCache,
+          visualInFlightRequests,
+          "reject_visual_flow",
+          requestId,
+          args,
+          async () =>
+            visualSuccess(
+              {
+                operation: "reject_visual_flow",
+                draft: await getVisualService().rejectFlowDraft(args.draftId),
+                writesPerformed: false,
+              },
+              requestId,
+            ),
+        );
+        return operationResult(outcome.payload);
+      } catch (err) {
+        return errorResult(err);
+      }
+    },
+  );
+
   server.registerPrompt(
     "workspace_builder_workflow",
     {
@@ -1492,7 +3662,7 @@ export function createKagelinMcpServer(
     },
     async () => ({
       description:
-        "Use this compact workflow reference with the five Workspace MCP tools.",
+        "Use this compact workflow reference with the Workspace and Visual MCP tools.",
       messages: [
         {
           role: "user",
