@@ -374,6 +374,7 @@ describe("node-kind registry", () => {
         "focus",
         "group",
         "habit",
+        "image",
         "project",
         "step",
         "task",
