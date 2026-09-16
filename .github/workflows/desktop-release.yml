@@ -37,7 +37,7 @@ jobs:
         run: npm run copy-wasm
 
       - name: Build Next.js Standalone
-        shell: pwsh
+        shell: bash
         env:
           NEXT_PUBLIC_IS_ELECTRON: 'true'
           NEXT_TELEMETRY_DISABLED: '1'
@@ -45,19 +45,7 @@ jobs:
           NEXT_PUBLIC_SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0'
           SUPABASE_SECRET_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU'
           NEXT_PUBLIC_APP_URL: 'http://localhost:3000'
-        run: |
-          $output = npm run build 2>&1
-          $exitCode = $LASTEXITCODE
-          if ($exitCode -ne 0) {
-            "### Next.js Build Failed (Exit code: $exitCode)" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
-            "``````" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
-            $output | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
-            "``````" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
-            Write-Host ($output -join "`n")
-            exit $exitCode
-          } else {
-            Write-Host ($output -join "`n")
-          }
+        run: npm run build
 
       - name: Assemble Standalone Static Assets
         run: node scripts/copy-standalone.cjs
