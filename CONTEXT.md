@@ -512,22 +512,53 @@ not a canvas. _Avoid_: "board", "canvas file".
 
 ### Node
 
-One placed item on a Workspace: a reference to a domain entity (a task, a
-habit, a calendar event, the focus timer) plus layout metadata — position,
-size, display config. A node stores **reference metadata only** (node id,
-entity type, entity id, position, size, display config) — never a copy of the
-entity's business fields. The entity is read through the same Query cache the
-normal UI uses; the node is a lens, not a container. An unknown node kind
-renders as a placeholder rather than an error — a stale canvas must still
-render. _Avoid_: "widget", "card" (a TaskList concept).
+One placed item on a Workspace: normally a reference to a domain entity (a
+task, a habit, a calendar event, the focus timer), or an image node's
+reference to a Visual asset, plus layout metadata — position, size, display
+config. A node stores **reference metadata only** — never a copy of the
+entity's business fields or the visual asset's binary content. The target is
+read through its owning query or asset surface; the node is a lens, not a
+container. An unknown node kind renders as a placeholder rather than an
+error — a stale canvas must still render. _Avoid_: "widget", "card" (a
+TaskList concept).
+
+### Visual asset
+
+A durable visual file that can be referenced by one or more image nodes. It
+is the source visual for a screenshot, sketch, reference, or generated result,
+not a workflow command and not a domain entity. _Avoid_: "attachment" when
+the file is intended to remain a reusable Workspace source.
+
+### Image node
+
+A Node that presents one Visual asset together with human-readable metadata
+such as title, role, and provenance. It provides visual context, evidence,
+input, or output; it does not become a Step, a Decision, or an executable
+workflow relation merely because an AI can inspect it. _Avoid_: "screenshot
+node" or "diagram node" as separate concepts.
+
+### Explicit AI target
+
+A Workspace, Node, Visual asset, or user-provided file/resource identified in
+an external AI request by a stable identifier or an unambiguous description.
+It is an external request boundary, not an item selected in Kagelin's canvas
+UI. _Avoid_: "selected node" when describing an external AI interaction.
+
+### Visual relation
+
+A typed, non-executing relationship that says how a visual object relates to
+another Workspace object — for example reference, supports, evidence-for, or
+derived-from. It explains context to a person or AI but never triggers
+scheduling, task execution, or automation. _Avoid_: "workflow edge" for this
+relationship.
 
 ### Node reference
 
-The `entity_type` + `entity_id` pair on a node — which domain record it
-points at. Deliberately **soft**: the database cannot enforce it (one column,
-several possible target tables), so reference integrity is an application
-concern, not a constraint. A node whose target no longer exists is an
-**orphan**.
+The target identity carried by a node — the `entity_type` + `entity_id` pair
+for a domain-backed node, or the equivalent Visual asset reference for an
+image node. Deliberately **soft**: the database cannot enforce a polymorphic
+target, so reference integrity is an application concern, not a constraint.
+A node whose target no longer exists is an **orphan**.
 
 ### Orphan
 
@@ -745,6 +776,13 @@ swipe-triggered page is smooth-scrolling across the boundary, so the scroller
 has real content to glide over instead of a hard cut. Collapses back to a
 normal 7-day Week once the scroll settles. Not a user-facing concept — see
 `MobileWeekGrid.tsx`.
+
+### Guest asset bridge
+
+A local connection that lets an external AI surface reach a Guest's local
+visual assets while preserving the Guest's local-only data boundary. It is a
+different concept from the mobile Week view's **Bridge** above. _Avoid_: bare
+"Bridge" when referring to Guest visual access.
 
 ---
 
