@@ -208,6 +208,30 @@ describe("DecisionNode component", () => {
     );
   });
 
+  it("renders multi-line question and description without line clamp truncation", () => {
+    const longQuestion =
+      "是否满足以下准入规则？\n1. 实名认证完成\n2. 信用评分大于700\n3. 无不良操作记录";
+    const longDesc = "规则依据：风控策略v2.4标准\n适用于海外及高危地区用户";
+    const row = makeDecisionRow({
+      display_config: {
+        question: longQuestion,
+        description: longDesc,
+      },
+    });
+    renderDecisionNode(row);
+
+    const questionEl = screen.getByTestId("decision-node-question");
+    expect(questionEl.textContent).toBe(longQuestion);
+    expect(questionEl.className).not.toContain("line-clamp-3");
+    expect(questionEl.className).toContain("overflow-y-auto");
+    expect(questionEl.className).toContain("whitespace-pre-wrap");
+
+    const descEl = screen.getByTestId("decision-node-description");
+    expect(descEl.textContent).toBe(longDesc);
+    expect(descEl.className).not.toContain("line-clamp-1");
+    expect(descEl.className).toContain("whitespace-pre-wrap");
+  });
+
   it("removes decision node when remove button is clicked", async () => {
     const row = makeDecisionRow();
     renderDecisionNode(row);

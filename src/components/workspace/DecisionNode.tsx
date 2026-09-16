@@ -146,7 +146,7 @@ export function DecisionNode({ id, data }: WorkspaceNodeComponentProps) {
       </button>
 
       {/* Inscribed Diamond Content Zone */}
-      <div className="relative z-10 w-[65%] h-[65%] flex flex-col items-center justify-center p-1 text-center pointer-events-auto">
+      <div className="relative z-10 w-[72%] max-h-[72%] min-h-0 flex flex-col items-center justify-center p-1 text-center pointer-events-auto overflow-hidden">
         {isEditing ? (
           <input
             ref={inputRef}
@@ -175,7 +175,7 @@ export function DecisionNode({ id, data }: WorkspaceNodeComponentProps) {
               currentQuestion.trim() ||
               t("workspace.decisionNode.emptyQuestion")
             }
-            className="nodrag cursor-text select-text text-xs font-medium leading-tight text-foreground text-center line-clamp-3 hover:text-primary transition-colors"
+            className="nodrag nowheel nopan cursor-text select-text text-xs font-medium leading-tight text-foreground text-center break-words whitespace-pre-wrap hover:text-primary transition-colors overflow-y-auto max-h-full w-full"
           >
             {currentQuestion.trim() ||
               t("workspace.decisionNode.emptyQuestion")}
@@ -185,7 +185,7 @@ export function DecisionNode({ id, data }: WorkspaceNodeComponentProps) {
         {currentDescription.trim() && !isEditing ? (
           <div
             data-testid="decision-node-description"
-            className="nodrag text-[10px] text-muted-foreground text-center mt-0.5 line-clamp-1 max-w-full"
+            className="nodrag nowheel nopan text-[10px] text-muted-foreground text-center mt-1 break-words whitespace-pre-wrap max-w-full overflow-y-auto"
           >
             {currentDescription}
           </div>

@@ -46,7 +46,7 @@ export function StepNode({ id, data }: WorkspaceNodeComponentProps) {
 
   const [isEditingDesc, setIsEditingDesc] = useState(false);
   const [draftDesc, setDraftDesc] = useState(currentDescription);
-  const descInputRef = useRef<HTMLInputElement>(null);
+  const descInputRef = useRef<HTMLTextAreaElement>(null);
 
   const [removing, setRemoving] = useState(false);
 
@@ -174,7 +174,7 @@ export function StepNode({ id, data }: WorkspaceNodeComponentProps) {
         minHeight={60}
         className="ws-node-card--step border-border hover:border-foreground/30 transition-colors"
       >
-        <div className="relative w-full h-full min-h-[48px] flex-1 flex flex-col justify-center p-2.5 gap-1">
+        <div className="relative w-full h-full min-h-0 flex-1 flex flex-col justify-start p-2.5 gap-1.5 overflow-hidden">
           {isEditingTitle ? (
             <input
               ref={titleInputRef}
@@ -193,28 +193,27 @@ export function StepNode({ id, data }: WorkspaceNodeComponentProps) {
               }}
               placeholder={t("workspace.stepNode.titlePlaceholder")}
               data-testid="step-node-input"
-              className="nodrag w-full bg-transparent text-xs font-medium text-foreground outline-none border-b border-primary py-0.5 px-0"
+              className="nodrag w-full bg-transparent text-xs font-medium text-foreground outline-none border-b border-primary py-0.5 px-0 shrink-0"
             />
           ) : (
             <div
               onDoubleClick={() => setIsEditingTitle(true)}
               data-testid="step-node-title"
               title={t("workspace.stepNode.editHint")}
-              className="nodrag cursor-text select-text text-xs font-medium text-foreground line-clamp-2 hover:text-primary transition-colors"
+              className="nodrag cursor-text select-text text-xs font-medium text-foreground hover:text-primary transition-colors shrink-0 break-words whitespace-pre-wrap"
             >
               {currentTitle.trim() || t("workspace.stepNode.emptyTitle")}
             </div>
           )}
 
           {isEditingDesc ? (
-            <input
+            <textarea
               ref={descInputRef}
-              type="text"
               value={draftDesc}
               onChange={(e) => setDraftDesc(e.target.value)}
               onBlur={() => void commitDesc()}
               onKeyDown={(e) => {
-                if (e.key === "Enter") {
+                if (e.key === "Enter" && !e.shiftKey) {
                   e.preventDefault();
                   void commitDesc();
                 } else if (e.key === "Escape") {
@@ -224,13 +223,13 @@ export function StepNode({ id, data }: WorkspaceNodeComponentProps) {
               }}
               placeholder={t("workspace.stepNode.descPlaceholder")}
               data-testid="step-node-desc-input"
-              className="nodrag w-full bg-transparent text-[11px] text-muted-foreground outline-none border-b border-border py-0.5 px-0"
+              className="nodrag nowheel nopan w-full flex-1 min-h-[36px] bg-transparent text-[11px] text-muted-foreground outline-none border-b border-border py-0.5 px-0 resize-none font-sans"
             />
           ) : currentDescription.trim() ? (
             <div
               onDoubleClick={() => setIsEditingDesc(true)}
               data-testid="step-node-description"
-              className="nodrag cursor-text select-text text-[11px] text-muted-foreground line-clamp-2"
+              className="nodrag nowheel nopan cursor-text select-text text-[11px] leading-relaxed text-muted-foreground flex-1 min-h-0 w-full overflow-y-auto break-words whitespace-pre-wrap"
             >
               {currentDescription}
             </div>

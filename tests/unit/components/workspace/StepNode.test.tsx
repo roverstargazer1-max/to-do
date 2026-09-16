@@ -182,6 +182,55 @@ describe("StepNode component", () => {
     });
   });
 
+  it("renders multi-line description without line-clamp truncation and allows flexible vertical filling", () => {
+    const longDesc =
+      "做什么：把凭证、第三方后台等步骤做成向导。\n怎么做：分阶段确认。\n何时用：只有人能完成的操作。";
+    const row = makeStepRow({
+      display_config: {
+        title: "wizard | 把人工外部操作做成向导",
+        description: longDesc,
+      },
+    });
+    renderStepNode(row);
+
+    const descEl = screen.getByTestId("step-node-description");
+    expect(descEl).toBeInTheDocument();
+    expect(descEl.textContent).toBe(longDesc);
+    // Ensure line-clamp-2 is NOT applied so text fills available space
+    expect(descEl.className).not.toContain("line-clamp-2");
+    expect(descEl.className).toContain("overflow-y-auto");
+    expect(descEl.className).toContain("whitespace-pre-wrap");
+    expect(descEl.className).toContain("flex-1");
+  });
+
+  it("enables in-place editing of description on double-click and persists on Enter", async () => {
+    const row = makeStepRow();
+    renderStepNode(row);
+
+    const descEl = screen.getByTestId("step-node-description");
+    fireEvent.doubleClick(descEl);
+
+    const textarea = screen.getByTestId("step-node-desc-input");
+    expect(textarea).toBeInTheDocument();
+    expect(textarea).toHaveValue("Charge stripe token");
+
+    fireEvent.change(textarea, {
+      target: { value: "Line 1\nLine 2\nLine 3" },
+    });
+    fireEvent.keyDown(textarea, { key: "Enter" });
+
+    await waitFor(() => {
+      expect(nodeCommands.updateStepNode).toHaveBeenCalledWith(
+        expect.anything(),
+        {
+          workspaceId: "ws-1",
+          nodeId: "step-node-1",
+          description: "Line 1\nLine 2\nLine 3",
+        },
+      );
+    });
+  });
+
   it("removes step node when remove button is clicked", async () => {
     const row = makeStepRow();
     renderStepNode(row);
