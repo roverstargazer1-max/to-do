@@ -14,13 +14,16 @@ const withSerwist = withSerwistInit({
   swSrc: "app/sw.ts",
   swDest: "public/sw.js",
   disable:
-    process.env.NODE_ENV === "development" && process.env.ENABLE_PWA !== "true",
+    (process.env.NODE_ENV === "development" &&
+      process.env.ENABLE_PWA !== "true") ||
+    process.env.NEXT_PUBLIC_IS_ELECTRON === "true",
   // App Router routes are reached via client-side navigation, so a document
   // fetch never happens for them unless we cache it ourselves on navigate.
   cacheOnNavigation: true,
 });
 
 const isMobile = process.env.NEXT_PUBLIC_IS_CAPACITOR === "true";
+const isElectron = process.env.NEXT_PUBLIC_IS_ELECTRON === "true";
 
 // Turbopack detection - skip Serwist wrapper for faster dev builds
 const isTurbopack = process.env.TURBOPACK === "1";
@@ -32,7 +35,7 @@ const nextConfig: NextConfig = {
   allowedDevOrigins: process.env.LAN_DEV_ORIGIN
     ? [process.env.LAN_DEV_ORIGIN]
     : [],
-  output: isMobile ? "export" : undefined,
+  output: isElectron ? "standalone" : isMobile ? "export" : undefined,
   images: {
     // Disable image optimization for mobile (no server available)
     unoptimized: isMobile,

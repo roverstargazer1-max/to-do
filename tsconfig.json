@@ -33,5 +33,11 @@
     ".next/dev/types/**/*.ts",
     "**/*.mts"
   ],
-  "exclude": ["node_modules", "public/sw.js", "supabase/functions"]
+  "exclude": [
+    "node_modules",
+    "public/sw.js",
+    "supabase/functions",
+    "electron",
+    "dist-electron"
+  ]
 }

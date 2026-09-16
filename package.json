@@ -1,9 +1,17 @@
 {
   "name": "kagelin",
   "version": "1.42.0",
+  "description": "Kagelin - Local-first personal productivity and task management",
+  "author": "roverstargazer1-max",
   "license": "AGPL-3.0-only",
   "private": false,
+  "main": "dist-electron/main.js",
   "scripts": {
+    "electron:compile": "tsc -p tsconfig.electron.json",
+    "copy:standalone": "node scripts/copy-standalone.cjs",
+    "electron:build:local": "cross-env NEXT_PUBLIC_IS_ELECTRON=true npm run build && npm run copy:standalone && npm run electron:compile && electron-builder --win --publish never",
+    "electron:build:ci": "cross-env NEXT_PUBLIC_IS_ELECTRON=true npm run build && npm run copy:standalone && npm run electron:compile && electron-builder --publish always",
+    "electron:dev": "cross-env ELECTRON_DEV=1 electron .",
     "dev": "next dev --turbo",
     "dev:pwa": "next dev --webpack",
     "prebuild": "npm run copy-wasm",
@@ -129,6 +137,9 @@
     "babel-plugin-react-compiler": "^1.0.0",
     "cross-env": "^10.1.0",
     "depcheck": "^1.4.7",
+    "electron": "^44.4.1",
+    "electron-builder": "^26.15.3",
+    "electron-updater": "^6.8.9",
     "eslint": "^9",
     "eslint-config-next": "16.2.10",
     "eslint-plugin-react-compiler": "^19.1.0-rc.2",
@@ -145,5 +156,48 @@
     "tailwindcss-animate": "^1.0.7",
     "typescript": "^6.0.3",
     "vitest": "^4.0.16"
+  },
+  "build": {
+    "appId": "com.kagelin.desktop",
+    "productName": "Kagelin",
+    "directories": {
+      "output": "dist-electron-build"
+    },
+    "files": [
+      "dist-electron/**/*",
+      ".next/standalone/**/*",
+      "public/icon.png"
+    ],
+    "asarUnpack": [
+      ".next/standalone/**/*"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "public/icon.png"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "allowElevation": true,
+      "allowToChangeInstallationDirectory": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Kagelin",
+      "deleteAppDataOnUninstall": false
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "roverstargazer1-max",
+        "repo": "to-do"
+      }
+    ]
   }
 }

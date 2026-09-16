@@ -1,0 +1,54 @@
+name: Release Desktop App
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+concurrency:
+  group: desktop-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release-windows:
+    name: Build & Release Windows App
+    runs-on: windows-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Prepare WebAssembly Assets
+        run: npm run copy-wasm
+
+      - name: Build Next.js Standalone
+        env:
+          NEXT_PUBLIC_IS_ELECTRON: 'true'
+          NEXT_TELEMETRY_DISABLED: '1'
+        run: npm run build
+
+      - name: Assemble Standalone Static Assets
+        run: node scripts/copy-standalone.cjs
+
+      - name: Compile Electron Main Process
+        run: npm run electron:compile
+
+      - name: Package Desktop App & Publish to GitHub Releases
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx electron-builder --publish always

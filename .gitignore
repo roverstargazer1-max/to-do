@@ -81,3 +81,7 @@ tests/unit/*.txt
 !.claude/settings.json
 !.claude/hooks/
 !.claude/hooks/**
+
+# Electron build artifacts
+/dist-electron/
+/dist-electron-build/
