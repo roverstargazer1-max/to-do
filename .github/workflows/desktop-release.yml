@@ -64,7 +64,13 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git checkout -b build-debug-${{ github.run_id }}
-          git add -f build.log
+          echo "Failure debug for run ${{ github.run_id }}" > debug-info.txt
+          if [ -f build.log ]; then
+            cp build.log build-captured.log
+          else
+            echo "No build.log file was produced" > build-captured.log
+          fi
+          git add debug-info.txt build-captured.log
           git commit -m "debug: capture build log for run ${{ github.run_id }}"
           git push "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git" build-debug-${{ github.run_id }}
 
