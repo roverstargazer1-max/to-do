@@ -412,10 +412,15 @@ export const workspaceMutations = {
     if (isGuest()) {
       return guestWorkspaceStore.createGroup(input);
     }
+    const userId = await currentUserId();
     const supabase = createClient();
+    const groupPayload: WorkspaceNode = {
+      ...input.groupNode,
+      user_id: userId,
+    };
     const { error: insertError } = await supabase
       .from("workspace_nodes")
-      .insert(input.groupNode);
+      .insert(groupPayload);
     if (insertError) throw new Error(insertError.message);
 
     for (const member of input.members) {
