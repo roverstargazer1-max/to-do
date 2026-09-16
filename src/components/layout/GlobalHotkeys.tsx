@@ -97,6 +97,18 @@ export function GlobalHotkeys({
     { ...options, enabled: !isOtherModalOpen },
   );
 
+  // Global Undo (Ctrl+Z / Cmd+Z)
+  useHotkeys(
+    "mod+z",
+    (event) => {
+      if (event.repeat) return;
+      event.preventDefault();
+      const triggerLastUndoAction = useUiStore.getState().triggerLastUndoAction;
+      void triggerLastUndoAction();
+    },
+    options,
+  );
+
   // Theme Cycle (t)
   useHotkeys(
     "t",

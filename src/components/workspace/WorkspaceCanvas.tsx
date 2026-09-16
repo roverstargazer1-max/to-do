@@ -31,11 +31,14 @@ import {
   Plus,
   Repeat,
   Timer,
+  Undo2,
+  Redo2,
   Ungroup,
   Workflow,
   Image as ImageIcon,
   Link2,
 } from "lucide-react";
+import { useHotkeys } from "react-hotkeys-hook";
 import { useAuth } from "@/components/AuthProvider";
 import { Button } from "@/components/ui/button";
 import {
@@ -51,6 +54,11 @@ import { useWorkspaceNodes } from "@/lib/hooks/useWorkspaceNodes";
 import { useWorkspaceEdges } from "@/lib/hooks/useWorkspaceEdges";
 import { workspaceKeys } from "@/lib/queries/workspace-keys";
 import { useWorkspaceViewportStore } from "@/lib/store/workspaceViewportStore";
+import {
+  useWorkspaceUndo,
+  useWorkspaceUndoStore,
+} from "@/lib/store/workspaceUndoStore";
+import { getPlatformKey } from "@/lib/utils/platform";
 import { edgeCommands } from "@/lib/commands/edge";
 import { nodeCommands } from "@/lib/commands/node";
 import type {
@@ -92,9 +100,9 @@ import {
   SheetDescription,
 } from "@/components/ui/sheet";
 import { TaskDetailPanel } from "@/components/tasks/TaskDetailPanel";
-
 import { VisualRelationsPanel } from "./VisualRelationsPanel";
 import { GuestAssetBridgeButton } from "./GuestAssetBridgeButton";
+
 interface WorkspaceCanvasProps {
   workspaceId: string;
 }
@@ -145,7 +153,29 @@ export function WorkspaceCanvas({ workspaceId }: WorkspaceCanvasProps) {
   const { t } = useTranslation();
   const { data: workspaceNodes } = useWorkspaceNodes(workspaceId);
   const { data: workspaceEdges } = useWorkspaceEdges(workspaceId);
+  const { canUndo, canRedo, undo, redo } = useWorkspaceUndo(workspaceId);
+  const platformKey = useMemo(() => getPlatformKey(), []);
+  const isMac = platformKey === "⌘";
   const [visualRelationsOpen, setVisualRelationsOpen] = useState(false);
+
+  useHotkeys(
+    "mod+z",
+    (event) => {
+      event.preventDefault();
+      void undo();
+    },
+    { enableOnFormTags: false, preventDefault: true },
+  );
+
+  useHotkeys(
+    ["mod+y", "mod+shift+z", "shift+mod+z"],
+    (event) => {
+      event.preventDefault();
+      void redo();
+    },
+    { enableOnFormTags: false, preventDefault: true },
+  );
+
   const { data: tasks = [] } = useTasks({ showCompleted: true });
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const editingTask = useMemo(
@@ -1165,19 +1195,52 @@ export function WorkspaceCanvas({ workspaceId }: WorkspaceCanvasProps) {
   );
 
   /**
-   * Cutting a connection. Layer 2 first — the cache drops the row, so no
-   * concurrent refetch can resurrect it — then the command persists the
-   * cut. Both endpoints are untouched: a connection is arrangement.
+   * Deleting node(s) from keyboard or canvas selection with full undo support.
+   */
+  const handleNodesDelete = useCallback(
+    async (deletedFlowNodes: WorkspaceFlowNode[]) => {
+      const nodeRefs = deletedFlowNodes
+        .filter((n) => (n.data as { row?: WorkspaceNode })?.row?.id)
+        .map((n) => ({
+          id: (n.data as { row: WorkspaceNode }).row.id,
+          workspace_id: workspaceId,
+        }));
+      if (nodeRefs.length === 0) return;
+
+      try {
+        if (nodeRefs.length === 1) {
+          await nodeCommands.remove({ queryClient, isGuestMode }, nodeRefs[0]);
+        } else {
+          await nodeCommands.removeBatch(
+            { queryClient, isGuestMode },
+            workspaceId,
+            nodeRefs,
+          );
+        }
+      } catch (err) {
+        console.error("Failed to delete node(s):", err);
+        notify.error(t("workspace.node.removeFailed"));
+      }
+    },
+    [queryClient, isGuestMode, workspaceId, t],
+  );
+
+  /**
+   * Cutting a connection with undo support.
    */
   const handleEdgesDelete = useCallback(
     (deleted: WorkspaceFlowEdge[]) => {
+      const deletedEdges: WorkspaceEdge[] = [];
       for (const edge of deleted) {
         const data = edge.data;
         if (!data) continue;
 
+        const row = (workspaceEdges ?? []).find((e) => e.id === data.edgeId);
+        if (row) deletedEdges.push(row);
+
         queryClient.setQueryData<WorkspaceEdge[]>(
           workspaceKeys.edges.list(workspaceId, isGuestMode),
-          (old) => old?.filter((row) => row.id !== data.edgeId),
+          (old) => old?.filter((r) => r.id !== data.edgeId),
         );
         pendingEdgeIdsRef.current.delete(data.edgeId);
         void edgeCommands
@@ -1190,8 +1253,57 @@ export function WorkspaceCanvas({ workspaceId }: WorkspaceCanvasProps) {
             notify.error(t("workspace.canvas.disconnectFailed"));
           });
       }
+
+      if (deletedEdges.length > 0) {
+        const undoAction = async () => {
+          try {
+            for (const e of deletedEdges) {
+              await edgeCommands.add(
+                { queryClient, isGuestMode },
+                {
+                  id: e.id,
+                  workspaceId: e.workspace_id,
+                  sourceNodeId: e.source_node_id,
+                  targetNodeId: e.target_node_id,
+                  label: e.label,
+                  sourceHandle: e.source_handle,
+                  targetHandle: e.target_handle,
+                },
+              );
+            }
+            notify(t("workspace.canvas.edgeRestored"));
+          } catch (err) {
+            console.error("Failed to restore edges:", err);
+            notify.error(t("workspace.canvas.restoreFailed"));
+          }
+        };
+
+        const redoAction = async () => {
+          for (const e of deletedEdges) {
+            await edgeCommands.remove(
+              { queryClient, isGuestMode },
+              { id: e.id, workspace_id: workspaceId },
+            );
+          }
+        };
+
+        useWorkspaceUndoStore.getState().pushAction(workspaceId, {
+          id: crypto.randomUUID(),
+          description: `delete-edges-${deletedEdges.length}`,
+          undo: undoAction,
+          redo: redoAction,
+        });
+
+        notify(t("workspace.canvas.disconnect"), {
+          duration: 7000,
+          action: {
+            label: t("workspace.canvas.undo"),
+            onClick: undoAction,
+          },
+        });
+      }
     },
-    [queryClient, isGuestMode, workspaceId, t],
+    [queryClient, isGuestMode, workspaceId, workspaceEdges, t],
   );
 
   // Which node-kind picker is open; the position is computed at open time.
@@ -1528,6 +1640,7 @@ export function WorkspaceCanvas({ workspaceId }: WorkspaceCanvasProps) {
         onConnectStart={handleConnectStart}
         onConnectEnd={handleConnectEnd}
         onEdgesDelete={handleEdgesDelete}
+        onNodesDelete={handleNodesDelete}
         onNodeDoubleClick={handleNodeDoubleClick}
         isValidConnection={isValidConnection}
         defaultViewport={savedViewport ?? { x: 0, y: 0, zoom: 1 }}
@@ -1536,9 +1649,8 @@ export function WorkspaceCanvas({ workspaceId }: WorkspaceCanvasProps) {
           reactFlowInstanceRef.current = instance;
         }}
         zoomOnDoubleClick={false}
-        // Selection exists so a connection can be picked and cut; the
-        // Delete key is scoped to connections because nodes are
-        // `deletable: false` (a node leaves through its own control).
+        // Elements are selectable and deletable by keyboard; onNodesDelete
+        // and onEdgesDelete route through command layer with undo snapshots.
         elementsSelectable
         nodesConnectable
         nodesDraggable
@@ -1559,7 +1671,7 @@ export function WorkspaceCanvas({ workspaceId }: WorkspaceCanvasProps) {
         <Controls position="bottom-left" showInteractive={false} />
       </ReactFlow>
 
-      <div className="absolute top-3 right-3 z-10 flex flex-col items-end gap-2">
+      <div className="absolute top-3 right-3 z-10 flex items-center gap-2">
         <input
           ref={imageInputRef}
           type="file"
@@ -1568,6 +1680,37 @@ export function WorkspaceCanvas({ workspaceId }: WorkspaceCanvasProps) {
           onChange={handleImageInputChange}
           data-testid="image-node-file-input"
         />
+        <div className="flex items-center rounded-md border border-border bg-background shadow-xs">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => void undo()}
+            disabled={!canUndo}
+            title={t("workspace.canvas.undoTooltip", {
+              key: isMac ? "⌘Z" : "Ctrl+Z",
+            })}
+            data-testid="workspace-undo-btn"
+            aria-label={t("workspace.canvas.undo")}
+            className="h-8 px-2 rounded-r-none border-r border-border disabled:opacity-40"
+          >
+            <Undo2 className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => void redo()}
+            disabled={!canRedo}
+            title={t("workspace.canvas.redoTooltip", {
+              key: isMac ? "⌘⇧Z" : "Ctrl+Y",
+            })}
+            data-testid="workspace-redo-btn"
+            aria-label={t("workspace.canvas.redo")}
+            className="h-8 px-2 rounded-l-none disabled:opacity-40"
+          >
+            <Redo2 className="h-4 w-4" />
+          </Button>
+        </div>
+
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button

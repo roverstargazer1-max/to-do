@@ -614,11 +614,9 @@ export function toWorkspaceFlowNodes(
       type: spec.kind,
       position: { x: row.position_x, y: row.position_y },
       data: { row },
-      // The Delete key belongs to connections (ADR 0021). A node leaves the
-      // canvas through its own remove control — `node.remove`, a layout
-      // write with its own event and toast — never by a keystroke that
-      // would only edit local state.
-      deletable: false,
+      // Nodes are deletable by keyboard; onNodesDelete in WorkspaceCanvas intercepts
+      // and routes through nodeCommands with full undo snapshot support.
+      deletable: true,
     };
 
     if (row.group_id && groupIds.has(row.group_id)) {

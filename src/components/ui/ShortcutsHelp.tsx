@@ -132,7 +132,11 @@ const getShortcuts = (
         descriptionKey: "shortcuts.deleteSelected",
         keyRelation: "alt",
       },
-      { keys: ["u"], descriptionKey: "shortcuts.undo" },
+      {
+        keys: ["Ctrl/⌘+Z", "u"],
+        descriptionKey: "shortcuts.undo",
+        keyRelation: "alt",
+      },
       {
         keys: ["y", "y"],
         descriptionKey: "shortcuts.yankSelectedTask",

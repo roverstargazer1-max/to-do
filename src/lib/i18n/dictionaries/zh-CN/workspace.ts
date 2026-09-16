@@ -57,6 +57,20 @@ export const workspace = {
   "workspace.canvas.fitView": "适应画板",
   "workspace.canvas.taskCreated": "任务已创建并添加到画布",
   "workspace.canvas.taskCreateFailed": "创建任务失败",
+  "workspace.canvas.undo": "撤销",
+  "workspace.canvas.redo": "重做",
+  "workspace.canvas.undoTooltip": (params: TranslationParams) =>
+    `撤销 (${params.key})`,
+  "workspace.canvas.redoTooltip": (params: TranslationParams) =>
+    `重做 (${params.key})`,
+  "workspace.canvas.nodeRemoved": "已从画布移除节点",
+  "workspace.canvas.nodesRemoved": (params: TranslationParams) =>
+    `已从画布移除 ${params.count} 个节点`,
+  "workspace.canvas.nodeRestored": "已恢复节点",
+  "workspace.canvas.nodesRestored": (params: TranslationParams) =>
+    `已恢复 ${params.count} 个节点`,
+  "workspace.canvas.edgeRestored": "已恢复连线",
+  "workspace.canvas.restoreFailed": "恢复失败",
   "workspace.visualRelations.open": "视觉关系",
   "workspace.visualRelations.title": "视觉关系",
   "workspace.visualRelations.description":

@@ -1,7 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import {
+  render,
+  screen,
+  fireEvent,
+  waitFor,
+  act,
+} from "@testing-library/react";
 import React from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { useWorkspaceUndoStore } from "@/lib/store/workspaceUndoStore";
 
 /**
  * The canvas's externally observable wiring, asserted without React Flow
@@ -81,6 +88,7 @@ vi.mock("@xyflow/react", async () => {
       onMoveEnd,
       onNodeDragStop,
       onNodeDoubleClick,
+      onNodesDelete,
       children,
     }: {
       defaultViewport?: { x: number; y: number; zoom: number };
@@ -90,6 +98,7 @@ vi.mock("@xyflow/react", async () => {
       ) => void;
       onNodeDragStop?: (event: unknown, node: unknown) => void;
       onNodeDoubleClick?: (event: unknown, node: unknown) => void;
+      onNodesDelete?: (nodes: unknown[]) => void;
       children?: React.ReactNode;
     }) => (
       <div
@@ -126,6 +135,15 @@ vi.mock("@xyflow/react", async () => {
           }
         >
           simulate node double click
+        </button>
+        <button
+          type="button"
+          data-testid="simulate-nodes-delete"
+          onClick={() =>
+            dragNodeState.node && onNodesDelete?.([dragNodeState.node])
+          }
+        >
+          simulate nodes delete
         </button>
         {children}
       </div>
@@ -421,6 +439,70 @@ describe("WorkspaceCanvas node drag persistence (three-layer model)", () => {
 
       await waitFor(() => {
         expect(screen.getByTestId("workspace-task-detail-sheet")).toBeDefined();
+      });
+    });
+  });
+
+  describe("Undo / Redo toolbar and keyboard deletion", () => {
+    it("renders undo and redo buttons and reflects undo stack state", async () => {
+      renderCanvas("ws-a");
+      const undoBtn = screen.getByTestId("workspace-undo-btn");
+      const redoBtn = screen.getByTestId("workspace-redo-btn");
+
+      expect(undoBtn).toBeDisabled();
+      expect(redoBtn).toBeDisabled();
+
+      const undoMock = vi.fn().mockResolvedValue(undefined);
+      const redoMock = vi.fn().mockResolvedValue(undefined);
+
+      act(() => {
+        useWorkspaceUndoStore.getState().pushAction("ws-a", {
+          id: "act-1",
+          description: "deleted node",
+          undo: undoMock,
+          redo: redoMock,
+        });
+      });
+
+      expect(undoBtn).not.toBeDisabled();
+      expect(redoBtn).toBeDisabled();
+
+      fireEvent.click(undoBtn);
+
+      await waitFor(() => {
+        expect(undoMock).toHaveBeenCalledTimes(1);
+        expect(undoBtn).toBeDisabled();
+        expect(redoBtn).not.toBeDisabled();
+      });
+
+      fireEvent.click(redoBtn);
+
+      await waitFor(() => {
+        expect(redoMock).toHaveBeenCalledTimes(1);
+        expect(undoBtn).not.toBeDisabled();
+        expect(redoBtn).toBeDisabled();
+      });
+    });
+
+    it("triggers node removal when nodes are deleted via canvas handler", async () => {
+      renderCanvas("ws-a");
+      dragNodeState.node = {
+        id: "node-del-1",
+        position: { x: 0, y: 0 },
+        data: {
+          row: makeNode({
+            id: "node-del-1",
+            entity_id: "task-1",
+            kind: "task",
+          }),
+        },
+      };
+
+      const simulateBtn = screen.getByTestId("simulate-nodes-delete");
+      fireEvent.click(simulateBtn);
+
+      await waitFor(() => {
+        expect(useWorkspaceUndoStore.getState().canUndo("ws-a")).toBe(true);
       });
     });
   });

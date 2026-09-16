@@ -63,6 +63,20 @@ export const workspace = {
   "workspace.canvas.fitView": "Fit view",
   "workspace.canvas.taskCreated": "Task created and added to canvas",
   "workspace.canvas.taskCreateFailed": "Failed to create task",
+  "workspace.canvas.undo": "Undo",
+  "workspace.canvas.redo": "Redo",
+  "workspace.canvas.undoTooltip": (params: TranslationParams) =>
+    `Undo (${params.key})`,
+  "workspace.canvas.redoTooltip": (params: TranslationParams) =>
+    `Redo (${params.key})`,
+  "workspace.canvas.nodeRemoved": "Node removed from canvas",
+  "workspace.canvas.nodesRemoved": (params: TranslationParams) =>
+    `${params.count} nodes removed from canvas`,
+  "workspace.canvas.nodeRestored": "Node restored",
+  "workspace.canvas.nodesRestored": (params: TranslationParams) =>
+    `${params.count} nodes restored`,
+  "workspace.canvas.edgeRestored": "Connection restored",
+  "workspace.canvas.restoreFailed": "Failed to restore",
   "workspace.visualRelations.open": "Visual relations",
   "workspace.visualRelations.title": "Visual relations",
   "workspace.visualRelations.description":
