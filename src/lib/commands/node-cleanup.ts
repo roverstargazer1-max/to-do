@@ -120,6 +120,7 @@ export async function reinsertNodes(
       positionY: node.position_y,
       width: node.width,
       height: node.height,
+      groupId: node.group_id,
       displayConfig: node.display_config,
     });
     publishDomainEvent({

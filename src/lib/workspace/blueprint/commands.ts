@@ -115,7 +115,9 @@ export const defaultBlueprintCommandAdapters: BlueprintCommandAdapters = {
     updateDecisionNode: nodeCommands.updateDecisionNode,
     updateStepNode: nodeCommands.updateStepNode,
     updateImageNode: nodeCommands.updateImageNode,
-    remove: nodeCommands.remove,
+    remove: async (ctx, node) => {
+      await nodeCommands.remove(ctx, node);
+    },
   },
   edge: {
     add: edgeCommands.add,

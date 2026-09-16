@@ -35,8 +35,14 @@ import type { QueryClient } from "@tanstack/react-query";
 import { workspaceMutations } from "@/lib/mutations/workspace";
 import { workspaceKeys } from "@/lib/queries/workspace-keys";
 import { publishDomainEvent } from "@/lib/events/domain-bus";
+import { notify } from "@/lib/notify";
+import { tr } from "@/lib/i18n/tr";
+import { useWorkspaceUndoStore } from "@/lib/store/workspaceUndoStore";
 import type {
   WorkspaceNode,
+  WorkspaceEdge,
+  WorkspaceNodeDeletionSnapshot,
+  WorkspaceBatchDeletionSnapshot,
   AddNodeInput,
   MoveNodeInput,
   ResizeNodeInput,
@@ -612,31 +618,61 @@ export const nodeCommands = {
    * touches the referenced entity; re-adding it later is possible.
    * If a group container is removed, members revert to absolute coords.
    * If removing a member leaves its group empty (0 members), the group dissolves.
+   *
+   * Captures the node snapshot and any incident edges for undo restoration.
    */
   remove: async (
     ctx: NodeCommandContext,
     node: { id: string; workspace_id: string },
-  ): Promise<void> => {
+    options?: { skipHistory?: boolean; skipNotification?: boolean },
+  ): Promise<WorkspaceNodeDeletionSnapshot> => {
     const cachedNodes = ctx.queryClient.getQueryData<WorkspaceNode[]>(
       workspaceKeys.nodes.list(node.workspace_id, ctx.isGuestMode),
     );
     const target = cachedNodes?.find((n) => n.id === node.id);
     const groupId = target?.group_id;
 
-    await workspaceMutations.removeNode(node.id);
+    // Capture incident edges before removal
+    const cachedEdges = ctx.queryClient.getQueryData<WorkspaceEdge[]>(
+      workspaceKeys.edges.list(node.workspace_id, ctx.isGuestMode),
+    );
+    const connectedEdges = (cachedEdges ?? []).filter(
+      (e) => e.source_node_id === node.id || e.target_node_id === node.id,
+    );
 
-    // If removing the last member dissolved the group, publish group removal
+    // If target is a group container, capture member relative coordinates
+    let groupMembers:
+      Array<{ id: string; relativeX: number; relativeY: number }> | undefined;
+    if (target?.kind === "group") {
+      groupMembers = (cachedNodes ?? [])
+        .filter((n) => n.group_id === target.id)
+        .map((m) => ({
+          id: m.id,
+          relativeX: m.position_x,
+          relativeY: m.position_y,
+        }));
+    }
+
+    // If removing the member leaves group empty, capture the dissolved group
+    let dissolvedGroup: WorkspaceNode | null = null;
     if (groupId) {
       const remaining = cachedNodes?.filter(
         (n) => n.group_id === groupId && n.id !== node.id,
       );
       if (remaining && remaining.length === 0) {
-        publishDomainEvent({
-          type: "node.removed",
-          workspaceId: node.workspace_id,
-          nodeId: groupId,
-        });
+        dissolvedGroup = cachedNodes?.find((n) => n.id === groupId) ?? null;
       }
+    }
+
+    await workspaceMutations.removeNode(node.id);
+
+    // If removing the last member dissolved the group, publish group removal
+    if (groupId && dissolvedGroup) {
+      publishDomainEvent({
+        type: "node.removed",
+        workspaceId: node.workspace_id,
+        nodeId: groupId,
+      });
     }
 
     invalidateNodeCaches(ctx.queryClient);
@@ -646,11 +682,245 @@ export const nodeCommands = {
       workspaceId: node.workspace_id,
       nodeId: node.id,
     });
+
+    const snapshot: WorkspaceNodeDeletionSnapshot = {
+      node: target ?? {
+        id: node.id,
+        workspace_id: node.workspace_id,
+        user_id: "",
+        kind: "unknown",
+        entity_type: null,
+        entity_id: null,
+        position_x: 0,
+        position_y: 0,
+        width: null,
+        height: null,
+        group_id: groupId ?? null,
+        display_config: null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      },
+      connectedEdges,
+      dissolvedGroup,
+      groupMembers,
+    };
+
+    if (!options?.skipHistory) {
+      const undoAction = async () => {
+        try {
+          await nodeCommands.restoreNode(ctx, snapshot);
+          notify(tr("workspace.canvas.nodeRestored"));
+        } catch (err) {
+          console.error("Failed to restore node:", err);
+          notify.error(tr("workspace.canvas.restoreFailed"));
+        }
+      };
+
+      const redoAction = async () => {
+        try {
+          await nodeCommands.remove(ctx, node, { skipHistory: true });
+        } catch (err) {
+          console.error("Failed to redo node removal:", err);
+          notify.error(tr("workspace.node.removeFailed"));
+        }
+      };
+
+      useWorkspaceUndoStore.getState().pushAction(node.workspace_id, {
+        id: crypto.randomUUID(),
+        description: `remove-node-${node.id}`,
+        undo: undoAction,
+        redo: redoAction,
+      });
+
+      if (!options?.skipNotification) {
+        notify(tr("workspace.canvas.nodeRemoved"), {
+          duration: 7000,
+          action: {
+            label: tr("workspace.canvas.undo"),
+            onClick: undoAction,
+          },
+        });
+      }
+    }
+
+    return snapshot;
+  },
+
+  /**
+   * `node.restoreNode` — restores a previously removed node with its connected
+   * edges, group hierarchy, and content.
+   */
+  restoreNode: async (
+    ctx: NodeCommandContext,
+    snapshot: WorkspaceNodeDeletionSnapshot,
+  ): Promise<void> => {
+    const { node, connectedEdges, dissolvedGroup, groupMembers } = snapshot;
+
+    // 1. If group was dissolved, restore the group node first
+    if (dissolvedGroup) {
+      await workspaceMutations.addNode({
+        id: dissolvedGroup.id,
+        workspaceId: dissolvedGroup.workspace_id,
+        kind: dissolvedGroup.kind,
+        entityType: dissolvedGroup.entity_type,
+        entityId: dissolvedGroup.entity_id,
+        positionX: dissolvedGroup.position_x,
+        positionY: dissolvedGroup.position_y,
+        width: dissolvedGroup.width,
+        height: dissolvedGroup.height,
+        groupId: dissolvedGroup.group_id,
+        displayConfig: dissolvedGroup.display_config,
+      });
+      publishDomainEvent({
+        type: "node.added",
+        workspaceId: dissolvedGroup.workspace_id,
+        nodeId: dissolvedGroup.id,
+      });
+    }
+
+    // 2. Restore the node itself
+    await workspaceMutations.addNode({
+      id: node.id,
+      workspaceId: node.workspace_id,
+      kind: node.kind,
+      entityType: node.entity_type,
+      entityId: node.entity_id,
+      positionX: node.position_x,
+      positionY: node.position_y,
+      width: node.width,
+      height: node.height,
+      groupId: node.group_id,
+      displayConfig: node.display_config,
+    });
+    publishDomainEvent({
+      type: "node.added",
+      workspaceId: node.workspace_id,
+      nodeId: node.id,
+    });
+
+    // 3. If it was a group container with members, restore their relative positions and group_id
+    if (node.kind === "group" && groupMembers && groupMembers.length > 0) {
+      for (const m of groupMembers) {
+        await workspaceMutations.updateNodeGroup({
+          nodeId: m.id,
+          groupId: node.id,
+          position: { x: m.relativeX, y: m.relativeY },
+        });
+      }
+    }
+
+    // 4. Restore incident edges
+    if (connectedEdges && connectedEdges.length > 0) {
+      for (const edge of connectedEdges) {
+        await workspaceMutations.addEdge({
+          id: edge.id,
+          workspaceId: edge.workspace_id,
+          sourceNodeId: edge.source_node_id,
+          targetNodeId: edge.target_node_id,
+          label: edge.label,
+          sourceHandle: edge.source_handle,
+          targetHandle: edge.target_handle,
+        });
+        publishDomainEvent({
+          type: "edge.added",
+          workspaceId: edge.workspace_id,
+          edgeId: edge.id,
+        });
+      }
+    }
+
+    invalidateNodeCaches(ctx.queryClient);
+    invalidateEdgeCaches(ctx.queryClient);
+  },
+
+  /**
+   * `node.removeBatch` — remove multiple nodes in one atomic undo step.
+   */
+  removeBatch: async (
+    ctx: NodeCommandContext,
+    workspaceId: string,
+    nodes: Array<{ id: string; workspace_id: string }>,
+    options?: { skipHistory?: boolean },
+  ): Promise<WorkspaceBatchDeletionSnapshot> => {
+    const snapshots: WorkspaceNodeDeletionSnapshot[] = [];
+    for (const node of nodes) {
+      const snap = await nodeCommands.remove(ctx, node, {
+        skipHistory: true,
+        skipNotification: true,
+      });
+      snapshots.push(snap);
+    }
+
+    if (!options?.skipHistory && snapshots.length > 0) {
+      const undoAction = async () => {
+        try {
+          await nodeCommands.restoreBatch(ctx, { snapshots });
+          notify(
+            snapshots.length > 1
+              ? tr("workspace.canvas.nodesRestored", {
+                  count: snapshots.length,
+                })
+              : tr("workspace.canvas.nodeRestored"),
+          );
+        } catch (err) {
+          console.error("Failed to restore batch nodes:", err);
+          notify.error(tr("workspace.canvas.restoreFailed"));
+        }
+      };
+
+      const redoAction = async () => {
+        try {
+          await nodeCommands.removeBatch(ctx, workspaceId, nodes, {
+            skipHistory: true,
+          });
+        } catch (err) {
+          console.error("Failed to redo batch removal:", err);
+          notify.error(tr("workspace.node.removeFailed"));
+        }
+      };
+
+      useWorkspaceUndoStore.getState().pushAction(workspaceId, {
+        id: crypto.randomUUID(),
+        description: `remove-batch-${snapshots.length}`,
+        undo: undoAction,
+        redo: redoAction,
+      });
+
+      notify(
+        snapshots.length > 1
+          ? tr("workspace.canvas.nodesRemoved", { count: snapshots.length })
+          : tr("workspace.canvas.nodeRemoved"),
+        {
+          duration: 7000,
+          action: {
+            label: tr("workspace.canvas.undo"),
+            onClick: undoAction,
+          },
+        },
+      );
+    }
+
+    return { snapshots };
+  },
+
+  /**
+   * `node.restoreBatch` — restores multiple removed nodes in reverse order.
+   */
+  restoreBatch: async (
+    ctx: NodeCommandContext,
+    batchSnapshot: WorkspaceBatchDeletionSnapshot,
+  ): Promise<void> => {
+    const reversed = [...batchSnapshot.snapshots].reverse();
+    for (const snap of reversed) {
+      await nodeCommands.restoreNode(ctx, snap);
+    }
   },
 
   /** Alias for `node.remove` */
   deleteNode: (
     ctx: NodeCommandContext,
     node: { id: string; workspace_id: string },
-  ): Promise<void> => nodeCommands.remove(ctx, node),
+    options?: { skipHistory?: boolean; skipNotification?: boolean },
+  ): Promise<WorkspaceNodeDeletionSnapshot> =>
+    nodeCommands.remove(ctx, node, options),
 };

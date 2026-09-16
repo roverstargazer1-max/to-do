@@ -168,7 +168,7 @@ describe("Incremental Semantic Patch Engine (patcher.ts)", () => {
 
     vi.mocked(nodeCommands.resize).mockResolvedValue(undefined);
     vi.mocked(nodeCommands.updateDocNode).mockResolvedValue(undefined);
-    vi.mocked(nodeCommands.remove).mockResolvedValue(undefined);
+    vi.mocked(nodeCommands.remove).mockResolvedValue({} as any);
     vi.mocked(edgeCommands.remove).mockResolvedValue(undefined);
   });
 

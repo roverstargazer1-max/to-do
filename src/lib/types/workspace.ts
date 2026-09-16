@@ -279,3 +279,20 @@ export interface UpdateImageNodeInput {
   altText?: string;
   versionId?: string | null;
 }
+
+/** Snapshot of a removed node and its cascaded relationships for Undo / Redo. */
+export interface WorkspaceNodeDeletionSnapshot {
+  node: WorkspaceNode;
+  connectedEdges: WorkspaceEdge[];
+  dissolvedGroup?: WorkspaceNode | null;
+  groupMembers?: Array<{
+    id: string;
+    relativeX: number;
+    relativeY: number;
+  }>;
+}
+
+/** Batch snapshot of multiple removed nodes and their cascaded relationships. */
+export interface WorkspaceBatchDeletionSnapshot {
+  snapshots: WorkspaceNodeDeletionSnapshot[];
+}
