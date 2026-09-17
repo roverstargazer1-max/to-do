@@ -11,6 +11,32 @@ let serverProcess: ChildProcess | null = null;
 
 const isDev = !app.isPackaged && process.env.ELECTRON_DEV === "1";
 
+function log(msg: string, isError = false) {
+  const line = `[${new Date().toISOString()}] ${msg}\n`;
+  if (isError) {
+    console.error(msg);
+  } else {
+    console.log(msg);
+  }
+  try {
+    const logPath = path.join(app.getPath("userData"), "app.log");
+    fs.appendFileSync(logPath, line, "utf8");
+  } catch {}
+}
+
+function logServer(data: Buffer | string, isError = false) {
+  const text = data.toString();
+  if (isError) {
+    console.error(`[Next.js Server Err] ${text.trim()}`);
+  } else {
+    console.log(`[Next.js Server] ${text.trim()}`);
+  }
+  try {
+    const logPath = path.join(app.getPath("userData"), "server.log");
+    fs.appendFileSync(logPath, `[${new Date().toISOString()}] ${text}`, "utf8");
+  } catch {}
+}
+
 function getFreePort(): Promise<number> {
   return new Promise((resolve, reject) => {
     const server = net.createServer();
@@ -69,14 +95,16 @@ function resolveServerPath(): string {
 function startStandaloneServer(port: number): Promise<void> {
   return new Promise((resolve, reject) => {
     const serverPath = resolveServerPath();
-    console.log(
+    log(
       `[Electron] Starting Next.js standalone server from: ${serverPath} on port ${port}`,
     );
 
     if (!fs.existsSync(serverPath)) {
-      return reject(
-        new Error(`Standalone server file not found at: ${serverPath}`),
+      const err = new Error(
+        `Standalone server file not found at: ${serverPath}`,
       );
+      log(String(err), true);
+      return reject(err);
     }
 
     const env = {
@@ -85,39 +113,51 @@ function startStandaloneServer(port: number): Promise<void> {
       HOSTNAME: "127.0.0.1",
       NODE_ENV: "production",
       NEXT_TELEMETRY_DISABLED: "1",
+      ELECTRON_RUN_AS_NODE: "1",
+      NEXT_PUBLIC_SUPABASE_URL:
+        process.env.NEXT_PUBLIC_SUPABASE_URL || "http://127.0.0.1:54321",
+      NEXT_PUBLIC_SUPABASE_ANON_KEY:
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0",
+      SUPABASE_SECRET_KEY:
+        process.env.SUPABASE_SECRET_KEY ||
+        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU",
+      NEXT_PUBLIC_APP_URL: `http://127.0.0.1:${port}`,
     };
 
     serverProcess = fork(serverPath, [], {
+      cwd: path.dirname(serverPath),
       env,
       stdio: ["ignore", "pipe", "pipe", "ipc"],
     });
 
     serverProcess.stdout?.on("data", (data) => {
-      console.log(`[Next.js Server] ${data.toString().trim()}`);
+      logServer(data, false);
     });
 
     serverProcess.stderr?.on("data", (data) => {
-      console.error(`[Next.js Server Err] ${data.toString().trim()}`);
+      logServer(data, true);
     });
 
     serverProcess.on("error", (err) => {
-      console.error("[Next.js Server] Process error:", err);
+      log(`[Next.js Server] Process error: ${String(err)}`, true);
     });
 
     serverProcess.on("exit", (code, signal) => {
-      console.log(
-        `[Next.js Server] Exited with code ${code}, signal ${signal}`,
-      );
+      log(`[Next.js Server] Exited with code ${code}, signal ${signal}`);
       serverProcess = null;
     });
 
     const targetUrl = `http://127.0.0.1:${port}`;
     waitForServer(targetUrl)
       .then(() => {
-        console.log(`[Next.js Server] Server is ready at ${targetUrl}`);
+        log(`[Next.js Server] Server is ready at ${targetUrl}`);
         resolve();
       })
-      .catch(reject);
+      .catch((err) => {
+        log(`[Next.js Server] Failed waiting for server: ${String(err)}`, true);
+        reject(err);
+      });
   });
 }
 
@@ -134,6 +174,7 @@ function getIconPath(): string {
 
 async function createWindow(targetUrl: string) {
   const iconPath = getIconPath();
+  log(`[Electron] Creating main window with target URL: ${targetUrl}`);
 
   mainWindow = new BrowserWindow({
     width: 1280,
@@ -152,8 +193,52 @@ async function createWindow(targetUrl: string) {
     },
   });
 
-  mainWindow.once("ready-to-show", () => {
-    mainWindow?.show();
+  let windowShown = false;
+  const showWindow = () => {
+    if (!windowShown && mainWindow && !mainWindow.isDestroyed()) {
+      windowShown = true;
+      mainWindow.show();
+      log("[Electron] Main window displayed.");
+    }
+  };
+
+  // Show window when content is ready, or fallback on finish load / timeout
+  mainWindow.once("ready-to-show", showWindow);
+  mainWindow.webContents.once("did-finish-load", () => {
+    log(`[Renderer] did-finish-load successfully for ${targetUrl}`);
+    showWindow();
+  });
+  setTimeout(showWindow, 3500);
+
+  // Monitor renderer errors
+  mainWindow.webContents.on(
+    "did-fail-load",
+    (_event, errorCode, errorDescription, validatedURL) => {
+      log(
+        `[Renderer] Failed to load URL: ${validatedURL} (code: ${errorCode}, error: ${errorDescription})`,
+        true,
+      );
+    },
+  );
+
+  mainWindow.webContents.on("render-process-gone", (_event, details) => {
+    log(
+      `[Renderer] Process exited unexpectedly: reason=${details.reason}, code=${details.exitCode}`,
+      true,
+    );
+  });
+
+  // Toggle DevTools with F12 or Ctrl+Shift+I
+  mainWindow.webContents.on("before-input-event", (_event, input) => {
+    if (input.type === "keyDown") {
+      if (
+        input.key === "F12" ||
+        (input.control && input.shift && input.key.toLowerCase() === "i")
+      ) {
+        log("[Electron] Toggling DevTools via shortcut");
+        mainWindow?.webContents.toggleDevTools();
+      }
+    }
   });
 
   // Open external links in user's default browser
@@ -182,9 +267,11 @@ async function createWindow(targetUrl: string) {
 // Single instance lock
 const gotTheLock = app.requestSingleInstanceLock();
 if (!gotTheLock) {
+  log("[Electron] Another instance is already running. Quitting application.");
   app.quit();
 } else {
   app.on("second-instance", () => {
+    log("[Electron] Second instance requested; focusing main window.");
     if (mainWindow) {
       if (mainWindow.isMinimized()) mainWindow.restore();
       mainWindow.focus();
@@ -196,7 +283,7 @@ if (!gotTheLock) {
       let targetUrl = "http://localhost:3000";
 
       if (isDev) {
-        console.log(
+        log(
           "[Electron] Running in dev mode, connecting to http://localhost:3000",
         );
       } else {
@@ -207,7 +294,7 @@ if (!gotTheLock) {
 
       await createWindow(targetUrl);
     } catch (err) {
-      console.error("[Electron] Failed to start application:", err);
+      log(`[Electron] Failed to start application: ${String(err)}`, true);
       app.quit();
     }
 
@@ -220,13 +307,11 @@ if (!gotTheLock) {
 
   function stopServer() {
     if (serverProcess && !serverProcess.killed) {
-      console.log("[Electron] Terminating Next.js server child process...");
+      log("[Electron] Terminating Next.js server child process...");
       try {
         serverProcess.kill();
       } catch (e) {
-        process.stderr.write(
-          `[Electron] Error terminating server process: ${String(e)}\n`,
-        );
+        log(`[Electron] Error terminating server process: ${String(e)}`, true);
         throw e;
       } finally {
         serverProcess = null;

@@ -166,7 +166,7 @@
     "files": [
       "dist-electron/**/*",
       ".next/standalone/**/*",
-      "public/icon.png"
+      "public/**/*"
     ],
     "asarUnpack": [
       ".next/standalone/**/*"
@@ -196,7 +196,8 @@
       {
         "provider": "github",
         "owner": "roverstargazer1-max",
-        "repo": "to-do"
+        "repo": "to-do",
+        "releaseType": "release"
       }
     ]
   }

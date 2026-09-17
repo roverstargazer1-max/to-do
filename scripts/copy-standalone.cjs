@@ -32,15 +32,25 @@ if (!fs.existsSync(standaloneDir)) {
 }
 
 console.log("Copying .next/static to .next/standalone/.next/static...");
-copyDirRecursive(
-  path.join(rootDir, ".next", "static"),
-  path.join(standaloneDir, ".next", "static"),
-);
+const staticSrc = path.join(rootDir, ".next", "static");
+const staticDest = path.join(standaloneDir, ".next", "static");
+copyDirRecursive(staticSrc, staticDest);
 
 console.log("Copying public to .next/standalone/public...");
-copyDirRecursive(
-  path.join(rootDir, "public"),
-  path.join(standaloneDir, "public"),
-);
+const publicSrc = path.join(rootDir, "public");
+const publicDest = path.join(standaloneDir, "public");
+copyDirRecursive(publicSrc, publicDest);
 
-console.log("Successfully prepared .next/standalone static assets.");
+// Verification assertions
+if (!fs.existsSync(staticDest) || fs.readdirSync(staticDest).length === 0) {
+  console.error("FATAL: .next/standalone/.next/static is empty or missing after copy!");
+  process.exit(1);
+}
+
+if (!fs.existsSync(publicDest) || fs.readdirSync(publicDest).length === 0) {
+  console.error("FATAL: .next/standalone/public is empty or missing after copy!");
+  process.exit(1);
+}
+
+console.log("Successfully prepared and verified .next/standalone static assets.");
+

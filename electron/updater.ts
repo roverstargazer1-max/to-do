@@ -9,6 +9,8 @@ export function initAutoUpdater(mainWindow?: BrowserWindow | null) {
   }
 
   autoUpdater.logger = console;
+  // Allow prereleases (e.g. preview versions)
+  autoUpdater.allowPrerelease = true;
   // Automatically download available updates in background
   autoUpdater.autoDownload = true;
   // Automatically install when the user quits the app
@@ -32,8 +34,8 @@ export function initAutoUpdater(mainWindow?: BrowserWindow | null) {
   });
 
   autoUpdater.on("error", (err) => {
-    console.error(
-      "[AutoUpdater] Error in auto-updater:",
+    console.warn(
+      "[AutoUpdater] Error in auto-updater (ignored):",
       err == null ? "unknown" : (err.stack || err).toString(),
     );
   });
@@ -54,6 +56,6 @@ export function initAutoUpdater(mainWindow?: BrowserWindow | null) {
 
   // Check for updates upon launch
   autoUpdater.checkForUpdatesAndNotify().catch((err) => {
-    console.error("[AutoUpdater] Failed to check for updates:", err);
+    console.warn("[AutoUpdater] Failed to check for updates (ignored):", err);
   });
 }
