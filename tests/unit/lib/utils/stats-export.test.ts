@@ -264,13 +264,13 @@ describe("triggerDownload", () => {
     });
     // Stub document.createElement to return an anchor we can observe.
     const origCreate = document.createElement.bind(document);
-    vi.spyOn(document, "createElement").mockImplementation((tag: string) => {
+    vi.spyOn(document, "createElement").mockImplementation(((tag: string) => {
       const el = origCreate(tag);
       if (tag === "a") {
         el.click = anchorClickSpy as unknown as () => void;
       }
       return el;
-    });
+    }) as typeof document.createElement);
     vi.spyOn(document.body, "appendChild").mockImplementation((node) => node);
     vi.spyOn(document.body, "removeChild").mockImplementation((node) => node);
   });

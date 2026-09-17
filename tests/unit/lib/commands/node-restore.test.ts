@@ -232,4 +232,41 @@ describe("nodeCommands deletion and restoration (Undo/Redo)", () => {
     expect(workspaceMutations.addNode).toHaveBeenCalledTimes(2);
     expect(useWorkspaceUndoStore.getState().canRedo("ws-1")).toBe(true);
   });
+
+  it("de-duplicates shared edges when restoring a batch of interconnected nodes", async () => {
+    const nodeA = makeNode("node-a");
+    const nodeB = makeNode("node-b");
+    const sharedEdge = makeEdge("edge-ab", "node-a", "node-b");
+
+    vi.mocked(workspaceMutations.addNode).mockResolvedValue(nodeA);
+    vi.mocked(workspaceMutations.addEdge).mockResolvedValue(sharedEdge);
+
+    const callOrder: string[] = [];
+    vi.mocked(workspaceMutations.addNode).mockImplementation(async (input) => {
+      callOrder.push(`node:${input.id}`);
+      return makeNode(input.id);
+    });
+    vi.mocked(workspaceMutations.addEdge).mockImplementation(async (input) => {
+      callOrder.push(`edge:${input.id}`);
+      return sharedEdge;
+    });
+
+    await nodeCommands.restoreBatch(
+      { queryClient, isGuestMode: false },
+      {
+        snapshots: [
+          { node: nodeA, connectedEdges: [sharedEdge] },
+          { node: nodeB, connectedEdges: [sharedEdge] },
+        ],
+      },
+    );
+
+    // Both nodes restored before the edge
+    expect(callOrder).toEqual(["node:node-b", "node:node-a", "edge:edge-ab"]);
+    // Edge should only be re-added once even though it appeared in both snapshots
+    expect(workspaceMutations.addEdge).toHaveBeenCalledTimes(1);
+    expect(workspaceMutations.addEdge).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "edge-ab" }),
+    );
+  });
 });

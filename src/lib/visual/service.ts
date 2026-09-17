@@ -280,8 +280,10 @@ export class VisualWorkspaceService {
     this.userId = options.userId;
     this.limits = { ...DEFAULT_VISUAL_ASSET_LIMITS, ...(options.limits ?? {}) };
     this.now = options.now ?? (() => new Date().toISOString());
-    this.idFactory =
-      options.idFactory ?? ((prefix) => `${prefix}-${crypto.randomUUID()}`);
+    // Cloud visual tables use UUID primary keys. Guest stores accept opaque
+    // strings too, so a bare UUID keeps both adapters on the same identifier
+    // contract while still allowing deterministic test/MCP factories.
+    this.idFactory = options.idFactory ?? (() => crypto.randomUUID());
     this.nodeContext = options;
     this.commitFlow = options.commitFlow;
     this.rollbackFlow = options.rollbackFlow;

@@ -43,14 +43,19 @@ copyDirRecursive(publicSrc, publicDest);
 
 // Verification assertions
 if (!fs.existsSync(staticDest) || fs.readdirSync(staticDest).length === 0) {
-  console.error("FATAL: .next/standalone/.next/static is empty or missing after copy!");
+  console.error(
+    "FATAL: .next/standalone/.next/static is empty or missing after copy!",
+  );
   process.exit(1);
 }
 
 if (!fs.existsSync(publicDest) || fs.readdirSync(publicDest).length === 0) {
-  console.error("FATAL: .next/standalone/public is empty or missing after copy!");
+  console.error(
+    "FATAL: .next/standalone/public is empty or missing after copy!",
+  );
   process.exit(1);
 }
 
-console.log("Successfully prepared and verified .next/standalone static assets.");
-
+console.log(
+  "Successfully prepared and verified .next/standalone static assets.",
+);

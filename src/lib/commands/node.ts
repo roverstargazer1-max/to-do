@@ -905,15 +905,101 @@ export const nodeCommands = {
 
   /**
    * `node.restoreBatch` — restores multiple removed nodes in reverse order.
+   * Restores all node structures first so both endpoints exist before edges are restored,
+   * and de-duplicates any shared incident edges across snapshots.
    */
   restoreBatch: async (
     ctx: NodeCommandContext,
     batchSnapshot: WorkspaceBatchDeletionSnapshot,
   ): Promise<void> => {
     const reversed = [...batchSnapshot.snapshots].reverse();
+    const seenGroupIds = new Set<string>();
+
+    // 1. Restore all nodes and dissolved groups first
     for (const snap of reversed) {
-      await nodeCommands.restoreNode(ctx, snap);
+      if (snap.dissolvedGroup && !seenGroupIds.has(snap.dissolvedGroup.id)) {
+        seenGroupIds.add(snap.dissolvedGroup.id);
+        await workspaceMutations.addNode({
+          id: snap.dissolvedGroup.id,
+          workspaceId: snap.dissolvedGroup.workspace_id,
+          kind: snap.dissolvedGroup.kind,
+          entityType: snap.dissolvedGroup.entity_type,
+          entityId: snap.dissolvedGroup.entity_id,
+          positionX: snap.dissolvedGroup.position_x,
+          positionY: snap.dissolvedGroup.position_y,
+          width: snap.dissolvedGroup.width,
+          height: snap.dissolvedGroup.height,
+          groupId: snap.dissolvedGroup.group_id,
+          displayConfig: snap.dissolvedGroup.display_config,
+        });
+        publishDomainEvent({
+          type: "node.added",
+          workspaceId: snap.dissolvedGroup.workspace_id,
+          nodeId: snap.dissolvedGroup.id,
+        });
+      }
+
+      await workspaceMutations.addNode({
+        id: snap.node.id,
+        workspaceId: snap.node.workspace_id,
+        kind: snap.node.kind,
+        entityType: snap.node.entity_type,
+        entityId: snap.node.entity_id,
+        positionX: snap.node.position_x,
+        positionY: snap.node.position_y,
+        width: snap.node.width,
+        height: snap.node.height,
+        groupId: snap.node.group_id,
+        displayConfig: snap.node.display_config,
+      });
+      publishDomainEvent({
+        type: "node.added",
+        workspaceId: snap.node.workspace_id,
+        nodeId: snap.node.id,
+      });
+
+      if (
+        snap.node.kind === "group" &&
+        snap.groupMembers &&
+        snap.groupMembers.length > 0
+      ) {
+        for (const m of snap.groupMembers) {
+          await workspaceMutations.updateNodeGroup({
+            nodeId: m.id,
+            groupId: snap.node.id,
+            position: { x: m.relativeX, y: m.relativeY },
+          });
+        }
+      }
     }
+
+    // 2. Restore unique incident edges across all snapshots
+    const seenEdgeIds = new Set<string>();
+    for (const snap of reversed) {
+      if (snap.connectedEdges && snap.connectedEdges.length > 0) {
+        for (const edge of snap.connectedEdges) {
+          if (seenEdgeIds.has(edge.id)) continue;
+          seenEdgeIds.add(edge.id);
+          await workspaceMutations.addEdge({
+            id: edge.id,
+            workspaceId: edge.workspace_id,
+            sourceNodeId: edge.source_node_id,
+            targetNodeId: edge.target_node_id,
+            label: edge.label,
+            sourceHandle: edge.source_handle,
+            targetHandle: edge.target_handle,
+          });
+          publishDomainEvent({
+            type: "edge.added",
+            workspaceId: edge.workspace_id,
+            edgeId: edge.id,
+          });
+        }
+      }
+    }
+
+    invalidateNodeCaches(ctx.queryClient);
+    invalidateEdgeCaches(ctx.queryClient);
   },
 
   /** Alias for `node.remove` */

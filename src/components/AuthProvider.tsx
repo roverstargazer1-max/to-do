@@ -86,6 +86,34 @@ function makeGuestUser(): User {
   } as User;
 }
 
+const LOCAL_AUTH_TIMEOUT_MS = 5_000;
+
+class AuthInitializationTimeoutError extends Error {
+  constructor() {
+    super("Supabase authentication initialization timed out");
+    this.name = "AuthInitializationTimeoutError";
+  }
+}
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timeoutId = setTimeout(() => {
+      reject(new AuthInitializationTimeoutError());
+    }, timeoutMs);
+
+    promise.then(
+      (value) => {
+        clearTimeout(timeoutId);
+        resolve(value);
+      },
+      (error) => {
+        clearTimeout(timeoutId);
+        reject(error);
+      },
+    );
+  });
+}
+
 export function AuthProvider({
   children,
   initialIsGuest = false,
@@ -130,12 +158,29 @@ export function AuthProvider({
     const localPassword =
       process.env.NEXT_PUBLIC_LOCAL_USER_PASSWORD || "tester123456";
 
+    let localAuthFallbackApplied = false;
+
+    const applyLocalAuthFallback = () => {
+      localAuthFallbackApplied = true;
+      setGuestFlag();
+      setSession(null);
+      setUser(makeGuestUser());
+      setIsGuestMode(true);
+    };
+
     const autoSignInLocal = async () => {
+      if (localAuthFallbackApplied) return;
+
       try {
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email: localEmail,
-          password: localPassword,
-        });
+        const { data, error } = await withTimeout(
+          supabase.auth.signInWithPassword({
+            email: localEmail,
+            password: localPassword,
+          }),
+          LOCAL_AUTH_TIMEOUT_MS,
+        );
+        if (localAuthFallbackApplied) return;
+
         if (data?.session) {
           applyRealSession(data.session);
           setLoading(false);
@@ -147,14 +192,19 @@ export function AuthProvider({
             error.status === 0 ||
             !error.status;
           if (isNetworkError) {
-            applyNoRealSession();
+            applyLocalAuthFallback();
             setLoading(false);
             return;
           }
-          const { data: signUpData } = await supabase.auth.signUp({
-            email: localEmail,
-            password: localPassword,
-          });
+          const { data: signUpData } = await withTimeout(
+            supabase.auth.signUp({
+              email: localEmail,
+              password: localPassword,
+            }),
+            LOCAL_AUTH_TIMEOUT_MS,
+          );
+          if (localAuthFallbackApplied) return;
+
           if (signUpData?.session) {
             applyRealSession(signUpData.session);
             setLoading(false);
@@ -162,14 +212,17 @@ export function AuthProvider({
           }
         }
       } catch (err) {
-        console.error("Auto local sign-in error:", err);
+        if (!(err instanceof AuthInitializationTimeoutError)) {
+          console.error("Auto local sign-in error:", err);
+        }
       }
-      applyNoRealSession();
+
+      if (localAuthFallbackApplied) return;
+      applyLocalAuthFallback();
       setLoading(false);
     };
 
-    supabase.auth
-      .getSession()
+    withTimeout(supabase.auth.getSession(), LOCAL_AUTH_TIMEOUT_MS)
       .then(({ data: { session } }) => {
         if (session) {
           applyRealSession(session);
@@ -182,9 +235,16 @@ export function AuthProvider({
         }
       })
       .catch((err) => {
-        console.warn("Supabase getSession failed, falling back:", err);
+        if (!(err instanceof AuthInitializationTimeoutError)) {
+          console.warn("Supabase getSession failed, falling back:", err);
+        }
         if (isLocalSingleUser) {
-          autoSignInLocal();
+          if (err instanceof AuthInitializationTimeoutError) {
+            applyLocalAuthFallback();
+            setLoading(false);
+          } else {
+            autoSignInLocal();
+          }
         } else {
           applyNoRealSession();
           setLoading(false);

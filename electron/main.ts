@@ -5,6 +5,7 @@ import * as http from "node:http";
 import * as fs from "node:fs";
 import { fork, ChildProcess } from "node:child_process";
 import { initAutoUpdater } from "./updater";
+import { persistServerPort, resolveStableServerPort } from "./server-port";
 
 let mainWindow: BrowserWindow | null = null;
 let serverProcess: ChildProcess | null = null;
@@ -287,8 +288,10 @@ if (!gotTheLock) {
           "[Electron] Running in dev mode, connecting to http://localhost:3000",
         );
       } else {
-        const port = await getFreePort();
+        const userDataPath = app.getPath("userData");
+        const port = await resolveStableServerPort(userDataPath, getFreePort);
         await startStandaloneServer(port);
+        persistServerPort(userDataPath, port);
         targetUrl = `http://127.0.0.1:${port}`;
       }
 

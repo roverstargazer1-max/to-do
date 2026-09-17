@@ -1,4 +1,4 @@
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { AuthProvider, useAuth } from "@/components/AuthProvider";
 import { createClient } from "@/lib/supabase/client";
@@ -501,5 +501,44 @@ describe("AuthProvider", () => {
     delete process.env.NEXT_PUBLIC_LOCAL_SINGLE_USER;
     delete process.env.NEXT_PUBLIC_LOCAL_USER_EMAIL;
     delete process.env.NEXT_PUBLIC_LOCAL_USER_PASSWORD;
+  });
+
+  it("falls back to guest mode when local authentication never responds", async () => {
+    process.env.NEXT_PUBLIC_LOCAL_SINGLE_USER = "true";
+
+    const supabase = mockSupabase(null);
+    supabase.auth.signInWithPassword = vi
+      .fn()
+      .mockReturnValue(new Promise(() => {}));
+    vi.mocked(createClient).mockReturnValue(
+      supabase as unknown as ReturnType<typeof createClient>,
+    );
+
+    vi.useFakeTimers();
+    try {
+      const { result } = renderHook(() => useAuth(), {
+        wrapper: ({ children }) => (
+          <AuthProvider initialIsGuest={false}>{children}</AuthProvider>
+        ),
+      });
+
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      expect(result.current.loading).toBe(true);
+      await act(async () => {
+        await vi.runAllTimersAsync();
+      });
+
+      expect(result.current.loading).toBe(false);
+      expect(result.current.isGuestMode).toBe(true);
+      expect(result.current.user?.id).toBe("guest");
+      expect(localStorage.getItem("kanso_guest_mode")).toBe("true");
+    } finally {
+      vi.useRealTimers();
+      delete process.env.NEXT_PUBLIC_LOCAL_SINGLE_USER;
+    }
   });
 });

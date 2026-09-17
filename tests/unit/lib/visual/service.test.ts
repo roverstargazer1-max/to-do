@@ -56,6 +56,26 @@ describe("VisualWorkspaceService", () => {
     expect((await store.exportState()).versions[0].data).toEqual(PNG);
   });
 
+  it("generates database-compatible UUIDs for default asset identifiers", async () => {
+    const visual = new VisualWorkspaceService(new InMemoryVisualAssetStore(), {
+      userId: "user-1",
+      getWorkspace: (id) => (id === workspace.id ? workspace : null),
+    });
+
+    const created = await visual.ingest({
+      workspaceId: workspace.id,
+      bytes: PNG,
+      mimeType: "image/png",
+    });
+
+    expect(created.asset.id).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+    );
+    expect(created.version.id).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+    );
+  });
+
   it("appends immutable versions and marks derived observations stale", async () => {
     const store = new InMemoryVisualAssetStore();
     const visual = service(store);

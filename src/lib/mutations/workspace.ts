@@ -172,15 +172,40 @@ export const workspaceMutations = {
       group_id: input.groupId ?? null,
       display_config: input.displayConfig,
     };
-    if (isUuid(input.id)) {
+    const hasExplicitId = isUuid(input.id);
+    if (hasExplicitId) {
       insertPayload.id = input.id;
     }
 
-    const { data, error } = await supabase
-      .from("workspace_nodes")
-      .insert(insertPayload)
-      .select("*")
-      .single();
+    const { data, error } = hasExplicitId
+      ? await supabase
+          .from("workspace_nodes")
+          .upsert(insertPayload, { onConflict: "id" })
+          .select("*")
+          .single()
+      : await supabase
+          .from("workspace_nodes")
+          .insert(insertPayload)
+          .select("*")
+          .single();
+
+    if (
+      error &&
+      (error.code === "23505" ||
+        error.message.includes("workspace_nodes_pkey") ||
+        error.message.includes("duplicate key")) &&
+      hasExplicitId
+    ) {
+      const { data: existing, error: fetchErr } = await supabase
+        .from("workspace_nodes")
+        .select("*")
+        .eq("id", input.id)
+        .maybeSingle();
+      if (existing && !fetchErr) {
+        return existing as WorkspaceNode;
+      }
+    }
+
     if (error) throw new Error(error.message);
     return data as WorkspaceNode;
   },
@@ -250,15 +275,22 @@ export const workspaceMutations = {
     if (targetHandle !== undefined && targetHandle !== null) {
       insertPayload.target_handle = targetHandle;
     }
-    if (isUuid(input.id)) {
+    const hasExplicitId = isUuid(input.id);
+    if (hasExplicitId) {
       insertPayload.id = input.id;
     }
 
-    let { data, error } = await supabase
-      .from("workspace_edges")
-      .insert(insertPayload)
-      .select("*")
-      .single();
+    let { data, error } = hasExplicitId
+      ? await supabase
+          .from("workspace_edges")
+          .upsert(insertPayload, { onConflict: "id" })
+          .select("*")
+          .single()
+      : await supabase
+          .from("workspace_edges")
+          .insert(insertPayload)
+          .select("*")
+          .single();
 
     // Fallback if PostgREST schema cache is stale or remote database lacks label/source_handle/target_handle columns
     if (
@@ -279,16 +311,39 @@ export const workspaceMutations = {
         source_node_id: input.sourceNodeId,
         target_node_id: input.targetNodeId,
       };
-      if (isUuid(input.id)) {
+      if (hasExplicitId) {
         fallbackPayload.id = input.id;
       }
-      const retryResult = await supabase
-        .from("workspace_edges")
-        .insert(fallbackPayload)
-        .select("*")
-        .single();
+      const retryResult = hasExplicitId
+        ? await supabase
+            .from("workspace_edges")
+            .upsert(fallbackPayload, { onConflict: "id" })
+            .select("*")
+            .single()
+        : await supabase
+            .from("workspace_edges")
+            .insert(fallbackPayload)
+            .select("*")
+            .single();
       data = retryResult.data;
       error = retryResult.error;
+    }
+
+    if (
+      error &&
+      (error.code === "23505" ||
+        error.message.includes("workspace_edges_pkey") ||
+        error.message.includes("duplicate key")) &&
+      hasExplicitId
+    ) {
+      const { data: existing, error: fetchErr } = await supabase
+        .from("workspace_edges")
+        .select("*")
+        .eq("id", input.id)
+        .maybeSingle();
+      if (existing && !fetchErr) {
+        return existing as WorkspaceEdge;
+      }
     }
 
     if (error) throw new Error(error.message);

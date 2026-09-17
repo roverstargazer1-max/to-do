@@ -197,6 +197,25 @@ export const guestWorkspaceStore = {
     displayConfig: Record<string, unknown> | null;
   }): Promise<WorkspaceNode> {
     const data = await loadData();
+    const existing = data.nodes.find((n) => n.id === input.id);
+    if (existing) {
+      Object.assign(existing, {
+        workspace_id: input.workspaceId,
+        kind: input.kind,
+        entity_type: input.entityType,
+        entity_id: input.entityId,
+        position_x: input.positionX,
+        position_y: input.positionY,
+        width: input.width,
+        height: input.height,
+        group_id: input.groupId ?? null,
+        display_config: input.displayConfig,
+        updated_at: nowIso(),
+      });
+      await persistData();
+      return { ...existing };
+    }
+
     const node: WorkspaceNode = {
       id: input.id,
       workspace_id: input.workspaceId,

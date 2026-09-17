@@ -329,10 +329,6 @@
 /* React Flow marks a reachable handle itself while a connection is being
    dragged (`connectionindicator` → crosshair); nothing to add here. */
 
-.react-flow__attribution {
-  display: none;
-}
-
 /* MiniMap stays out (no persistent chrome beyond Controls). */
 .react-flow__minimap {
   display: none;

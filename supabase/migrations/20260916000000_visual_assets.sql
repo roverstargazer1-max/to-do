@@ -244,3 +244,17 @@ DROP POLICY IF EXISTS "Users can delete own visual asset files" ON storage.objec
 CREATE POLICY "Users can delete own visual asset files" ON storage.objects FOR DELETE USING (
   bucket_id = 'visual-assets' AND auth.uid()::text = split_part(name, '/', 1)
 );
+
+-- PostgREST still enforces these grants before RLS evaluates the policies.
+-- Keep the API roles aligned with the other public tables; the policies above
+-- remain the row-level ownership boundary.
+GRANT ALL ON TABLE
+  public.visual_assets,
+  public.visual_asset_versions,
+  public.visual_annotations,
+  public.visual_derived,
+  public.visual_relations,
+  public.visual_flow_drafts
+TO anon, authenticated, service_role;
+
+NOTIFY pgrst, 'reload schema';

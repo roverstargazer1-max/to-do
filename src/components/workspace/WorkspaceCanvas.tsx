@@ -263,6 +263,10 @@ export function WorkspaceCanvas({ workspaceId }: WorkspaceCanvasProps) {
   // a ref because the projection effect reads it without re-subscribing.
   const pendingEdgeIdsRef = useRef<Set<string>>(new Set());
 
+  // Node IDs currently undergoing deletion; prevents onEdgesDelete from registering
+  // duplicate edge-only undo items for incident edges managed by nodeCommands.
+  const deletingNodeIdsRef = useRef<Set<string>>(new Set());
+
   const handleUpdateEdgeLabel = useCallback(
     (edgeId: string, label: string) => {
       const trimmed = label.trim();
@@ -1207,6 +1211,15 @@ export function WorkspaceCanvas({ workspaceId }: WorkspaceCanvasProps) {
         }));
       if (nodeRefs.length === 0) return;
 
+      for (const node of nodeRefs) {
+        deletingNodeIdsRef.current.add(node.id);
+      }
+      setTimeout(() => {
+        for (const node of nodeRefs) {
+          deletingNodeIdsRef.current.delete(node.id);
+        }
+      }, 1000);
+
       try {
         if (nodeRefs.length === 1) {
           await nodeCommands.remove({ queryClient, isGuestMode }, nodeRefs[0]);
@@ -1230,8 +1243,29 @@ export function WorkspaceCanvas({ workspaceId }: WorkspaceCanvasProps) {
    */
   const handleEdgesDelete = useCallback(
     (deleted: WorkspaceFlowEdge[]) => {
+      const selectedNodeIds = new Set(
+        nodesRef.current.filter((n) => n.selected).map((n) => n.id),
+      );
+      // Filter out edges attached to nodes being deleted; nodeCommands.remove / removeBatch
+      // captures and restores incident edges atomically as part of the node snapshot.
+      const isIncidentToDeletingNode = (edge: WorkspaceFlowEdge) => {
+        const sourceId = edge.source;
+        const targetId = edge.target;
+        return (
+          deletingNodeIdsRef.current.has(sourceId) ||
+          deletingNodeIdsRef.current.has(targetId) ||
+          selectedNodeIds.has(sourceId) ||
+          selectedNodeIds.has(targetId)
+        );
+      };
+
+      const edgesToProcess = deleted.filter(
+        (edge) => !isIncidentToDeletingNode(edge),
+      );
+      if (edgesToProcess.length === 0) return;
+
       const deletedEdges: WorkspaceEdge[] = [];
-      for (const edge of deleted) {
+      for (const edge of edgesToProcess) {
         const data = edge.data;
         if (!data) continue;
 
