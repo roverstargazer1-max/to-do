@@ -1,5 +1,73 @@
 [
   {
+    "version": "1.0.0",
+    "date": "2026-09-18",
+    "channel": "stable",
+    "sections": {
+      "Added": [
+        "Allow custom installation directory in NSIS installer",
+        "Add electron packaging, auto-update and release workflow",
+        "Wire canvas controls and shortcuts",
+        "Support multiline decision and step content",
+        "Add deletion history and restoration commands",
+        "Bridge guest assets to local MCP",
+        "Expose visual inspection and write contract",
+        "Preserve visual assets",
+        "Add image nodes and visual relations",
+        "Add asset domain and persistence",
+        "Separate MCP capabilities from Skill workflows",
+        "Add tiered card sizes, expanded gaps, and two-track layout",
+        "Constrain doc node body overflow and sandbox markdown preview scrolling",
+        "Support Step, Decision nodes and edge attributes in blueprint decompiler and MCP server",
+        "Introduce StepNode, DecisionNode, MermaidDiagram, and unified NodeCard",
+        "Render labeled edges with directional handle projections on canvas",
+        "Add edge label and port handle persistence to schema, commands, and store",
+        "Enrich tool descriptions for workspace building and patching",
+        "Add Kagelin MCP server for workspace canvas inspection, building, and patching",
+        "Implement semantic blueprint layout, executor, decompiler, and patcher",
+        "Add project and habit domain commands and expand workspace mutations",
+        "Introduce ProjectNode kind and AddProjectNodeDialog to canvas",
+        "Support local single-user standalone mode and auto-login",
+        "Add color picker to create and rename workspace dialogs",
+        "Integrate workspace icon and color indicator in navigation and lists",
+        "Add custom WorkspaceIcon component",
+        "Add color attribute to workspaces schema, store, and commands",
+        "Integrate doc node creation into canvas menus",
+        "Implement DocNode component and register doc node kind",
+        "Add doc node type, mutations, commands, and i18n",
+        "Display indented subtasks with checkboxes on task node",
+        "Support double-clicking task node to edit details in side sheet",
+        "Add showClose prop to SheetContent",
+        "Integrate canvas grouping gestures, quick-add menu, and mindmap connections",
+        "Implement Feishu-style custom edge with mid-point disconnect button",
+        "Introduce GroupNode and CardResizer with 8-direction handles",
+        "Add schema, domain events, commands, and storage for node groups and sizing",
+        "Floating node cards and a visual edge layer (ADR 0021)",
+        "Wire workspaces into the shell, hotkeys and backup",
+        "Add the infinite canvas and node renderers",
+        "Add workspace query hooks and guest-store actions",
+        "Add the command layer and in-memory event bus",
+        "Route date, time and number formatting through Intl",
+        "Add the i18n runtime, detection and en/zh-CN dictionaries",
+        "Add workspace node and viewport tables"
+      ],
+      "Improved": [
+        "Extract HomeLoadingFallback from the root Suspense boundary"
+      ],
+      "Fixed": [
+        "Stabilize desktop persistence and workspace data flows",
+        "Resolve white screen by bundling static assets and adding runtime logging",
+        "Move electron-updater to dependencies for runtime packaging",
+        "Convert CLAUDE.md symlink to regular file for windows actions runner",
+        "Persist groups with current user id",
+        "Report Supabase connectivity failures",
+        "Make captcha token optional and handle offline errors in single-user mode",
+        "Remove unused import in guest-store",
+        "Prevent false empty state when dragging last daytime task to evening section"
+      ]
+    }
+  },
+  {
     "version": "1.42.0",
     "date": "2026-09-01",
     "channel": "stable",
@@ -774,31 +842,6 @@
         "Drop only via constraint to avoid dropping index backing it",
         "Make calendar_events and push_subscriptions migrations idempotent",
         "Rename out-of-order migration files to sort after remote history"
-      ]
-    }
-  },
-  {
-    "version": "1.25.0",
-    "date": "2026-07-12",
-    "channel": "stable",
-    "sections": {
-      "Added": [
-        "Cloudflare Turnstile bot protection on the magic-link sign-in form",
-        "Persistent reconnect banner when a Google Calendar connection is revoked",
-        "Root and global error boundaries so unexpected errors show a recovery screen instead of a blank page"
-      ],
-      "Improved": [
-        "Rate limiting added to the WebDAV and push notification routes to prevent abuse",
-        "WebDAV proxy hardened against SSRF with a DNS-pinned guard",
-        "Focus timer play/pause/cancel controls now sync reliably to the server instead of only updating locally",
-        "Next.js upgraded to patch known security advisories"
-      ],
-      "Fixed": [
-        "Focus timer no longer auto-starts again after being paused",
-        "WebDAV credentials no longer persisted to browser storage, and gated to registered users",
-        "Google Calendar connect/callback redirect mismatch that could break the OAuth flow",
-        "Auth callback no longer accepts unsafe redirect values",
-        "Unfinished CalDAV providers hidden from the connect flow"
       ]
     }
   }
