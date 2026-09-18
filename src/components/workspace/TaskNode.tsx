@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, memo, useMemo } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Calendar, Flag, X } from "lucide-react";
 import { useTasks } from "@/lib/hooks/useTasks";
@@ -38,7 +38,11 @@ import type {
  * (derived at read, ADR 0019) — dismiss (node.remove) is the only
  * affordance; removing the node never touches the task itself.
  */
-export function TaskNode({ data, spec }: WorkspaceNodeComponentProps) {
+export const TaskNode = memo(function TaskNode({
+  data,
+  spec,
+  selected,
+}: WorkspaceNodeComponentProps) {
   const { row } = data;
   const queryClient = useQueryClient();
   const { isGuestMode } = useAuth();
@@ -46,8 +50,13 @@ export function TaskNode({ data, spec }: WorkspaceNodeComponentProps) {
 
   const taskId = row.entity_id;
   const testKey = taskId ?? row.id;
-  const { data: tasks = [], isLoading } = useTasks({ showCompleted: true });
-  const task = tasks.find((t) => t.id === taskId);
+  const { data: tasksData, isLoading } = useTasks({
+    showCompleted: true,
+  });
+  const task = useMemo(() => {
+    if (!Array.isArray(tasksData)) return tasksData ?? null;
+    return tasksData.find((t) => t.id === taskId) ?? null;
+  }, [tasksData, taskId]);
   const { data: subtasks = [] } = useSubtasks(taskId);
 
   // The registry's command binding: the same taskCommands.toggle the
@@ -105,7 +114,11 @@ export function TaskNode({ data, spec }: WorkspaceNodeComponentProps) {
         {stateLabel}
       </span>
 
-      <NodeCard kind={t("workspace.node.kindTask")} action={removeButton}>
+      <NodeCard
+        kind={t("workspace.node.kindTask")}
+        action={removeButton}
+        selected={selected}
+      >
         {isLoading ? (
           <div className="flex items-center gap-2.5 px-3 py-2.5">
             <Skeleton className="h-4 w-4 rounded-[3px]" />
@@ -216,4 +229,4 @@ export function TaskNode({ data, spec }: WorkspaceNodeComponentProps) {
       </NodeCard>
     </div>
   );
-}
+});

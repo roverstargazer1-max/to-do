@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, memo } from "react";
 import { Pause, Play, Square, X } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTimerStore } from "@/lib/store/timerStore";
@@ -47,7 +47,10 @@ const MODE_LABEL_KEYS = {
  * only layout write (spec: User Stories 10, 13, 14). History (completed
  * sessions in focus logs) is a different source and is not shown here.
  */
-export function FocusNode({ data }: WorkspaceNodeComponentProps) {
+export const FocusNode = memo(function FocusNode({
+  data,
+  selected,
+}: WorkspaceNodeComponentProps) {
   const { row } = data;
   const queryClient = useQueryClient();
   const { isGuestMode } = useAuth();
@@ -99,7 +102,11 @@ export function FocusNode({ data }: WorkspaceNodeComponentProps) {
         {isRunning ? "running" : "paused"}
       </span>
 
-      <NodeCard kind={t("workspace.node.kindFocus")} action={removeButton}>
+      <NodeCard
+        kind={t("workspace.node.kindFocus")}
+        action={removeButton}
+        selected={selected}
+      >
         <div className="flex flex-col items-center gap-1.5 px-3 py-3">
           <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
             {t(MODE_LABEL_KEYS[mode])}
@@ -155,4 +162,4 @@ export function FocusNode({ data }: WorkspaceNodeComponentProps) {
       </NodeCard>
     </div>
   );
-}
+});

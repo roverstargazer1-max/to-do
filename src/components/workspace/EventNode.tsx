@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, memo } from "react";
 import { Calendar, X } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useDedicatedCalendarEventsQuery } from "@/lib/hooks/useCalendarEventsList";
@@ -30,7 +30,10 @@ import type { WorkspaceNodeComponentProps } from "./node-registry";
  * (derived at read, ADR 0019) — dismiss (node.remove) is the only
  * affordance.
  */
-export function EventNode({ data }: WorkspaceNodeComponentProps) {
+export const EventNode = memo(function EventNode({
+  data,
+  selected,
+}: WorkspaceNodeComponentProps) {
   const { row } = data;
   const queryClient = useQueryClient();
   const { isGuestMode } = useAuth();
@@ -90,7 +93,11 @@ export function EventNode({ data }: WorkspaceNodeComponentProps) {
         {stateLabel}
       </span>
 
-      <NodeCard kind={t("workspace.node.kindEvent")} action={removeButton}>
+      <NodeCard
+        kind={t("workspace.node.kindEvent")}
+        action={removeButton}
+        selected={selected}
+      >
         {isLoading ? (
           <div className="flex items-center gap-2.5 px-3 py-2.5">
             <Skeleton className="h-4 w-4 rounded-[3px]" />
@@ -118,4 +125,4 @@ export function EventNode({ data }: WorkspaceNodeComponentProps) {
       </NodeCard>
     </div>
   );
-}
+});

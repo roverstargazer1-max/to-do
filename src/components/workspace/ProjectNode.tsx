@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, memo } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -34,14 +34,17 @@ const MAX_VISIBLE_TASKS = 4;
  * The project Node — a live reference, not a copy (ADR 0018).
  *
  * Reads project metadata through `useProjects()` and task stats through
- * `useTasks({ showCompleted: true })`. Allows directly toggling tasks from
+ * `useTasks({ projectId, showCompleted: true })`. Allows directly toggling tasks from
  * within the card, opening the right-hand task detail sheet, or navigating
  * to the project view on the tasks page.
  *
  * An unresolvable project renders the orphan placeholder (ADR 0019) with
  * `node.remove` as the single affordance.
  */
-export function ProjectNode({ data }: WorkspaceNodeComponentProps) {
+export const ProjectNode = memo(function ProjectNode({
+  data,
+  selected,
+}: WorkspaceNodeComponentProps) {
   const { row } = data;
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -55,21 +58,14 @@ export function ProjectNode({ data }: WorkspaceNodeComponentProps) {
   const { data: projects = [], isLoading: isProjectsLoading } = useProjects();
   const project = projects.find((p) => p.id === projectId);
 
-  const { data: allTasks = [], isLoading: isTasksLoading } = useTasks({
+  const { data: rawTasks = [], isLoading: isTasksLoading } = useTasks({
+    projectId: project?.is_inbox ? "inbox" : projectId,
     showCompleted: true,
   });
 
   const projectTasks = useMemo(() => {
-    if (!project) return [];
-    return allTasks.filter((task) => {
-      // Exclude subtasks; project node operates on root tasks
-      if (task.parent_id) return false;
-      if (project.is_inbox) {
-        return !task.project_id || task.project_id === project.id;
-      }
-      return task.project_id === project.id;
-    });
-  }, [project, allTasks]);
+    return rawTasks.filter((task) => !task.parent_id);
+  }, [rawTasks]);
 
   const totalTasks = projectTasks.length;
   const completedTasks = useMemo(
@@ -167,7 +163,12 @@ export function ProjectNode({ data }: WorkspaceNodeComponentProps) {
 
   if (isProjectsLoading) {
     return (
-      <NodeCard kind={kindLabel} action={removeButton} minWidth={240}>
+      <NodeCard
+        kind={kindLabel}
+        action={removeButton}
+        minWidth={240}
+        selected={selected}
+      >
         <div className="p-3 space-y-2">
           <Skeleton className="h-5 w-3/4" />
           <Skeleton className="h-2 w-full" />
@@ -179,7 +180,12 @@ export function ProjectNode({ data }: WorkspaceNodeComponentProps) {
 
   if (!project) {
     return (
-      <NodeCard kind={kindLabel} action={removeButton} minWidth={240}>
+      <NodeCard
+        kind={kindLabel}
+        action={removeButton}
+        minWidth={240}
+        selected={selected}
+      >
         <NodeOrphanBody lostLabel={t("workspace.node.kindProject")} />
       </NodeCard>
     );
@@ -192,6 +198,7 @@ export function ProjectNode({ data }: WorkspaceNodeComponentProps) {
       kind={kindLabel}
       action={removeButton}
       minWidth={260}
+      selected={selected}
       data-testid={`project-node-${testKey}`}
     >
       <div className="p-3 space-y-2.5">
@@ -325,4 +332,4 @@ export function ProjectNode({ data }: WorkspaceNodeComponentProps) {
       </div>
     </NodeCard>
   );
-}
+});

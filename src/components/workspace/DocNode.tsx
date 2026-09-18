@@ -6,6 +6,7 @@ import {
   useEffect,
   useCallback,
   isValidElement,
+  memo,
   type ReactNode,
 } from "react";
 import ReactMarkdown from "react-markdown";
@@ -32,7 +33,11 @@ import { MermaidDiagram } from "./MermaidDiagram";
  * - Double-click title editing in the card header
  * - 8-direction resizing via NodeCard's CardResizer
  */
-export function DocNode({ id, data }: WorkspaceNodeComponentProps) {
+export const DocNode = memo(function DocNode({
+  id,
+  data,
+  selected,
+}: WorkspaceNodeComponentProps) {
   const { row } = data;
   const queryClient = useQueryClient();
   const { isGuestMode } = useAuth();
@@ -260,6 +265,7 @@ export function DocNode({ id, data }: WorkspaceNodeComponentProps) {
         action={headerActions}
         minWidth={200}
         minHeight={120}
+        selected={selected}
       >
         <div className="relative w-full h-full min-h-0 flex-1 flex flex-col overflow-hidden">
           {isEditingContent ? (
@@ -338,4 +344,4 @@ export function DocNode({ id, data }: WorkspaceNodeComponentProps) {
       </NodeCard>
     </div>
   );
-}
+});

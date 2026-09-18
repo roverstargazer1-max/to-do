@@ -5,6 +5,7 @@ import {
   useRef,
   useEffect,
   useCallback,
+  memo,
   type ReactNode,
 } from "react";
 import { Workflow, X } from "lucide-react";
@@ -27,7 +28,11 @@ import type { WorkspaceNodeComponentProps } from "./node-registry";
  * - Standard Left (in) and Right (out) ports
  * - 8-direction resizing with CardResizer (min: 180px x 60px)
  */
-export function StepNode({ id, data }: WorkspaceNodeComponentProps) {
+export const StepNode = memo(function StepNode({
+  id,
+  data,
+  selected,
+}: WorkspaceNodeComponentProps) {
   const { row } = data;
   const queryClient = useQueryClient();
   const { isGuestMode } = useAuth();
@@ -172,6 +177,7 @@ export function StepNode({ id, data }: WorkspaceNodeComponentProps) {
         action={headerActions}
         minWidth={180}
         minHeight={60}
+        selected={selected}
         className="ws-node-card--step border-border hover:border-foreground/30 transition-colors"
       >
         <div className="relative w-full h-full min-h-0 flex-1 flex flex-col justify-start p-2.5 gap-1.5 overflow-hidden">
@@ -238,4 +244,4 @@ export function StepNode({ id, data }: WorkspaceNodeComponentProps) {
       </NodeCard>
     </div>
   );
-}
+});

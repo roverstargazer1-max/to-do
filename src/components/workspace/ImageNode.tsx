@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, memo } from "react";
 import { Image as ImageIcon, X } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/components/AuthProvider";
@@ -12,7 +12,10 @@ import { NodeCard } from "./NodeCard";
 import type { WorkspaceNodeComponentProps } from "./node-registry";
 
 /** Asset-backed image node. Missing bytes are visible and recoverable. */
-export function ImageNode({ data }: WorkspaceNodeComponentProps) {
+export const ImageNode = memo(function ImageNode({
+  data,
+  selected,
+}: WorkspaceNodeComponentProps) {
   const { row } = data;
   const queryClient = useQueryClient();
   const { isGuestMode } = useAuth();
@@ -71,6 +74,7 @@ export function ImageNode({ data }: WorkspaceNodeComponentProps) {
         action={action}
         minWidth={180}
         minHeight={120}
+        selected={selected}
       >
         <div className="p-2 h-full min-h-[9rem] flex flex-col gap-2">
           {loading ? (
@@ -117,4 +121,4 @@ export function ImageNode({ data }: WorkspaceNodeComponentProps) {
       </NodeCard>
     </div>
   );
-}
+});

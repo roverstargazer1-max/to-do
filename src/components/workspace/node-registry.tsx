@@ -1,6 +1,6 @@
 "use client";
 
-import type { ComponentType, CSSProperties } from "react";
+import { memo, type ComponentType, type CSSProperties } from "react";
 import type { Node, NodeProps, NodeTypes } from "@xyflow/react";
 import { z } from "zod";
 import { nodeCommands } from "@/lib/commands/node";
@@ -51,6 +51,8 @@ export interface WorkspaceNodeComponentProps {
   data: WorkspaceNodeData;
   /** The kind spec this node rendered through — registry-injected. */
   spec: NodeKindSpec;
+  /** Selection state passed from React Flow NodeProps */
+  selected?: boolean;
 }
 
 export interface NodeKindDefaults {
@@ -560,15 +562,16 @@ export function resolveNodeKind(row: WorkspaceNode): NodeKindSpec {
  * registry at runtime — one registration, no cycles.
  */
 function bindSpecComponent(spec: NodeKindSpec): ComponentType<NodeProps> {
-  function SpecBoundNode(props: NodeProps) {
+  const SpecBoundNode = memo(function SpecBoundNode(props: NodeProps) {
     return (
       <spec.component
         id={props.id}
         data={props.data as WorkspaceNodeData}
         spec={spec}
+        selected={props.selected}
       />
     );
-  }
+  });
   SpecBoundNode.displayName = `${spec.kind}Node`;
   return SpecBoundNode;
 }

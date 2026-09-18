@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, memo } from "react";
 import { Handle, Position, useNodeId, useStore } from "@xyflow/react";
 import { X } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -26,15 +26,23 @@ import { cn } from "@/lib/utils";
  * - Hover / selection floating delete button
  * - 8-direction resizing with CardResizer (min: 140px x 80px)
  */
-export function DecisionNode({ id, data }: WorkspaceNodeComponentProps) {
+export const DecisionNode = memo(function DecisionNode({
+  id,
+  data,
+  selected,
+}: WorkspaceNodeComponentProps) {
   const { row } = data;
   const nodeId = useNodeId() ?? id;
-  const isSelected = useStore(
+  const storeSelected = useStore(
     useCallback(
-      (s) => (nodeId ? !!s.nodeLookup.get(nodeId)?.selected : false),
-      [nodeId],
+      (s) =>
+        nodeId && selected === undefined
+          ? !!s.nodeLookup.get(nodeId)?.selected
+          : false,
+      [nodeId, selected],
     ),
   );
+  const isSelected = selected !== undefined ? selected : storeSelected;
 
   const queryClient = useQueryClient();
   const { isGuestMode } = useAuth();
@@ -218,4 +226,4 @@ export function DecisionNode({ id, data }: WorkspaceNodeComponentProps) {
       ) : null}
     </div>
   );
-}
+});

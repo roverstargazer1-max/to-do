@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, memo } from "react";
 import { format } from "date-fns";
 import { Check, X } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -31,7 +31,10 @@ import type { WorkspaceNodeComponentProps } from "./node-registry";
  * (derived at read, ADR 0019) — dismiss (node.remove) is the only
  * affordance; removing the node never touches the habit itself.
  */
-export function HabitNode({ data }: WorkspaceNodeComponentProps) {
+export const HabitNode = memo(function HabitNode({
+  data,
+  selected,
+}: WorkspaceNodeComponentProps) {
   const { row } = data;
   const queryClient = useQueryClient();
   const { isGuestMode } = useAuth();
@@ -105,7 +108,11 @@ export function HabitNode({ data }: WorkspaceNodeComponentProps) {
         {stateLabel}
       </span>
 
-      <NodeCard kind={t("workspace.node.kindHabit")} action={removeButton}>
+      <NodeCard
+        kind={t("workspace.node.kindHabit")}
+        action={removeButton}
+        selected={selected}
+      >
         {isLoading ? (
           <div className="flex items-center gap-2.5 px-3 py-2.5">
             <Skeleton className="h-4 w-4 rounded-[3px]" />
@@ -163,4 +170,4 @@ export function HabitNode({ data }: WorkspaceNodeComponentProps) {
       </NodeCard>
     </div>
   );
-}
+});

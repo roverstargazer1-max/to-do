@@ -87,6 +87,7 @@
   border: 1px solid hsl(var(--border));
   border-radius: var(--radius);
   box-shadow: var(--ws-card-shadow);
+  transform: translateZ(0);
   transition:
     border-color 200ms var(--ease-seijaku, ease),
     box-shadow 200ms var(--ease-seijaku, ease);
@@ -108,6 +109,7 @@
 
 /* The card lifts as it is picked up, and settles back on drop. */
 .react-flow__node.dragging .ws-node-card {
+  will-change: transform, box-shadow;
   box-shadow: var(--ws-card-shadow-drag);
 }
 

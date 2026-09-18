@@ -7,19 +7,21 @@ import { useAuth } from "@/components/AuthProvider";
 import { mockStore } from "@/lib/mock/mock-store";
 import type { Task, SubtaskSummary } from "@/lib/types/task";
 
-interface UseTasksOptions {
+interface UseTasksOptions<TData = Task[]> {
   projectId?: string | null;
   showCompleted?: boolean;
   filter?: string;
+  select?: (data: Task[]) => TData;
 }
 
-export function useTasks(options: UseTasksOptions = {}) {
-  const { projectId, showCompleted = false, filter } = options;
+export function useTasks<TData = Task[]>(options: UseTasksOptions<TData> = {}) {
+  const { projectId, showCompleted = false, filter, select } = options;
   const { isGuestMode } = useAuth();
 
   return useQuery({
     queryKey: ["tasks", { projectId, showCompleted, filter, isGuestMode }],
     staleTime: 60000,
+    select,
     queryFn: async (): Promise<Task[]> => {
       if (isGuestMode) {
         let tasks = mockStore.getTasks();

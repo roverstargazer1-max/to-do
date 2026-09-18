@@ -401,7 +401,9 @@ export function WorkspaceCanvas({ workspaceId }: WorkspaceCanvasProps) {
 
       const newTargetId =
         targetGroup && targetGroup.id !== node.parentId ? targetGroup.id : null;
-      setDropTargetGroupId(newTargetId);
+      setDropTargetGroupId((prev) =>
+        prev !== newTargetId ? newTargetId : prev,
+      );
     },
     [],
   );
