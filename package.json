@@ -10,6 +10,7 @@
     "electron:compile": "tsc -p tsconfig.electron.json",
     "copy:standalone": "node scripts/copy-standalone.cjs",
     "electron:build:local": "cross-env NEXT_PUBLIC_IS_ELECTRON=true npm run build && npm run copy:standalone && npm run electron:compile && electron-builder --win --publish never",
+    "electron:build:mac": "cross-env NEXT_PUBLIC_IS_ELECTRON=true npm run build && npm run copy:standalone && npm run electron:compile && electron-builder --mac --publish never",
     "electron:build:ci": "cross-env NEXT_PUBLIC_IS_ELECTRON=true npm run build && npm run copy:standalone && npm run electron:compile && electron-builder --publish always",
     "electron:dev": "cross-env ELECTRON_DEV=1 electron .",
     "dev": "next dev --turbo",
@@ -180,6 +181,24 @@
           ]
         }
       ],
+      "icon": "public/icon.png"
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "universal"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "universal"
+          ]
+        }
+      ],
+      "category": "public.app-category.productivity",
       "icon": "public/icon.png"
     },
     "nsis": {
