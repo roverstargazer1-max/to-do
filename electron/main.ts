@@ -104,24 +104,33 @@ function getFreePort(): Promise<number> {
 
 function waitForServer(url: string, timeoutMs = 25000): Promise<void> {
   const start = Date.now();
-  const healthUrl = `${url}/api/health`;
   return new Promise((resolve, reject) => {
+    let resolved = false;
+
     const check = () => {
-      const req = http.get(healthUrl, (res) => {
-        // Any HTTP response (including 503 when local/remote DB is offline) indicates Next.js server is up and listening
-        if (res.statusCode !== undefined) {
+      if (resolved) return;
+      const req = http.get(url, (res) => {
+        if (!resolved) {
+          resolved = true;
+          res.resume();
           resolve();
-        } else {
-          retry();
         }
       });
+
+      req.setTimeout(1000, () => {
+        req.destroy();
+        retry();
+      });
+
       req.on("error", () => {
         retry();
       });
+
       req.end();
     };
 
     const retry = () => {
+      if (resolved) return;
       if (Date.now() - start > timeoutMs) {
         reject(new Error(`Timeout waiting for Next.js server at ${url}`));
       } else {
@@ -217,6 +226,7 @@ function startStandaloneServer(port: number): Promise<void> {
     serverProcess.on("exit", (code, signal) => {
       log(`[Next.js Server] Exited with code ${code}, signal ${signal}`);
       serverProcess = null;
+      reject(new Error(`Server exited with code ${code}`));
     });
 
     const targetUrl = `http://127.0.0.1:${port}`;
@@ -261,7 +271,7 @@ async function createWindow(targetUrl: string) {
       preload: path.join(__dirname, "preload.js"),
       nodeIntegration: false,
       contextIsolation: true,
-      sandbox: true,
+      sandbox: false,
       spellcheck: false,
       backgroundThrottling: true,
     },
