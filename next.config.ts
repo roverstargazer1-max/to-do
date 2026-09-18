@@ -36,9 +36,10 @@ const nextConfig: NextConfig = {
     ? [process.env.LAN_DEV_ORIGIN]
     : [],
   output: isElectron ? "standalone" : isMobile ? "export" : undefined,
+  productionBrowserSourceMaps: false,
   images: {
-    // Disable image optimization for mobile (no server available)
-    unoptimized: isMobile,
+    // Disable server image optimization for mobile (export) and electron (Chromium decodes natively)
+    unoptimized: isMobile || isElectron,
   },
   // Empty turbopack config to silence webpack warning
   turbopack: {},

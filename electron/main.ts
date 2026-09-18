@@ -7,10 +7,62 @@ import { fork, ChildProcess } from "node:child_process";
 import { initAutoUpdater } from "./updater";
 import { persistServerPort, resolveStableServerPort } from "./server-port";
 
+// Hardware acceleration and performance optimization switches
+app.commandLine.appendSwitch("enable-gpu-rasterization");
+app.commandLine.appendSwitch("enable-zero-copy");
+app.commandLine.appendSwitch("ignore-gpu-blocklist");
+app.commandLine.appendSwitch("disable-features", "CalculateNativeWinOcclusion");
+
 let mainWindow: BrowserWindow | null = null;
 let serverProcess: ChildProcess | null = null;
 
 const isDev = !app.isPackaged && process.env.ELECTRON_DEV === "1";
+
+// Asynchronous non-blocking file logger with size caps
+let appLogStream: fs.WriteStream | null = null;
+let serverLogStream: fs.WriteStream | null = null;
+const MAX_LOG_SIZE = 5 * 1024 * 1024; // 5 MB per log file
+
+function rotateLogIfNeeded(filePath: string) {
+  try {
+    if (fs.existsSync(filePath)) {
+      const stats = fs.statSync(filePath);
+      if (stats.size > MAX_LOG_SIZE) {
+        const backup = `${filePath}.old`;
+        if (fs.existsSync(backup)) fs.unlinkSync(backup);
+        fs.renameSync(filePath, backup);
+      }
+    }
+  } catch {}
+}
+
+function getLogStream(type: "app" | "server"): fs.WriteStream | null {
+  try {
+    const userData = app.getPath("userData");
+    const target = path.join(userData, `${type}.log`);
+    if (type === "app") {
+      if (!appLogStream) {
+        rotateLogIfNeeded(target);
+        appLogStream = fs.createWriteStream(target, {
+          flags: "a",
+          encoding: "utf8",
+        });
+      }
+      return appLogStream;
+    } else {
+      if (!serverLogStream) {
+        rotateLogIfNeeded(target);
+        serverLogStream = fs.createWriteStream(target, {
+          flags: "a",
+          encoding: "utf8",
+        });
+      }
+      return serverLogStream;
+    }
+  } catch {
+    return null;
+  }
+}
 
 function log(msg: string, isError = false) {
   const line = `[${new Date().toISOString()}] ${msg}\n`;
@@ -19,10 +71,10 @@ function log(msg: string, isError = false) {
   } else {
     console.log(msg);
   }
-  try {
-    const logPath = path.join(app.getPath("userData"), "app.log");
-    fs.appendFileSync(logPath, line, "utf8");
-  } catch {}
+  const stream = getLogStream("app");
+  if (stream && !stream.destroyed) {
+    stream.write(line);
+  }
 }
 
 function logServer(data: Buffer | string, isError = false) {
@@ -32,10 +84,10 @@ function logServer(data: Buffer | string, isError = false) {
   } else {
     console.log(`[Next.js Server] ${text.trim()}`);
   }
-  try {
-    const logPath = path.join(app.getPath("userData"), "server.log");
-    fs.appendFileSync(logPath, `[${new Date().toISOString()}] ${text}`, "utf8");
-  } catch {}
+  const stream = getLogStream("server");
+  if (stream && !stream.destroyed) {
+    stream.write(`[${new Date().toISOString()}] ${text}\n`);
+  }
 }
 
 function getFreePort(): Promise<number> {
@@ -52,26 +104,42 @@ function getFreePort(): Promise<number> {
 
 function waitForServer(url: string, timeoutMs = 25000): Promise<void> {
   const start = Date.now();
+  const healthUrl = `${url}/api/health`;
   return new Promise((resolve, reject) => {
     const check = () => {
-      const req = http.get(url, () => {
-        resolve();
+      const req = http.get(healthUrl, (res) => {
+        // Any HTTP response (including 503 when local/remote DB is offline) indicates Next.js server is up and listening
+        if (res.statusCode !== undefined) {
+          resolve();
+        } else {
+          retry();
+        }
       });
       req.on("error", () => {
-        if (Date.now() - start > timeoutMs) {
-          reject(new Error(`Timeout waiting for Next.js server at ${url}`));
-        } else {
-          setTimeout(check, 250);
-        }
+        retry();
       });
       req.end();
     };
+
+    const retry = () => {
+      if (Date.now() - start > timeoutMs) {
+        reject(new Error(`Timeout waiting for Next.js server at ${url}`));
+      } else {
+        const delay = Date.now() - start < 1500 ? 50 : 150;
+        setTimeout(check, delay);
+      }
+    };
+
     check();
   });
 }
 
 function resolveServerPath(): string {
   const candidates = [
+    // Unpacked extraResources location (cleanest packaging)
+    path.join(process.resourcesPath, "standalone", "server.js"),
+    path.join(process.resourcesPath, ".next", "standalone", "server.js"),
+    // Legacy asar-unpacked locations
     path.join(
       process.resourcesPath,
       "app.asar.unpacked",
@@ -115,6 +183,7 @@ function startStandaloneServer(port: number): Promise<void> {
       NODE_ENV: "production",
       NEXT_TELEMETRY_DISABLED: "1",
       ELECTRON_RUN_AS_NODE: "1",
+      NODE_OPTIONS: "--max-old-space-size=192 --no-warnings",
       NEXT_PUBLIC_SUPABASE_URL:
         process.env.NEXT_PUBLIC_SUPABASE_URL || "http://127.0.0.1:54321",
       NEXT_PUBLIC_SUPABASE_ANON_KEY:
@@ -129,6 +198,7 @@ function startStandaloneServer(port: number): Promise<void> {
     serverProcess = fork(serverPath, [], {
       cwd: path.dirname(serverPath),
       env,
+      execArgv: ["--max-old-space-size=192"],
       stdio: ["ignore", "pipe", "pipe", "ipc"],
     });
 
@@ -186,11 +256,14 @@ async function createWindow(targetUrl: string) {
     icon: iconPath || undefined,
     show: false,
     autoHideMenuBar: true,
+    backgroundColor: "#FCFCFA",
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       nodeIntegration: false,
       contextIsolation: true,
-      sandbox: false,
+      sandbox: true,
+      spellcheck: false,
+      backgroundThrottling: true,
     },
   });
 

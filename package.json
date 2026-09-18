@@ -7,7 +7,7 @@
   "private": false,
   "main": "dist-electron/main.js",
   "scripts": {
-    "electron:compile": "tsc -p tsconfig.electron.json",
+    "electron:compile": "tsc -p tsconfig.electron.json --noEmit && node scripts/bundle-electron.cjs",
     "copy:standalone": "node scripts/copy-standalone.cjs",
     "electron:build:local": "cross-env NEXT_PUBLIC_IS_ELECTRON=true npm run build && npm run copy:standalone && npm run electron:compile && electron-builder --win --publish never",
     "electron:build:mac": "cross-env NEXT_PUBLIC_IS_ELECTRON=true npm run build && npm run copy:standalone && npm run electron:compile && electron-builder --mac --publish never",
@@ -166,12 +166,28 @@
     },
     "files": [
       "dist-electron/**/*",
-      ".next/standalone/**/*",
-      "public/**/*"
+      "!node_modules/**"
     ],
-    "asarUnpack": [
-      ".next/standalone/**/*"
+    "extraResources": [
+      {
+        "from": ".next",
+        "to": ".",
+        "filter": [
+          "standalone/**",
+          "!**/*.map",
+          "!**/*.d.ts",
+          "!**/*.d.mts",
+          "!**/*.d.cts",
+          "!**/node_modules/.cache/**",
+          "!**/*.md",
+          "!**/README*",
+          "!**/LICENSE*"
+        ]
+      }
     ],
+    "npmRebuild": false,
+    "nodeGypRebuild": false,
+    "compression": "maximum",
     "win": {
       "target": [
         {
