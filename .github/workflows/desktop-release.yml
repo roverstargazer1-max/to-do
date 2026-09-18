@@ -66,10 +66,18 @@ jobs:
       - name: Compile Electron Main Process
         run: npm run electron:compile
 
-      - name: Package Desktop App & Publish to GitHub Releases
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npx electron-builder --publish always
+      - name: Package Desktop App
+        run: npx electron-builder --publish never
+
+      - name: Upload Windows Release Assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-assets-windows
+          path: |
+            dist-electron-build/*.exe
+            dist-electron-build/*.blockmap
+            dist-electron-build/*.yml
+          if-no-files-found: error
 
   release-macos:
     name: Build & Release macOS App
@@ -147,7 +155,68 @@ jobs:
             echo "APPLE_TEAM_ID=$MAC_APPLE_TEAM_ID" >> "$GITHUB_ENV"
           fi
 
-      - name: Package Desktop App & Publish to GitHub Releases
+      - name: Package Desktop App
+        run: npx electron-builder --mac --publish never
+
+      - name: Upload macOS Release Assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-assets-macos
+          path: |
+            dist-electron-build/*.dmg
+            dist-electron-build/*.zip
+            dist-electron-build/*.blockmap
+            dist-electron-build/*.yml
+          if-no-files-found: error
+
+  publish-release:
+    name: Publish Desktop Release
+    needs:
+      - release-windows
+      - release-macos
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Read App Version
+        id: app-version
+        shell: bash
+        run: |
+          VERSION="$(node -p "require('./package.json').version")"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Download Windows Release Assets
+        uses: actions/download-artifact@v4
+        with:
+          name: desktop-assets-windows
+          path: release-assets/windows
+
+      - name: Download macOS Release Assets
+        uses: actions/download-artifact@v4
+        with:
+          name: desktop-assets-macos
+          path: release-assets/macos
+
+      - name: Publish Release Assets
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npx electron-builder --mac --publish always
+          VERSION: ${{ steps.app-version.outputs.version }}
+        shell: bash
+        run: |
+          TAG="v$VERSION"
+
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            gh release create "$TAG" --title "$VERSION" --generate-notes
+          fi
+
+          mapfile -d '' ASSETS < <(find release-assets -type f -print0)
+          if (( ${#ASSETS[@]} == 0 )); then
+            echo "No desktop release assets were produced."
+            exit 1
+          fi
+
+          gh release upload "$TAG" "${ASSETS[@]}" --clobber
