@@ -76,7 +76,7 @@ jobs:
           path: |
             dist-electron-build/*.exe
             dist-electron-build/*.blockmap
-            dist-electron-build/*.yml
+            dist-electron-build/latest*.yml
           if-no-files-found: error
 
   release-macos:
@@ -166,7 +166,7 @@ jobs:
             dist-electron-build/*.dmg
             dist-electron-build/*.zip
             dist-electron-build/*.blockmap
-            dist-electron-build/*.yml
+            dist-electron-build/latest*.yml
           if-no-files-found: error
 
   publish-release:
@@ -213,7 +213,11 @@ jobs:
             gh release create "$TAG" --title "$VERSION" --generate-notes
           fi
 
-          mapfile -d '' ASSETS < <(find release-assets -type f -print0)
+          mapfile -d '' ASSETS < <(
+            find release-assets -type f \
+              \( -name "*.exe" -o -name "*.dmg" -o -name "*.zip" -o -name "*.blockmap" -o -name "latest*.yml" \) \
+              -print0
+          )
           if (( ${#ASSETS[@]} == 0 )); then
             echo "No desktop release assets were produced."
             exit 1
