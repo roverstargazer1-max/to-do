@@ -90,9 +90,11 @@ async function main() {
   releaseItArgs.push(...passthrough);
 
   console.log(`→ release-it ${releaseItArgs.join(" ")}`);
-  execFileSync("npx", ["release-it", ...releaseItArgs], {
+  const npxCommand = process.platform === "win32" ? "npx.cmd" : "npx";
+  execFileSync(npxCommand, ["release-it", ...releaseItArgs], {
     stdio: "inherit",
     env,
+    shell: process.platform === "win32",
   });
 }
 
