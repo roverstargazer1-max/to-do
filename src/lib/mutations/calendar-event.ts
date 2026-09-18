@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/client";
+import { mockStore } from "@/lib/mock/mock-store";
 import type {
   CalendarEvent,
   CreateCalendarEventInput,
@@ -15,10 +16,10 @@ export const calendarEventMutations = {
       localStorage.getItem("kanso_guest_mode") === "true";
 
     if (isGuest) {
-      // Guest mode: store in mockStore stub
-      const event: CalendarEvent = {
-        id: input._clientId || crypto.randomUUID(),
-        user_id: "guest",
+      // Guest mode must write through mockStore so imported events survive a
+      // query refresh and an application restart, just like guest tasks do.
+      return mockStore.addEvent({
+        id: input._clientId,
         title: input.title,
         description: input.description || null,
         location: input.location || null,
@@ -35,10 +36,7 @@ export const calendarEventMutations = {
         sync_state: null,
         is_archived: false,
         metadata: input.metadata || {},
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
-      return event;
+      });
     }
 
     const supabase = createClient();
