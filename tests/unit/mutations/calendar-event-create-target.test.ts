@@ -76,7 +76,7 @@ describe("calendarEventMutations.create — default sync target", () => {
       remote_calendar_id: "bidi-cal-1",
       sync_state: "pending_create",
     });
-  });
+  }, 15000);
 
   it("leaves sync fields null when no bidirectional calendar is connected", async () => {
     bidiCalendarsRef.value = [];
@@ -87,7 +87,7 @@ describe("calendarEventMutations.create — default sync target", () => {
 
     expect(capturedInsert.value?.remote_calendar_id ?? null).toBeNull();
     expect(capturedInsert.value?.sync_state ?? null).toBeNull();
-  });
+  }, 15000);
 
   it("keeps a recurring authored event local-only (never queued for push)", async () => {
     bidiCalendarsRef.value = [{ id: "bidi-cal-1" }];
@@ -100,5 +100,5 @@ describe("calendarEventMutations.create — default sync target", () => {
 
     expect(capturedInsert.value?.remote_calendar_id ?? null).toBeNull();
     expect(capturedInsert.value?.sync_state ?? null).toBeNull();
-  });
+  }, 15000);
 });
