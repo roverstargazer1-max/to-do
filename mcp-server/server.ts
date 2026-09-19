@@ -752,11 +752,12 @@ export function createKagelinMcpServer(
     options.supabaseKey ||
     process.env.SUPABASE_SECRET_KEY ||
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  const useMockFallback = options.guestAssetBridge
-    ? false
-    : (options.useMockFallback ??
-      (process.env.KAGELIN_MOCK_MODE === "true" ||
-        (!supabaseUrl && !options.supabaseClient)));
+  const useMockFallback =
+    options.useMockFallback ??
+    (options.guestAssetBridge
+      ? false
+      : process.env.KAGELIN_MOCK_MODE === "true" ||
+        (!supabaseUrl && !options.supabaseClient));
   let nodeSupabaseClient: SupabaseClient | null =
     options.supabaseClient ?? null;
   if (!useMockFallback && !nodeSupabaseClient && supabaseUrl && supabaseKey) {

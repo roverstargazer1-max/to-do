@@ -46,8 +46,15 @@ async function main() {
     bridgeHost = new GuestAssetBridgeHttpHost({ port: bridgePort });
     bridgeAddress = await bridgeHost.start();
   }
+  const useMockFallback =
+    process.env.KAGELIN_MOCK_MODE === "true" ||
+    (!process.env.NEXT_PUBLIC_SUPABASE_URL && !process.env.SUPABASE_SECRET_KEY);
   const server = createKagelinMcpServer({
-    useMockFallback: false,
+    useMockFallback,
+    identity:
+      process.env.NEXT_PUBLIC_LOCAL_USER_ID ||
+      process.env.KAGELIN_MCP_USER_ID ||
+      "local-user",
     ...(bridgeHost ? { guestAssetBridge: bridgeHost.connection } : {}),
   });
   const transport = new StdioServerTransport();
