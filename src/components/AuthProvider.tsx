@@ -168,6 +168,21 @@ export function AuthProvider({
       setIsGuestMode(true);
     };
 
+    const isNetworkError = (e: unknown): boolean => {
+      if (!e) return false;
+      const msg = (e instanceof Error ? e.message : String(e)).toLowerCase();
+      const status = (e as { status?: number })?.status;
+      return (
+        msg.includes("fetch") ||
+        msg.includes("network") ||
+        msg.includes("failed to fetch") ||
+        msg.includes("connection refused") ||
+        msg.includes("econnrefused") ||
+        status === 0 ||
+        status === undefined
+      );
+    };
+
     const autoSignInLocal = async () => {
       if (localAuthFallbackApplied) return;
 
@@ -187,11 +202,7 @@ export function AuthProvider({
           return;
         }
         if (error) {
-          const isNetworkError =
-            error.message?.toLowerCase().includes("fetch") ||
-            error.status === 0 ||
-            !error.status;
-          if (isNetworkError) {
+          if (isNetworkError(error)) {
             applyLocalAuthFallback();
             setLoading(false);
             return;
@@ -212,8 +223,16 @@ export function AuthProvider({
           }
         }
       } catch (err) {
-        if (!(err instanceof AuthInitializationTimeoutError)) {
+        if (
+          !(err instanceof AuthInitializationTimeoutError) &&
+          !isNetworkError(err)
+        ) {
           console.error("Auto local sign-in error:", err);
+        } else {
+          console.warn(
+            "Local database offline, using guest fallback:",
+            (err as Error)?.message || err,
+          );
         }
       }
 
@@ -235,11 +254,17 @@ export function AuthProvider({
         }
       })
       .catch((err) => {
-        if (!(err instanceof AuthInitializationTimeoutError)) {
+        if (
+          !(err instanceof AuthInitializationTimeoutError) &&
+          !isNetworkError(err)
+        ) {
           console.warn("Supabase getSession failed, falling back:", err);
         }
         if (isLocalSingleUser) {
-          if (err instanceof AuthInitializationTimeoutError) {
+          if (
+            err instanceof AuthInitializationTimeoutError ||
+            isNetworkError(err)
+          ) {
             applyLocalAuthFallback();
             setLoading(false);
           } else {
@@ -260,7 +285,7 @@ export function AuthProvider({
       if (session) {
         applyRealSession(session);
         setLoading(false);
-      } else if (isLocalSingleUser) {
+      } else if (isLocalSingleUser && !localAuthFallbackApplied) {
         autoSignInLocal();
       } else {
         applyNoRealSession();

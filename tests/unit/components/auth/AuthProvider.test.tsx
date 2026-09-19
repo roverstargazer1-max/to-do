@@ -541,4 +541,41 @@ describe("AuthProvider", () => {
       delete process.env.NEXT_PUBLIC_LOCAL_SINGLE_USER;
     }
   });
+
+  it("falls back to guest mode without console.error when local database rejects with network error (Failed to fetch)", async () => {
+    process.env.NEXT_PUBLIC_LOCAL_SINGLE_USER = "true";
+    const consoleErrorSpy = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+
+    const supabase = mockSupabase(null);
+    supabase.auth.getSession = vi
+      .fn()
+      .mockRejectedValue(new TypeError("Failed to fetch"));
+    supabase.auth.signInWithPassword = vi
+      .fn()
+      .mockRejectedValue(new TypeError("Failed to fetch"));
+    vi.mocked(createClient).mockReturnValue(
+      supabase as unknown as ReturnType<typeof createClient>,
+    );
+
+    try {
+      const { result } = renderHook(() => useAuth(), {
+        wrapper: ({ children }) => (
+          <AuthProvider initialIsGuest={false}>{children}</AuthProvider>
+        ),
+      });
+
+      await waitFor(() => {
+        expect(result.current.loading).toBe(false);
+      });
+
+      expect(result.current.isGuestMode).toBe(true);
+      expect(result.current.user?.id).toBe("guest");
+      expect(consoleErrorSpy).not.toHaveBeenCalled();
+    } finally {
+      consoleErrorSpy.mockRestore();
+      delete process.env.NEXT_PUBLIC_LOCAL_SINGLE_USER;
+    }
+  });
 });
