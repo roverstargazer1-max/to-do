@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { enforceRateLimit, getClientIp } from "@/lib/rate-limit";
 import { TelemetryBatchRequestSchema } from "@/lib/schemas/telemetry";
-import { createAdminClient } from "@/lib/supabase/admin";
 
 export async function POST(request: Request) {
   try {
@@ -42,20 +41,6 @@ export async function POST(request: Request) {
       properties:
         "properties" in event && event.properties ? event.properties : {},
     }));
-
-    // 5. Ingestion via privileged admin client (bypasses RLS)
-    const supabase = createAdminClient();
-    const { error: insertError } = await supabase
-      .from("telemetry_events")
-      .insert(rows);
-
-    if (insertError) {
-      console.error("[Telemetry API] Database insert failed:", insertError);
-      return NextResponse.json(
-        { error: "Failed to store telemetry events" },
-        { status: 500 },
-      );
-    }
 
     return NextResponse.json(
       { success: true, count: rows.length },

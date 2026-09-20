@@ -1,16 +1,11 @@
-export const EMAIL_CONFIRMED_PATH = "/auth/email-confirmed";
+export const EMAIL_CONFIRMED_PATH = "";
 
 // Routes whose own redirect swallows the bounce before "/" ever renders.
-export const AUTH_STANDALONE_ROUTES: readonly string[] = [
-  "/login",
-  "/signup",
-  "/auth/update-password",
-  EMAIL_CONFIRMED_PATH,
-];
+export const AUTH_STANDALONE_ROUTES: readonly string[] = [];
 
 // Operator-only pages, self-contained and carrying their own nav.
-export function isAdminRoute(pathname: string): boolean {
-  return pathname.startsWith("/admin");
+export function isAdminRoute(_pathname: string): boolean {
+  return false;
 }
 
 // Not in AUTH_STANDALONE_ROUTES: these still need the app shell, only the back-anchor bounce is skipped.

@@ -10,7 +10,6 @@
     "autoprefixer",
     "tailwindcss",
     "tailwindcss-animate",
-    "@tailwindcss/typography",
-    "supabase"
+    "@tailwindcss/typography"
   ]
 }

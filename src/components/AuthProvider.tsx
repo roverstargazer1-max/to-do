@@ -3,19 +3,30 @@
 import {
   createContext,
   useContext,
-  useEffect,
   useState,
   useCallback,
+  type ReactNode,
 } from "react";
-import { createClient } from "@/lib/supabase/client";
-import { EMAIL_CONFIRMED_PATH } from "@/lib/auth/auth-routes";
 import type { OAuthProviderId } from "@/lib/auth/providers";
-import type {
-  User,
-  Session,
-  AuthError,
-  UserIdentity,
-} from "@supabase/supabase-js";
+import type { User, Session, AuthError, UserIdentity } from "@/lib/types/auth";
+
+const LOCAL_USER: User = {
+  id: "local-user",
+  email: "local@kagelin.app",
+  app_metadata: {},
+  user_metadata: { display_name: "Local User" },
+  aud: "authenticated",
+  created_at: "2026-01-01T00:00:00.000Z",
+  identities: [],
+};
+
+const LOCAL_SESSION: Session = {
+  access_token: "local-token",
+  refresh_token: "local-refresh-token",
+  expires_in: 3600 * 24 * 365,
+  token_type: "bearer",
+  user: LOCAL_USER,
+};
 
 type AuthContextType = {
   user: User | null;
@@ -45,8 +56,6 @@ type AuthContextType = {
     password: string,
     nonce?: string,
   ) => Promise<{ error: AuthError | null }>;
-  // Sends a nonce (to the user's email, or phone if no confirmed email) for
-  // the Secure Password Change reauthentication step below.
   reauthenticate: () => Promise<{ error: AuthError | null }>;
   linkIdentity: (
     provider: OAuthProviderId,
@@ -60,377 +69,28 @@ type AuthContextType = {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-function setGuestFlag() {
-  localStorage.setItem("kanso_guest_mode", "true");
-  document.cookie =
-    "kanso_guest_mode=true; path=/; max-age=31536000; SameSite=Lax";
-}
-
-function clearGuestFlag() {
-  localStorage.removeItem("kanso_guest_mode");
-  document.cookie = "kanso_guest_mode=; path=/; max-age=0";
-}
-
-function hasGuestFlag() {
-  return localStorage.getItem("kanso_guest_mode") === "true";
-}
-
-function makeGuestUser(): User {
-  return {
-    id: "guest",
-    email: "guest@demo.kanso",
-    app_metadata: {},
-    user_metadata: { display_name: "Guest User" },
-    aud: "authenticated",
-    created_at: new Date().toISOString(),
-  } as User;
-}
-
-const LOCAL_AUTH_TIMEOUT_MS = 5_000;
-
-class AuthInitializationTimeoutError extends Error {
-  constructor() {
-    super("Supabase authentication initialization timed out");
-    this.name = "AuthInitializationTimeoutError";
-  }
-}
-
-function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
-    const timeoutId = setTimeout(() => {
-      reject(new AuthInitializationTimeoutError());
-    }, timeoutMs);
-
-    promise.then(
-      (value) => {
-        clearTimeout(timeoutId);
-        resolve(value);
-      },
-      (error) => {
-        clearTimeout(timeoutId);
-        reject(error);
-      },
-    );
-  });
-}
-
 export function AuthProvider({
   children,
-  initialIsGuest = false,
 }: {
-  children: React.ReactNode;
-  // Mirrors the server-side `kanso_guest_mode` cookie so first render matches SSR output (avoids a hydration error).
+  children: ReactNode;
   initialIsGuest?: boolean;
 }) {
-  const [isGuestMode, setIsGuestMode] = useState<boolean>(initialIsGuest);
-  const [user, setUser] = useState<User | null>(() =>
-    initialIsGuest ? makeGuestUser() : null,
-  );
-  const [session, setSession] = useState<Session | null>(null);
-  const [loading, setLoading] = useState(!isGuestMode);
-  const supabase = createClient();
+  const [user] = useState<User | null>(LOCAL_USER);
+  const [session] = useState<Session | null>(LOCAL_SESSION);
+  const [loading] = useState(false);
+  const isGuestMode = false;
 
-  useEffect(() => {
-    // A real session always wins — a stale guest flag must not shadow it.
-    const applyRealSession = (s: Session) => {
-      clearGuestFlag();
-      setSession(s);
-      setUser(s.user);
-      setIsGuestMode(false);
-    };
-
-    const applyNoRealSession = () => {
-      if (hasGuestFlag()) {
-        setUser(makeGuestUser());
-        setIsGuestMode(true);
-      } else {
-        clearGuestFlag();
-        setSession(null);
-        setUser(null);
-        setIsGuestMode(false);
-      }
-    };
-
-    const isLocalSingleUser =
-      process.env.NEXT_PUBLIC_LOCAL_SINGLE_USER === "true";
-    const localEmail =
-      process.env.NEXT_PUBLIC_LOCAL_USER_EMAIL || "mcp-tester@kagelin.local";
-    const localPassword =
-      process.env.NEXT_PUBLIC_LOCAL_USER_PASSWORD || "tester123456";
-
-    let localAuthFallbackApplied = false;
-
-    const applyLocalAuthFallback = () => {
-      localAuthFallbackApplied = true;
-      setGuestFlag();
-      setSession(null);
-      setUser(makeGuestUser());
-      setIsGuestMode(true);
-    };
-
-    const isNetworkError = (e: unknown): boolean => {
-      if (!e) return false;
-      const msg = (e instanceof Error ? e.message : String(e)).toLowerCase();
-      const status = (e as { status?: number })?.status;
-      return (
-        msg.includes("fetch") ||
-        msg.includes("network") ||
-        msg.includes("failed to fetch") ||
-        msg.includes("connection refused") ||
-        msg.includes("econnrefused") ||
-        status === 0 ||
-        status === undefined
-      );
-    };
-
-    const autoSignInLocal = async () => {
-      if (localAuthFallbackApplied) return;
-
-      try {
-        const { data, error } = await withTimeout(
-          supabase.auth.signInWithPassword({
-            email: localEmail,
-            password: localPassword,
-          }),
-          LOCAL_AUTH_TIMEOUT_MS,
-        );
-        if (localAuthFallbackApplied) return;
-
-        if (data?.session) {
-          applyRealSession(data.session);
-          setLoading(false);
-          return;
-        }
-        if (error) {
-          if (isNetworkError(error)) {
-            applyLocalAuthFallback();
-            setLoading(false);
-            return;
-          }
-          const { data: signUpData } = await withTimeout(
-            supabase.auth.signUp({
-              email: localEmail,
-              password: localPassword,
-            }),
-            LOCAL_AUTH_TIMEOUT_MS,
-          );
-          if (localAuthFallbackApplied) return;
-
-          if (signUpData?.session) {
-            applyRealSession(signUpData.session);
-            setLoading(false);
-            return;
-          }
-        }
-      } catch (err) {
-        if (
-          !(err instanceof AuthInitializationTimeoutError) &&
-          !isNetworkError(err)
-        ) {
-          console.error("Auto local sign-in error:", err);
-        } else {
-          console.warn(
-            "Local database offline, using guest fallback:",
-            (err as Error)?.message || err,
-          );
-        }
-      }
-
-      if (localAuthFallbackApplied) return;
-      applyLocalAuthFallback();
-      setLoading(false);
-    };
-
-    withTimeout(supabase.auth.getSession(), LOCAL_AUTH_TIMEOUT_MS)
-      .then(({ data: { session } }) => {
-        if (session) {
-          applyRealSession(session);
-          setLoading(false);
-        } else if (isLocalSingleUser) {
-          autoSignInLocal();
-        } else {
-          applyNoRealSession();
-          setLoading(false);
-        }
-      })
-      .catch((err) => {
-        if (
-          !(err instanceof AuthInitializationTimeoutError) &&
-          !isNetworkError(err)
-        ) {
-          console.warn("Supabase getSession failed, falling back:", err);
-        }
-        if (isLocalSingleUser) {
-          if (
-            err instanceof AuthInitializationTimeoutError ||
-            isNetworkError(err)
-          ) {
-            applyLocalAuthFallback();
-            setLoading(false);
-          } else {
-            autoSignInLocal();
-          }
-        } else {
-          applyNoRealSession();
-          setLoading(false);
-        }
-      });
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
-      // getSession() above already resolved this snapshot.
-      if (event === "INITIAL_SESSION") return;
-
-      if (session) {
-        applyRealSession(session);
-        setLoading(false);
-      } else if (isLocalSingleUser && !localAuthFallbackApplied) {
-        autoSignInLocal();
-      } else {
-        applyNoRealSession();
-        setLoading(false);
-      }
-    });
-
-    return () => subscription.unsubscribe();
-  }, [supabase.auth]);
-
-  const signInWithOAuth = useCallback(
-    async (provider: OAuthProviderId) => {
-      await supabase.auth.signInWithOAuth({
-        provider,
-        options: { redirectTo: `${window.location.origin}/auth/callback` },
-      });
-    },
-    [supabase.auth],
-  );
-
-  const signInWithMagicLink = useCallback(
-    async (email: string, captchaToken: string) => {
-      const { error } = await supabase.auth.signInWithOtp({
-        email,
-        options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
-          captchaToken,
-        },
-      });
-      return { error };
-    },
-    [supabase.auth],
-  );
-
-  const signUpWithPassword = useCallback(
-    async (email: string, password: string, captchaToken?: string) => {
-      const { error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(EMAIL_CONFIRMED_PATH)}`,
-          captchaToken,
-        },
-      });
-      return { error };
-    },
-    [supabase.auth],
-  );
-
-  const signInWithPassword = useCallback(
-    async (email: string, password: string, captchaToken?: string) => {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-        options: { captchaToken },
-      });
-      return { error };
-    },
-    [supabase.auth],
-  );
-
-  const resetPasswordForEmail = useCallback(
-    async (email: string, captchaToken: string) => {
-      // Routes through the callback's existing `next` handling — no separate recovery-detection logic needed there.
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent("/auth/update-password")}`,
-        captchaToken,
-      });
-      return { error };
-    },
-    [supabase.auth],
-  );
-
-  const updatePassword = useCallback(
-    async (password: string, nonce?: string) => {
-      const { error } = await supabase.auth.updateUser({ password, nonce });
-      return { error };
-    },
-    [supabase.auth],
-  );
-
-  // Only relevant when Secure Password Change is on and the session is
-  // >24h old — supabase.auth.updateUser() then fails with error code
-  // "reauthentication_needed" until this has been called and its nonce
-  // passed back into updatePassword().
-  const reauthenticate = useCallback(async () => {
-    const { error } = await supabase.auth.reauthenticate();
-    return { error };
-  }, [supabase.auth]);
-
-  const linkIdentity = useCallback(
-    async (provider: OAuthProviderId) => {
-      // `connecting` lets AccountSection name the provider on a linking failure — see docs/adr/0012-identity-linking.md.
-      const next = `/settings?tab=account&connecting=${provider}`;
-      const { error } = await supabase.auth.linkIdentity({
-        provider,
-        options: {
-          redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`,
-          // Forces the account picker; otherwise linking silently reuses whichever account is already signed in.
-          ...((provider === "google" || provider === "github") && {
-            queryParams: { prompt: "select_account" },
-          }),
-        },
-      });
-      return { error };
-    },
-    [supabase.auth],
-  );
-
-  const unlinkIdentity = useCallback(
-    async (identity: UserIdentity) => {
-      const { error } = await supabase.auth.unlinkIdentity(identity);
-      if (!error) {
-        // getSession() would return the stale cached `identities`, still showing the disconnected provider as connected.
-        const {
-          data: { session },
-        } = await supabase.auth.refreshSession();
-        if (session) {
-          setSession(session);
-          setUser(session.user);
-        }
-      }
-      return { error };
-    },
-    [supabase.auth],
-  );
-
-  const signInAsGuest = useCallback(() => {
-    setGuestFlag();
-    setUser(makeGuestUser());
-    setIsGuestMode(true);
-  }, []);
-
-  const signOut = useCallback(async () => {
-    if (process.env.NEXT_PUBLIC_LOCAL_SINGLE_USER === "true") {
-      return;
-    }
-    if (isGuestMode) {
-      clearGuestFlag();
-      setUser(null);
-      setIsGuestMode(false);
-    } else {
-      await supabase.auth.signOut();
-    }
-  }, [supabase.auth, isGuestMode]);
+  const signInWithOAuth = useCallback(async () => {}, []);
+  const signInWithMagicLink = useCallback(async () => ({ error: null }), []);
+  const signUpWithPassword = useCallback(async () => ({ error: null }), []);
+  const signInWithPassword = useCallback(async () => ({ error: null }), []);
+  const resetPasswordForEmail = useCallback(async () => ({ error: null }), []);
+  const updatePassword = useCallback(async () => ({ error: null }), []);
+  const reauthenticate = useCallback(async () => ({ error: null }), []);
+  const linkIdentity = useCallback(async () => ({ error: null }), []);
+  const unlinkIdentity = useCallback(async () => ({ error: null }), []);
+  const signInAsGuest = useCallback(() => {}, []);
+  const signOut = useCallback(async () => {}, []);
 
   return (
     <AuthContext.Provider
