@@ -82,62 +82,16 @@ Run with `npm run mcp:start` or directly with `tsx`:
 npm run mcp:start
 ```
 
-Real mode fails closed unless the process has an explicit Account identity and
-can authenticate that identity. A standalone stdio process started through
-`mcp-server/index.ts` can use the server-side Supabase secret key:
+The server opens the same local SQLite database as the desktop app through
+`better-sqlite3` in WAL mode, so tools work whether or not the Kagelin window is
+open. The default path is `%APPDATA%\Kagelin\data.db` on Windows (with the
+standard application data directories on macOS/Linux) and
+`.scratch/data.dev.db` in development; override it with `KAGELIN_DB_PATH`.
+Identity defaults to the local account and may be overridden with
+`KAGELIN_MCP_USER_ID`. No Docker, Supabase stack, or pairing step is required.
 
-```dotenv
-NEXT_PUBLIC_SUPABASE_URL=https://<project>.supabase.co
-SUPABASE_SECRET_KEY=<server-only-secret-key>
-KAGELIN_MCP_USER_ID=<authenticated-account-id>
-```
-
-The secret key must remain in `.env.local` or another protected local server
-environment. Never expose it to browser code, commit it, or deploy it as a
-public client variable. An embedding caller may instead provide a
-session-bound Supabase client. `KAGELIN_MOCK_MODE=true` is reserved for tests
-and local mock fixtures; it is not an authentication substitute for a real
-Account.
-
-When `NEXT_PUBLIC_SUPABASE_URL` points to the local default
-`http://127.0.0.1:54321`, start the local Supabase stack before starting the
-MCP client:
-
-```bash
-npx supabase start
-curl --fail http://127.0.0.1:54321/auth/v1/health
-```
-
-If Workspace tools return `MCP Server could not reach the configured Supabase
-endpoint`, check that Docker Desktop is running, the configured URL is
-reachable from the MCP process, and the local stack or hosted Supabase project
-is healthy. The MCP server never falls back to mock data in real mode.
-
-### Guest IndexedDB bridge
-
-For a Guest Workspace, start the local MCP process in Guest bridge mode:
-
-```dotenv
-KAGELIN_MCP_USE_GUEST_BRIDGE=true
-KAGELIN_GUEST_BRIDGE_PORT=37373
-```
-
-The process binds only to `127.0.0.1` and prints a temporary pairing code to
-stderr. In the Kagelin Guest Workspace, choose **Pair local MCP**, enter the
-printed endpoint and code, and confirm the displayed Workspace scope. The
-browser page then owns the long-poll session and executes the existing Domain
-Commands; the MCP process receives only explicitly authorized requests. The
-button can revoke the grant at any time, and the grant also expires
-automatically. Image bytes are not included in `get_workspace_blueprint`; a
-client must call `inspect_visual` with an explicit node/asset/resource ID.
-
-The default endpoint is
-`http://127.0.0.1:37373/kagelin/guest-asset-bridge`. A different port may be
-used through `KAGELIN_GUEST_BRIDGE_PORT`; it remains loopback-only. Do not
-expose this endpoint or pairing code to a remote MCP client. When an explicit
-Account identity or server key is configured, `mcp-server/index.ts` keeps the
-existing cloud mode and does not attach the Guest bridge unless
-`KAGELIN_MCP_USE_GUEST_BRIDGE=true` is set deliberately.
+`KAGELIN_MOCK_MODE=true` is reserved for tests and local mock fixtures; it is
+not a substitute for the local database.
 
 ## Skill and generic-client distribution
 
@@ -176,9 +130,7 @@ Add the following entry to your Antigravity configuration file (e.g. in your wor
         "D:/Projects/to-do/kagelin/mcp-server/index.ts"
       ],
       "env": {
-        "NEXT_PUBLIC_SUPABASE_URL": "https://<project>.supabase.co",
-        "SUPABASE_SECRET_KEY": "<server-only-secret-key>",
-        "KAGELIN_MCP_USER_ID": "<authenticated-account-id>"
+        "KAGELIN_DB_PATH": "C:/Users/<you>/AppData/Roaming/Kagelin/data.db"
       }
     }
   }
@@ -196,9 +148,7 @@ Add the following to your `claude_desktop_config.json`:
       "command": "npx",
       "args": ["-y", "tsx", "<path-to-kagelin>/mcp-server/index.ts"],
       "env": {
-        "NEXT_PUBLIC_SUPABASE_URL": "http://localhost:54321",
-        "SUPABASE_SECRET_KEY": "<server-only-secret-key>",
-        "KAGELIN_MCP_USER_ID": "<authenticated-account-id>"
+        "KAGELIN_DB_PATH": "C:/Users/<you>/AppData/Roaming/Kagelin/data.db"
       }
     }
   }

@@ -1,11 +1,12 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { QueryClient } from "@tanstack/react-query";
-import {
-  createClient as createSupabaseClient,
-  type SupabaseClient,
-} from "@supabase/supabase-js";
-import { setClient } from "../src/lib/supabase/client";
+import type Database from "better-sqlite3";
+import { getDatabase } from "../src/lib/db/index";
+import { TaskRepository } from "../src/lib/db/repositories/task-repository";
+import { ProjectRepository } from "../src/lib/db/repositories/project-repository";
+import { HabitRepository } from "../src/lib/db/repositories/habit-repository";
+import { WorkspaceRepository } from "../src/lib/db/repositories/workspace-repository";
 import {
   BlueprintPatchSchema,
   WorkspaceBlueprintSchema,
@@ -21,10 +22,7 @@ import {
   applyWorkspacePatch,
   type PatchResult,
 } from "../src/lib/workspace/blueprint/patcher";
-import {
-  defaultBlueprintCommandAdapters,
-  type BlueprintCommandAdapters,
-} from "../src/lib/workspace/blueprint/commands";
+import { type BlueprintCommandAdapters } from "../src/lib/workspace/blueprint/commands";
 import {
   decompileWorkspaceToSnapshot,
   formatSnapshotToMarkdown,
@@ -54,17 +52,13 @@ import {
   type MockBackendState,
 } from "./mock-backend";
 import { GENERIC_WORKSPACE_WORKFLOW_REFERENCE } from "./workflow-reference";
-import { SupabaseVisualAssetStore } from "../src/lib/visual/supabase-store";
 import {
   VisualServiceError,
   VisualWorkspaceService,
   type VisualFlowCommitResult,
   type VisualRenderInput,
 } from "../src/lib/visual/service";
-import {
-  GuestAssetBridgeStore,
-  type GuestAssetBridgeConnection,
-} from "../src/lib/visual/guest-asset-bridge";
+import { InMemoryVisualAssetStore } from "../src/lib/visual/store";
 import { assertSafeVisualUrl } from "../src/lib/visual/validation";
 import { ssrfSafeFetch, SsrfBlockedError } from "../src/lib/webdav/ssrf-guard";
 import type {
@@ -82,7 +76,6 @@ import type {
 } from "../src/lib/types/visual";
 
 const CONTEXT_LIMIT_MAX = 100;
-const WORKSPACE_ROWS_MAX = 1000;
 type EntityKind = "project" | "habit" | "task";
 type EntityRecord = { id: string; user_id?: string | null };
 
@@ -180,13 +173,10 @@ interface VisualImageContent {
 }
 
 export interface McpServerOptions {
-  supabaseUrl?: string;
-  supabaseKey?: string;
   /** Explicit Account identity for a real MCP process. */
   identity?: string;
   /** Alias for embedding/test callers that use user terminology. */
   userId?: string;
-  supabaseClient?: SupabaseClient;
   useMockFallback?: boolean;
   initialWorkspaces?: Workspace[];
   initialNodes?: WorkspaceNode[];
@@ -200,8 +190,10 @@ export interface McpServerOptions {
   initialVisualDerived?: VisualDerivedInfo[];
   initialVisualRelations?: VisualRelation[];
   initialVisualFlowDrafts?: VisualFlowDraft[];
-  /** Paired browser connection used for Guest IndexedDB assets. */
-  guestAssetBridge?: GuestAssetBridgeConnection;
+  /** Custom SQLite database instance */
+  db?: Database.Database;
+  /** Custom SQLite database path */
+  dbPath?: string;
 }
 
 function clone<T>(value: T): T {
@@ -346,17 +338,6 @@ async function readVisualResponse(
     offset += chunk.length;
   }
   return bytes;
-}
-
-function supabaseError(
-  message: string,
-  error: { message?: string } | null | undefined,
-): WorkspaceMcpError {
-  return new WorkspaceMcpError(
-    "execution",
-    message,
-    error?.message ? { providerMessage: error.message } : {},
-  );
 }
 
 function assertOwnedRecord(
@@ -746,35 +727,12 @@ export function createKagelinMcpServer(
     name: "kagelin-workspace-ai-builder",
     version: "1.2.0",
   });
-  const supabaseUrl =
-    options.supabaseUrl || process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseKey =
-    options.supabaseKey ||
-    process.env.SUPABASE_SECRET_KEY ||
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   const useMockFallback =
-    options.useMockFallback ??
-    (options.guestAssetBridge
-      ? false
-      : process.env.KAGELIN_MOCK_MODE === "true" ||
-        (!supabaseUrl && !options.supabaseClient));
-  let nodeSupabaseClient: SupabaseClient | null =
-    options.supabaseClient ?? null;
-  if (!useMockFallback && !nodeSupabaseClient && supabaseUrl && supabaseKey) {
-    nodeSupabaseClient = createSupabaseClient(supabaseUrl, supabaseKey, {
-      auth: { persistSession: true, autoRefreshToken: true },
-    });
-    setClient(nodeSupabaseClient);
-  } else if (nodeSupabaseClient) {
-    setClient(nodeSupabaseClient);
-  }
-
+    options.useMockFallback ?? process.env.KAGELIN_MOCK_MODE === "true";
   const configuredIdentity = firstConfiguredIdentity(options);
-  const activeUserId = options.guestAssetBridge
-    ? "guest"
-    : useMockFallback
-      ? (configuredIdentity ?? inferMockIdentity(options))
-      : (configuredIdentity ?? "");
+  const activeUserId = useMockFallback
+    ? (configuredIdentity ?? inferMockIdentity(options))
+    : (configuredIdentity ?? "");
   const mockBackend = useMockFallback
     ? new McpMockBackend({
         userId: activeUserId,
@@ -814,47 +772,21 @@ export function createKagelinMcpServer(
   let authPromise: Promise<void> | null = null;
   async function ensureAuthenticated(): Promise<void> {
     if (useMockFallback) return;
-    if (options.guestAssetBridge) return;
     if (!configuredIdentity) {
       throw new WorkspaceMcpError(
         "authentication",
         "MCP Server requires an explicit Account identity; no data was changed.",
       );
     }
-    if (!nodeSupabaseClient) {
-      throw new WorkspaceMcpError(
-        "authentication",
-        "MCP Server could not establish its Supabase connection; no data was changed.",
-      );
-    }
     if (!authPromise) {
       authPromise = (async () => {
-        const {
-          data: { session },
-          error,
-        } = await nodeSupabaseClient!.auth.getSession();
-        if (error) {
+        const sqliteDb = options.db || getDatabase(options.dbPath);
+        try {
+          sqliteDb.prepare("SELECT 1").get();
+        } catch {
           throw new WorkspaceMcpError(
             "authentication",
-            "MCP Server could not verify the configured Account identity.",
-            { providerMessage: error.message },
-          );
-        }
-        if (session?.user && session.user.id !== configuredIdentity) {
-          throw new WorkspaceMcpError(
-            "authorization",
-            "The active Supabase session does not match the configured Account identity.",
-            { identity: configuredIdentity },
-          );
-        }
-        const privilegedKey =
-          Boolean(process.env.SUPABASE_SECRET_KEY) ||
-          options.supabaseKey?.startsWith("sb_secret_") ||
-          options.supabaseKey?.includes("service_role");
-        if (!session?.user && !privilegedKey) {
-          throw new WorkspaceMcpError(
-            "authentication",
-            "MCP Server requires an authenticated session for the configured Account identity.",
+            "MCP Server could not open the local SQLite database; no data was changed.",
           );
         }
         process.env.KAGELIN_MCP_USER_ID = configuredIdentity;
@@ -875,13 +807,11 @@ export function createKagelinMcpServer(
     draft: VisualFlowDraft,
   ): Promise<VisualFlowCommitResult> {
     const adapters: BlueprintCommandAdapters | undefined =
-      mockBackend?.commandAdapters ??
-      options.guestAssetBridge?.commandAdapters ??
-      (nodeSupabaseClient ? defaultBlueprintCommandAdapters : undefined);
+      mockBackend?.commandAdapters;
     if (!adapters) {
       throw new VisualServiceError(
         "bridge_unavailable",
-        "The Guest asset bridge is connected for reads but has no browser-side Workspace command adapter for flow writes.",
+        "No Workspace command adapter is connected for flow writes.",
       );
     }
     const queryClient = new QueryClient({
@@ -892,7 +822,7 @@ export function createKagelinMcpServer(
     });
     const commandContext = {
       queryClient,
-      isGuestMode: Boolean(mockBackend || options.guestAssetBridge),
+      isGuestMode: Boolean(mockBackend),
     };
     const createdNodeIds: string[] = [];
     const createdEdgeIds: string[] = [];
@@ -977,7 +907,7 @@ export function createKagelinMcpServer(
     });
     const commandContext = {
       queryClient,
-      isGuestMode: Boolean(mockBackend || options.guestAssetBridge),
+      isGuestMode: Boolean(mockBackend),
     };
     const failures: string[] = [];
     for (const edgeId of [...result.createdEdgeIds].reverse()) {
@@ -1028,43 +958,20 @@ export function createKagelinMcpServer(
       });
       return visualService;
     }
-    if (options.guestAssetBridge) {
-      visualService = new VisualWorkspaceService(
-        new GuestAssetBridgeStore(options.guestAssetBridge.client),
-        {
-          userId: activeUserId,
-          getWorkspace: options.guestAssetBridge.getWorkspace,
-          listNodes: options.guestAssetBridge.listNodes,
-          commitFlow: commitVisualFlow,
-          rollbackFlow: rollbackVisualFlow,
-          renderVisual: renderMcpVisual,
-        },
-      );
-      return visualService;
-    }
-    if (!nodeSupabaseClient) {
-      throw new VisualServiceError(
-        "bridge_unavailable",
-        "Guest asset bridge is unavailable; open Kagelin and pair this MCP process before reading local assets.",
-      );
-    }
-    visualService = new VisualWorkspaceService(
-      new SupabaseVisualAssetStore(nodeSupabaseClient),
-      {
-        userId: activeUserId,
-        getWorkspace: async (workspaceId) => {
-          const state = await readWorkspaceState(workspaceId);
-          return state.workspace;
-        },
-        listNodes: async (workspaceId) => {
-          const state = await readWorkspaceState(workspaceId);
-          return state.nodes;
-        },
-        commitFlow: commitVisualFlow,
-        rollbackFlow: rollbackVisualFlow,
-        renderVisual: renderMcpVisual,
+    visualService = new VisualWorkspaceService(new InMemoryVisualAssetStore(), {
+      userId: activeUserId,
+      getWorkspace: async (workspaceId) => {
+        const state = await readWorkspaceState(workspaceId);
+        return state.workspace;
       },
-    );
+      listNodes: async (workspaceId) => {
+        const state = await readWorkspaceState(workspaceId);
+        return state.nodes;
+      },
+      commitFlow: commitVisualFlow,
+      rollbackFlow: rollbackVisualFlow,
+      renderVisual: renderMcpVisual,
+    });
     return visualService;
   }
 
@@ -1110,17 +1017,13 @@ export function createKagelinMcpServer(
   }
 
   function currentCommandAdapters(): BlueprintCommandAdapters | undefined {
-    return (
-      mockBackend?.commandAdapters ??
-      options.guestAssetBridge?.commandAdapters ??
-      (nodeSupabaseClient ? defaultBlueprintCommandAdapters : undefined)
-    );
+    return mockBackend?.commandAdapters;
   }
 
   async function fetchEntityRecord(
     kind: EntityKind,
     id: string,
-    fullRow = false,
+    _fullRow = false,
   ): Promise<EntityRecord | undefined> {
     if (mockBackend) {
       const state = currentMockState();
@@ -1133,20 +1036,20 @@ export function createKagelinMcpServer(
       return collection.find((record) => record.id === id) as
         (EntityRecord & Record<string, unknown>) | undefined;
     }
-    if (!nodeSupabaseClient) return undefined;
-    const table =
-      kind === "task" ? "tasks" : kind === "project" ? "projects" : "habits";
-    const { data, error } = await nodeSupabaseClient
-      .from(table)
-      .select(fullRow ? "*" : "id, user_id")
-      .eq("id", id)
-      .maybeSingle();
-    if (error)
-      throw supabaseError(
-        `Could not inspect ${kind} reference "${id}".`,
-        error,
-      );
-    return (data as EntityRecord | null) ?? undefined;
+    const sqliteDb = options.db || getDatabase(options.dbPath);
+    if (kind === "task") {
+      const row = new TaskRepository(sqliteDb).getById(id);
+      if (!row) return undefined;
+      return { id: row.id, user_id: row.user_id } as EntityRecord;
+    }
+    if (kind === "project") {
+      const row = new ProjectRepository(sqliteDb).getById(id);
+      if (!row) return undefined;
+      return { id: row.id, user_id: row.user_id } as EntityRecord;
+    }
+    const row = new HabitRepository(sqliteDb).getById(id);
+    if (!row) return undefined;
+    return { id: row.id, user_id: row.user_id } as EntityRecord;
   }
 
   async function assertEntityReference(
@@ -1209,7 +1112,7 @@ export function createKagelinMcpServer(
         ) {
           throw new WorkspaceMcpError(
             "authorization",
-            `Connection "${edge.id}" is not owned by the paired Guest page.`,
+            `Connection "${edge.id}" is not owned by the active Account.`,
             { edgeId: edge.id, workspaceId },
           );
         }
@@ -1232,103 +1135,36 @@ export function createKagelinMcpServer(
         habits: state.habits,
       };
     }
-    if (options.guestAssetBridge) {
-      const workspace =
-        await options.guestAssetBridge.getWorkspace(workspaceId);
-      if (!workspace) {
-        throw new WorkspaceMcpError(
-          "invalid_reference",
-          `Workspace "${workspaceId}" was not found in the paired Guest page.`,
-          { workspaceId },
-        );
-      }
-      if (
-        workspace.user_id &&
-        workspace.user_id !== activeUserId &&
-        workspace.user_id !== "guest"
-      ) {
-        throw new WorkspaceMcpError(
-          "authorization",
-          `Workspace "${workspaceId}" belongs to another Account.`,
-          { workspaceId },
-        );
-      }
-      const nodes = await options.guestAssetBridge.listNodes(workspaceId);
-      const edges = options.guestAssetBridge.listEdges
-        ? await options.guestAssetBridge.listEdges(workspaceId)
-        : [];
-      for (const node of nodes) {
-        if (
-          node.user_id &&
-          node.user_id !== activeUserId &&
-          node.user_id !== "guest"
-        ) {
-          throw new WorkspaceMcpError(
-            "authorization",
-            `Node "${node.id}" is not owned by the paired Guest page.`,
-            { nodeId: node.id, workspaceId },
-          );
-        }
-      }
-      return {
-        workspace: clone(workspace),
-        nodes: clone(nodes),
-        edges: clone(edges),
-        tasks: [],
-        projects: [],
-        habits: [],
-      };
-    }
-    if (!nodeSupabaseClient)
-      throw new WorkspaceMcpError(
-        "authentication",
-        "MCP Server is not connected.",
-      );
-    const { data: workspace, error: workspaceError } = await nodeSupabaseClient
-      .from("workspaces")
-      .select("id, user_id, name, color, created_at, updated_at")
-      .eq("id", workspaceId)
-      .maybeSingle();
-    if (workspaceError)
-      throw supabaseError(
-        "Could not inspect the target Workspace.",
-        workspaceError,
-      );
-    if (!workspace)
+    const sqliteDb = options.db || getDatabase(options.dbPath);
+    const state = new WorkspaceRepository(sqliteDb).getWorkspace(workspaceId);
+    if (!state)
       throw new WorkspaceMcpError(
         "invalid_reference",
         `Workspace "${workspaceId}" was not found.`,
         { workspaceId },
       );
-    if (workspace.user_id !== activeUserId)
+    const { workspace, nodes, edges } = state;
+    // Single-user local database: rows owned by local_user/guest are treated
+    // as the configured MCP identity's own data.
+    if (
+      workspace.user_id &&
+      workspace.user_id !== activeUserId &&
+      workspace.user_id !== "local_user" &&
+      workspace.user_id !== "guest"
+    ) {
       throw new WorkspaceMcpError(
         "authorization",
         `Workspace "${workspaceId}" belongs to another Account.`,
         { workspaceId },
       );
-    const { data: nodes, error: nodesError } = await nodeSupabaseClient
-      .from("workspace_nodes")
-      .select(
-        "id, workspace_id, user_id, kind, entity_type, entity_id, position_x, position_y, width, height, group_id, display_config, created_at, updated_at",
-      )
-      .eq("workspace_id", workspaceId)
-      .limit(WORKSPACE_ROWS_MAX);
-    if (nodesError)
-      throw supabaseError("Could not inspect Workspace nodes.", nodesError);
-    const { data: edges, error: edgesError } = await nodeSupabaseClient
-      .from("workspace_edges")
-      .select(
-        "id, workspace_id, user_id, source_node_id, target_node_id, label, source_handle, target_handle, created_at, updated_at",
-      )
-      .eq("workspace_id", workspaceId)
-      .limit(WORKSPACE_ROWS_MAX);
-    if (edgesError)
-      throw supabaseError(
-        "Could not inspect Workspace connections.",
-        edgesError,
-      );
-    for (const node of nodes ?? []) {
-      if (node.user_id !== activeUserId) {
+    }
+    for (const node of nodes) {
+      if (
+        node.user_id &&
+        node.user_id !== activeUserId &&
+        node.user_id !== "local_user" &&
+        node.user_id !== "guest"
+      ) {
         throw new WorkspaceMcpError(
           "authorization",
           `Node "${node.id}" is not owned by the active Account.`,
@@ -1336,8 +1172,13 @@ export function createKagelinMcpServer(
         );
       }
     }
-    for (const edge of edges ?? []) {
-      if (edge.user_id !== activeUserId) {
+    for (const edge of edges) {
+      if (
+        edge.user_id &&
+        edge.user_id !== activeUserId &&
+        edge.user_id !== "local_user" &&
+        edge.user_id !== "guest"
+      ) {
         throw new WorkspaceMcpError(
           "authorization",
           `Connection "${edge.id}" is not owned by the active Account.`,
@@ -1346,12 +1187,15 @@ export function createKagelinMcpServer(
       }
     }
     return {
-      workspace: workspace as Workspace,
-      nodes: (nodes ?? []) as WorkspaceNode[],
-      edges: (edges ?? []) as WorkspaceEdge[],
-      tasks: [],
-      projects: [],
-      habits: [],
+      workspace: clone(workspace),
+      nodes,
+      edges,
+      tasks: new TaskRepository(sqliteDb).list({
+        userId: activeUserId,
+        showCompleted: true,
+      }),
+      projects: new ProjectRepository(sqliteDb).list(activeUserId),
+      habits: new HabitRepository(sqliteDb).list(activeUserId),
     };
   }
 
@@ -1639,17 +1483,15 @@ export function createKagelinMcpServer(
           isOwnedByMockAccount(project, activeUserId) &&
           project.name.trim().toLocaleLowerCase() === normalizedName,
       )?.id;
-    if (!nodeSupabaseClient) return undefined;
-    const { data, error } = await nodeSupabaseClient
-      .from("projects")
-      .select("id, name")
-      .eq("user_id", activeUserId)
-      .ilike("name", name)
-      .limit(1)
-      .maybeSingle();
-    if (error)
-      throw supabaseError("Could not resolve a reusable Project.", error);
-    return (data as { id?: string } | null)?.id;
+    const sqliteDb = options.db || getDatabase(options.dbPath);
+    return (
+      new ProjectRepository(sqliteDb)
+        .list(activeUserId)
+        .find(
+          (project) =>
+            project.name.trim().toLocaleLowerCase() === normalizedName,
+        )?.id ?? undefined
+    );
   }
 
   async function resolveHabitByName(name: string): Promise<string | undefined> {
@@ -1660,24 +1502,21 @@ export function createKagelinMcpServer(
           isOwnedByMockAccount(habit, activeUserId) &&
           habit.name.trim().toLocaleLowerCase() === normalizedName,
       )?.id;
-    if (!nodeSupabaseClient) return undefined;
-    const { data, error } = await nodeSupabaseClient
-      .from("habits")
-      .select("id, name")
-      .eq("user_id", activeUserId)
-      .ilike("name", name)
-      .limit(1)
-      .maybeSingle();
-    if (error)
-      throw supabaseError("Could not resolve a reusable Habit.", error);
-    return (data as { id?: string } | null)?.id;
+    const sqliteDb = options.db || getDatabase(options.dbPath);
+    return (
+      new HabitRepository(sqliteDb)
+        .list(activeUserId)
+        .find(
+          (habit) => habit.name.trim().toLocaleLowerCase() === normalizedName,
+        )?.id ?? undefined
+    );
   }
 
   async function executeBuild(input: BuildInput): Promise<OperationOutcome> {
     await ensureAuthenticated();
     await validateBuild(input.blueprint);
     const result = await buildWorkspaceFromBlueprint(input.blueprint, {
-      isGuestMode: Boolean(mockBackend || options.guestAssetBridge),
+      isGuestMode: Boolean(mockBackend),
       commandAdapters: currentCommandAdapters(),
       onResolveProject: resolveProjectByName,
       onResolveHabit: resolveHabitByName,
@@ -1690,7 +1529,7 @@ export function createKagelinMcpServer(
     await ensureAuthenticated();
     const state = await validatePatch(input.patch);
     const result = await applyWorkspacePatch(input.patch, {
-      isGuestMode: Boolean(mockBackend || options.guestAssetBridge),
+      isGuestMode: Boolean(mockBackend),
       nodes: state.nodes,
       edges: state.edges,
       commandAdapters: currentCommandAdapters(),
@@ -1857,7 +1696,7 @@ export function createKagelinMcpServer(
           mutations: { retry: false },
         },
       }),
-      isGuestMode: Boolean(mockBackend || options.guestAssetBridge),
+      isGuestMode: Boolean(mockBackend),
     };
   }
 
@@ -1866,7 +1705,7 @@ export function createKagelinMcpServer(
     if (!adapters) {
       throw new VisualServiceError(
         "bridge_unavailable",
-        "No Workspace command adapter is connected; pair Kagelin before writing Guest data.",
+        "No Workspace command adapter is connected for visual-flow writes.",
       );
     }
     return adapters;
@@ -2145,49 +1984,20 @@ export function createKagelinMcpServer(
           workspaces = currentMockState().workspaces.filter((workspace) =>
             isOwnedByMockAccount(workspace, activeUserId),
           );
-        else if (options.guestAssetBridge?.listWorkspaces)
-          workspaces = (await options.guestAssetBridge.listWorkspaces()).filter(
-            (workspace) => !workspace.user_id || workspace.user_id === "guest",
-          );
-        else if (options.guestAssetBridge) workspaces = [];
-        else if (nodeSupabaseClient) {
-          const { data, error } = await nodeSupabaseClient
-            .from("workspaces")
-            .select("id, user_id, name, color, created_at, updated_at")
-            .eq("user_id", activeUserId)
-            .order("created_at", { ascending: true })
-            .limit(WORKSPACE_ROWS_MAX);
-          if (error) throw supabaseError("Could not list Workspaces.", error);
-          workspaces = (data ?? []) as Workspace[];
-        } else
-          throw new WorkspaceMcpError(
-            "authentication",
-            "MCP Server is not connected.",
-          );
+        else workspaces = workspaceRepo.listWorkspaces(activeUserId);
         const state = mockBackend ? currentMockState() : null;
         const summaries = workspaces.map((workspace) => ({
           id: workspace.id,
           name: workspace.name,
           color: workspace.color,
-          nodeCount:
-            state?.nodes.filter(
-              (node) =>
-                node.workspace_id === workspace.id &&
-                isOwnedByMockAccount(node, activeUserId),
-            ).length ?? 0,
+          nodeCount: mockBackend
+            ? (state?.nodes.filter(
+                (node) =>
+                  node.workspace_id === workspace.id &&
+                  isOwnedByMockAccount(node, activeUserId),
+              ).length ?? 0)
+            : (workspaceRepo.getWorkspace(workspace.id)?.nodes.length ?? 0),
         }));
-        if (!mockBackend && nodeSupabaseClient) {
-          for (const summary of summaries) {
-            const { count, error } = await nodeSupabaseClient
-              .from("workspace_nodes")
-              .select("id", { count: "exact", head: true })
-              .eq("workspace_id", summary.id)
-              .eq("user_id", activeUserId);
-            if (error)
-              throw supabaseError("Could not count Workspace nodes.", error);
-            summary.nodeCount = count ?? 0;
-          }
-        }
         return operationResult({
           contractVersion: WORKSPACE_MCP_CONTRACT_VERSION,
           workspaces: summaries,
@@ -2289,54 +2099,60 @@ export function createKagelinMcpServer(
                 is_completed: task.is_completed,
                 project_id: task.project_id,
               }));
-        } else if (nodeSupabaseClient) {
+        } else {
+          const sqliteDb = options.db || getDatabase(options.dbPath);
           if (selectedKinds.size === 0 || selectedKinds.has("project")) {
-            let request = nodeSupabaseClient
-              .from("projects")
-              .select("id, name, color")
-              .eq("user_id", activeUserId)
-              .order("name", { ascending: true })
-              .limit(limit);
-            if (normalizedQuery)
-              request = request.ilike("name", `%${normalizedQuery}%`);
-            const { data, error } = await request;
-            if (error)
-              throw supabaseError("Could not inspect Projects.", error);
-            projects = (data ?? []) as typeof projects;
+            const q = normalizedQuery
+              ? normalizedQuery.toLocaleLowerCase()
+              : "";
+            projects = new ProjectRepository(sqliteDb)
+              .list(activeUserId)
+              .filter(
+                (project) => !q || project.name.toLocaleLowerCase().includes(q),
+              )
+              .slice(0, limit)
+              .map((project) => ({
+                id: project.id,
+                name: project.name,
+                color: project.color ?? "",
+              }));
           }
           if (selectedKinds.size === 0 || selectedKinds.has("habit")) {
-            let request = nodeSupabaseClient
-              .from("habits")
-              .select("id, name, color")
-              .eq("user_id", activeUserId)
-              .order("name", { ascending: true })
-              .limit(limit);
-            if (normalizedQuery)
-              request = request.ilike("name", `%${normalizedQuery}%`);
-            const { data, error } = await request;
-            if (error) throw supabaseError("Could not inspect Habits.", error);
-            habits = (data ?? []) as typeof habits;
+            const q = normalizedQuery
+              ? normalizedQuery.toLocaleLowerCase()
+              : "";
+            habits = new HabitRepository(sqliteDb)
+              .list(activeUserId)
+              .filter(
+                (habit) => !q || habit.name.toLocaleLowerCase().includes(q),
+              )
+              .slice(0, limit)
+              .map((habit) => ({
+                id: habit.id,
+                name: habit.name,
+                color: habit.color ?? undefined,
+              }));
           }
           if (selectedKinds.size === 0 || selectedKinds.has("task")) {
-            let request = nodeSupabaseClient
-              .from("tasks")
-              .select(
-                "id, content, priority, due_date, is_completed, project_id",
+            const q = normalizedQuery
+              ? normalizedQuery.toLocaleLowerCase()
+              : "";
+            tasks = new TaskRepository(sqliteDb)
+              .list({ userId: activeUserId, showCompleted: true })
+              .filter(
+                (task) => !q || task.content.toLocaleLowerCase().includes(q),
               )
-              .eq("user_id", activeUserId)
-              .order("created_at", { ascending: false })
-              .limit(limit);
-            if (normalizedQuery)
-              request = request.ilike("content", `%${normalizedQuery}%`);
-            const { data, error } = await request;
-            if (error) throw supabaseError("Could not inspect Tasks.", error);
-            tasks = (data ?? []) as typeof tasks;
+              .slice(0, limit)
+              .map((task) => ({
+                id: task.id,
+                content: task.content,
+                priority: task.priority,
+                due_date: task.due_date,
+                is_completed: task.is_completed,
+                project_id: task.project_id,
+              }));
           }
-        } else
-          throw new WorkspaceMcpError(
-            "authentication",
-            "MCP Server is not connected.",
-          );
+        }
         return operationResult({
           contractVersion: WORKSPACE_MCP_CONTRACT_VERSION,
           filter: {
@@ -3648,6 +3464,156 @@ export function createKagelinMcpServer(
             ),
         );
         return operationResult(outcome.payload);
+      } catch (err) {
+        return errorResult(err);
+      }
+    },
+  );
+
+  const sqliteDb = options.db || getDatabase(options.dbPath);
+  const taskRepo = new TaskRepository(sqliteDb);
+  const workspaceRepo = new WorkspaceRepository(sqliteDb);
+
+  server.tool(
+    "query_tasks",
+    "Query tasks directly from the local SQLite database with optional status, priority, and project filtering.",
+    {
+      status: z
+        .enum(["all", "completed", "pending"])
+        .optional()
+        .describe("Filter by completion status (all, completed, or pending)."),
+      priority: z
+        .number()
+        .int()
+        .min(1)
+        .max(4)
+        .optional()
+        .describe("Filter by priority from 1 (highest) to 4 (lowest)."),
+      projectId: z.string().optional().describe("Filter by project ID."),
+      limit: z
+        .number()
+        .int()
+        .min(1)
+        .max(100)
+        .optional()
+        .describe("Maximum number of tasks to return (default 50)."),
+    },
+    async ({ status, priority, projectId, limit = 50 }) => {
+      try {
+        let query = "SELECT * FROM tasks WHERE 1=1";
+        const params: unknown[] = [];
+        if (status === "completed") {
+          query += " AND is_completed = 1";
+        } else if (status === "pending") {
+          query += " AND is_completed = 0";
+        }
+        if (priority !== undefined) {
+          query += " AND priority = ?";
+          params.push(priority);
+        }
+        if (projectId) {
+          query += " AND project_id = ?";
+          params.push(projectId);
+        }
+        query += " ORDER BY day_order ASC, created_at DESC LIMIT ?";
+        params.push(limit);
+
+        const rows = sqliteDb.prepare(query).all(...params);
+        return operationResult({ tasks: rows, count: rows.length });
+      } catch (err) {
+        return errorResult(err);
+      }
+    },
+  );
+
+  server.tool(
+    "create_task",
+    "Create a new task directly in the local SQLite database.",
+    {
+      content: z.string().min(1).describe("Task title / content."),
+      description: z
+        .string()
+        .optional()
+        .describe("Detailed description or notes."),
+      priority: z
+        .number()
+        .int()
+        .min(1)
+        .max(4)
+        .optional()
+        .describe("Priority from 1 to 4."),
+      due_date: z.string().optional().describe("Due date in ISO format."),
+      project_id: z
+        .string()
+        .optional()
+        .describe("Project ID to associate with."),
+      is_evening: z
+        .boolean()
+        .optional()
+        .describe("Whether scheduled for evening."),
+    },
+    async (input) => {
+      try {
+        const created = taskRepo.create({
+          ...input,
+          priority: (input.priority as 1 | 2 | 3 | 4) || undefined,
+        });
+        return operationResult({ task: created });
+      } catch (err) {
+        return errorResult(err);
+      }
+    },
+  );
+
+  server.tool(
+    "inspect_workspace",
+    "Inspect a visual workspace canvas including all containing nodes and connection edges directly from SQLite.",
+    {
+      workspaceId: z.string().min(1).describe("Workspace ID to inspect."),
+    },
+    async ({ workspaceId }) => {
+      try {
+        const data = workspaceRepo.getWorkspace(workspaceId);
+        if (!data) {
+          throw new Error(`Workspace "${workspaceId}" was not found.`);
+        }
+        return operationResult(data as unknown as Record<string, unknown>);
+      } catch (err) {
+        return errorResult(err);
+      }
+    },
+  );
+
+  server.tool(
+    "execute_sql",
+    "Execute a read-only SELECT query against the local SQLite database for arbitrary analysis.",
+    {
+      sql: z
+        .string()
+        .min(1)
+        .describe("Read-only SQL query (SELECT, WITH, EXPLAIN, PRAGMA)."),
+    },
+    async ({ sql }) => {
+      try {
+        const trimmed = sql.trim();
+        const upper = trimmed.toUpperCase();
+        const isReadOnly =
+          (upper.startsWith("SELECT") ||
+            upper.startsWith("WITH") ||
+            upper.startsWith("EXPLAIN") ||
+            upper.startsWith("PRAGMA")) &&
+          !/\b(INSERT|UPDATE|DELETE|DROP|ALTER|CREATE|REPLACE|ATTACH|DETACH|VACUUM)\b/i.test(
+            trimmed,
+          );
+
+        if (!isReadOnly) {
+          throw new Error(
+            "Only read-only SQL queries (SELECT, WITH, EXPLAIN, PRAGMA) are allowed.",
+          );
+        }
+
+        const rows = sqliteDb.prepare(trimmed).all();
+        return operationResult({ rows, rowCount: rows.length });
       } catch (err) {
         return errorResult(err);
       }

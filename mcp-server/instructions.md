@@ -175,24 +175,15 @@ safe request-ID replay.
   draft stale. Confirmed writes use the existing Domain Command adapters and
   retain `derived-from` provenance.
 
-Guest-mode visual data is available to an external local MCP process only when
-the Kagelin page supplies a paired Guest asset bridge. The bridge authorizes
-origin, Workspace/asset scopes, operation names, expiry, revocation, request
-size, and audit events. A disconnected or expired bridge returns a
-machine-readable `visualCode: "bridge_unavailable"` error; it never falls back
-to a different account or fabricated image bytes.
-
-For the standalone local process, set `KAGELIN_MCP_USE_GUEST_BRIDGE=true` (the
-process also defaults to Guest bridge mode when no explicit Account identity or
-server key is configured). The process starts a loopback-only HTTP host at
-`http://127.0.0.1:37373/kagelin/guest-asset-bridge` and prints a temporary
-pairing code to stderr. In a Guest Workspace, the user starts pairing from
-Kagelin's **Pair local MCP** button, enters that code, and confirms the current
-Workspace scope. `KAGELIN_GUEST_BRIDGE_PORT` may select another local port.
-Pairing is not implicit: an unpaired MCP request fails closed, the grant is
-short-lived and revocable, and the browser page remains the only owner of
-IndexedDB and Domain Command execution. A cloud-configured MCP process keeps
-its existing Supabase path unless Guest bridge mode is explicitly enabled.
+Visual assets are stored by the Kagelin process itself: image bytes live in the
+local assets directory and metadata lives in the `visual_assets` SQLite table.
+A local MCP process opens the same SQLite database in WAL mode, so Visual tools
+read assets whether or not the Kagelin window is open; no browser pairing or
+bridge is involved. Image bytes are still not inlined into snapshots: a client
+calls `inspect_visual` with an explicit node/asset/resource ID. If Workspace
+command adapters are unavailable in the current process, flow writes fail with
+a machine-readable `visualCode: "bridge_unavailable"` error instead of falling
+back to fabricated image bytes.
 
 ## Errors and retry
 

@@ -58,14 +58,12 @@ tool contract. A contract-major change requires a new compatibility statement.
   writes native Step/Decision/Connection rows through Domain Commands and keeps
   `derived-from` provenance; confirmation failures are compensated when the
   adapter supports rollback.
-- Guest assets are available to a local MCP process only through an explicitly
-  paired, scoped, expiring, revocable Guest asset bridge. An unavailable bridge
-  returns a machine-readable execution error and never fabricates image data.
-  The standalone MCP entry point exposes this bridge only in Guest mode on a
-  loopback HTTP endpoint; an explicit cloud Account configuration retains the
-  existing Supabase path unless `KAGELIN_MCP_USE_GUEST_BRIDGE=true` is set.
-  Kagelin's Guest Workspace page starts pairing with a one-time code and can
-  revoke the grant without changing any external AI client's business code.
+- Visual assets live in Kagelin's local storage: image bytes are files in the
+  local assets directory and metadata rows live in the `visual_assets` SQLite
+  table. A local MCP process opens the same database in WAL mode, so assets are
+  readable whether or not the Kagelin window is open; no browser pairing or
+  bridge is involved. An unavailable adapter returns a machine-readable
+  execution error and never fabricates image data.
 
 Text-only clients receive metadata and ready OCR/description/summary data with
 `equivalentToImage: false`; they must not claim to have visually inspected the
