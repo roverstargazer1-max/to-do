@@ -6,76 +6,29 @@ import React from "react";
 
 const subtasksInDb: Task[] = [];
 
-vi.mock("@/lib/supabase/client", () => ({
-  createClient: () => ({
-    auth: {
-      getSession: () =>
-        Promise.resolve({
-          data: { session: { user: { id: "test-user" } } },
-        }),
-    },
-    from: (_table: string) => ({
-      select: (_cols?: string) => ({
-        eq: (field: string, val: string) => {
-          if (field === "parent_id") {
-            const list = subtasksInDb
-              .filter((t) => t.parent_id === val)
-              .map((t) => ({ ...t }))
-              .sort(
-                (a, b) =>
-                  (a.day_order ?? 0) - (b.day_order ?? 0) ||
-                  a.created_at.localeCompare(b.created_at),
-              );
-            const queryObj = {
-              order: () => queryObj,
-              then: (resolve: (arg: { data: Task[]; error: null }) => void) =>
-                resolve({ data: list, error: null }),
-            };
-            return queryObj;
-          }
-          if (field === "id") {
-            const task = subtasksInDb.find((t) => t.id === val);
-            return {
-              single: () =>
-                Promise.resolve({
-                  data: task ? { ...task } : null,
-                  error: task ? null : { message: "Not found" },
-                }),
-            };
-          }
-          return {
-            single: () => Promise.resolve({ data: null, error: null }),
-          };
-        },
-      }),
-      delete: () => ({
-        eq: (_field: string, id: string) => {
-          const index = subtasksInDb.findIndex((t) => t.id === id);
-          if (index !== -1) {
-            subtasksInDb.splice(index, 1);
-          }
-          return Promise.resolve({ error: null });
-        },
-      }),
-      update: (updates: Partial<Task>) => ({
-        eq: (_field: string, id: string) => {
-          const task = subtasksInDb.find((t) => t.id === id);
-          if (task) {
-            Object.assign(task, updates);
-          }
-          return {
-            select: () => ({
-              single: () =>
-                Promise.resolve({
-                  data: task ? { ...task, ...updates } : null,
-                  error: null,
-                }),
-            }),
-          };
-        },
-      }),
+vi.mock("@/lib/api/tasks-client", () => ({
+  tasksClient: {
+    list: vi.fn(async () => [...subtasksInDb]),
+    update: vi.fn(async (id: string, updates: Partial<Task>) => {
+      const task = subtasksInDb.find((t) => t.id === id);
+      if (task) {
+        Object.assign(task, updates);
+      }
+      return task ? { ...task, ...updates } : null;
     }),
-  }),
+    delete: vi.fn(async (id: string) => {
+      const index = subtasksInDb.findIndex((t) => t.id === id);
+      if (index !== -1) {
+        subtasksInDb.splice(index, 1);
+      }
+    }),
+    reorder: vi.fn(async (items: { id: string; day_order: number }[]) => {
+      for (const item of items) {
+        const task = subtasksInDb.find((t) => t.id === item.id);
+        if (task) task.day_order = item.day_order;
+      }
+    }),
+  },
 }));
 
 vi.mock("@/components/AuthProvider", () => ({

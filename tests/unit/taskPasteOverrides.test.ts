@@ -84,6 +84,8 @@ describe("taskMutations.duplicate overrides (guest mode)", () => {
     localStorage.clear();
     localStorage.setItem("kanso_guest_mode", "true");
     mockStore.clearData();
+    mockStore.addProject({ id: "project-a", name: "Project A" } as any);
+    mockStore.addProject({ id: "project-b", name: "Project B" } as any);
   });
 
   afterEach(() => {

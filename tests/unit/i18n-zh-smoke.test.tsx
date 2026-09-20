@@ -27,7 +27,6 @@ import { LanguageSetting } from "@/components/settings/LanguageSetting";
 import { PrivacySection } from "@/components/settings/PrivacySection";
 import { PwaInstallRow } from "@/components/settings/PwaInstallRow";
 import { NodeOrphanBody } from "@/components/workspace/NodeOrphanBody";
-import { AuthConfirmationCard } from "@/components/auth/AuthConfirmationCard";
 import { OfflineIndicator } from "@/components/OfflineIndicator";
 import { BetaBadge } from "@/components/ui/beta-badge";
 import { PreviewBadge } from "@/components/ui/PreviewBadge";
@@ -92,21 +91,6 @@ describe("zh-CN rendering smoke tests", () => {
 
     // Verbatim glossary: Node → 节点.
     expect(screen.getByText("任务已删除——此节点已孤立。")).toBeInTheDocument();
-  });
-
-  it("auth: a confirmation card renders the Chinese action label", () => {
-    renderWithProviders(
-      <AuthConfirmationCard
-        motionKey="email-confirmed"
-        title="邮箱已验证"
-        description="账户已准备就绪，登录后即可继续。"
-        actionLabel="登录"
-        onAction={() => {}}
-      />,
-    );
-
-    expect(screen.getByText("邮箱已验证")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "登录" })).toBeInTheDocument();
   });
 
   it("flips a surface from English to Chinese without remounting", () => {

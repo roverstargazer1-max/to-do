@@ -1,5 +1,7 @@
 import "@testing-library/jest-dom";
 import { vi } from "vitest";
+import { registerLocalDal } from "@/lib/api/local-dal";
+import { createNodeLocalDal } from "@/lib/api/local-dal-node";
 
 // Mock matchMedia
 Object.defineProperty(window, "matchMedia", {
@@ -76,6 +78,18 @@ const localStorageMock = (() => {
 
 vi.stubGlobal("localStorage", localStorageMock);
 
-// Mock Supabase environment variables
-process.env.NEXT_PUBLIC_SUPABASE_URL = "https://mock-project.supabase.co";
-process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = "mock-anon-key";
+// Isolate SQLite database per Vitest worker process to prevent concurrent test collision
+import * as os from "node:os";
+import * as path from "node:path";
+
+if (!process.env.KAGELIN_DB_PATH) {
+  const poolId = process.env.VITEST_POOL_ID ?? process.pid;
+  process.env.KAGELIN_DB_PATH = path.join(
+    os.tmpdir(),
+    `kagelin-test-${poolId}.db`,
+  );
+}
+
+// Register the server-side SQLite DAL only after the per-worker DB path is set,
+// so every repository call resolves the isolated test database.
+registerLocalDal(createNodeLocalDal());

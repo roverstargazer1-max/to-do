@@ -61,6 +61,7 @@ vi.mock("@/lib/notify", () => {
 import { workspaceNodeTypes } from "@/components/workspace/node-registry";
 import { useHabits } from "@/lib/hooks/useHabits";
 import { useMarkHabitComplete } from "@/lib/hooks/useHabitMutations";
+import { getLocalDal } from "@/lib/api/local-dal";
 import { mockStore } from "@/lib/mock/mock-store";
 import type { WorkspaceNode } from "@/lib/types/workspace";
 
@@ -142,9 +143,14 @@ function renderHarness(habitId: string) {
   );
 }
 
+function storedEntryValue(habitId: string, date: string): number | undefined {
+  return getLocalDal()
+    ?.habits.getById(habitId)
+    ?.entries.find((e) => e.date === date)?.value;
+}
+
 describe("HabitNode (dual-surface consistency)", () => {
   let habitId: string;
-  let setHabitEntrySpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
     localStorage.clear();
@@ -162,10 +168,6 @@ describe("HabitNode (dual-surface consistency)", () => {
       start_date: null,
     });
     habitId = habit.id;
-
-    // Observe the write without replacing it: vi.spyOn keeps the real
-    // guest write path the habits page hits.
-    setHabitEntrySpy = vi.spyOn(mockStore, "setHabitEntry");
   });
 
   it("both surfaces start on the same not-done state for today", async () => {
@@ -222,13 +224,10 @@ describe("HabitNode (dual-surface consistency)", () => {
       "done",
     );
 
-    // The write itself: the same guest write path the habits page hits.
+    // The write itself: the same guest write path the habits page hits — which
+    // resolves through the local DAL, so that is where the entry lands.
     const todayStr = format(new Date(), "yyyy-MM-dd");
-    expect(setHabitEntrySpy).toHaveBeenCalledWith(habitId, todayStr, 1);
-    expect(
-      mockStore.getHabitEntries(habitId).find((e) => e.date === todayStr)
-        ?.value,
-    ).toBe(1);
+    expect(storedEntryValue(habitId, todayStr)).toBe(1);
 
     // Un-check from the node — the same idempotent semantics in reverse.
     fireEvent.click(screen.getByTestId(`habit-node-checkin-${habitId}`));
@@ -237,7 +236,7 @@ describe("HabitNode (dual-surface consistency)", () => {
         screen.getByTestId(`habits-page-state-${habitId}`),
       ).toHaveTextContent("not-done"),
     );
-    expect(setHabitEntrySpy).toHaveBeenLastCalledWith(habitId, todayStr, 0);
+    expect(storedEntryValue(habitId, todayStr)).toBe(0);
   });
 
   it("removing the node never touches the habit", async () => {

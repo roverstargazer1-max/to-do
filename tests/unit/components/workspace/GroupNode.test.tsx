@@ -63,7 +63,9 @@ function renderGroupNode(row: WorkspaceNode, nodes: WorkspaceNode[] = [row]) {
   });
 
   // Seed cache for useWorkspaceNodes
+  queryClient.setQueryData(workspaceKeys.nodes.list("ws-1", false), nodes);
   queryClient.setQueryData(workspaceKeys.nodes.list("ws-1", true), nodes);
+  queryClient.setQueryData(workspaceKeys.nodes.of("ws-1"), nodes);
 
   const GroupNodeBound = workspaceNodeTypes.group as React.ComponentType<{
     id: string;

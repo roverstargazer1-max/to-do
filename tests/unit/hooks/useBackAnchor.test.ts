@@ -91,19 +91,9 @@ describe("useBackAnchor", () => {
     expect(window.__backAnchorSettled).toBe(true);
   });
 
-  it("skips unanchored routes like /login", () => {
-    vi.mocked(usePathname).mockReturnValue("/login");
-    setLocation("http://localhost:3000/login");
-
-    renderHook(() => useBackAnchor());
-
-    expect(replaceMock).not.toHaveBeenCalled();
-    expect(pushMock).not.toHaveBeenCalled();
-  });
-
-  it("skips /auth/update-password like /login and /signup", () => {
-    vi.mocked(usePathname).mockReturnValue("/auth/update-password");
-    setLocation("http://localhost:3000/auth/update-password");
+  it("skips routes with oauth connect redirect params", () => {
+    vi.mocked(usePathname).mockReturnValue("/settings");
+    setLocation("http://localhost:3000/settings?connecting=1");
 
     renderHook(() => useBackAnchor());
 

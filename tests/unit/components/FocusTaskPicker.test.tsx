@@ -551,17 +551,15 @@ describe("FocusTaskPicker", () => {
       (opts) => opts.queryKey?.[0] === "focus-tasks",
     );
     expect(focusTaskCall).toBeDefined();
-    const [, today, guestFlag] = focusTaskCall!.queryKey;
+    const [, today] = focusTaskCall!.queryKey;
     // Verify date string format: YYYY-MM-DD
     expect(today).toMatch(/^\d{4}-\d{2}-\d{2}$/);
-    expect(guestFlag).toBe(false);
   });
 
-  it("[T2] shows today's + overdue tasks for guest mode via mockStore", async () => {
-    mockIsGuestMode = true;
+  it("[T2] shows today's + overdue tasks via query", async () => {
     mockActiveTaskId = null;
 
-    const guestTasks = [
+    const testTasks = [
       createMockTask({
         id: "g-1",
         content: "Guest task today",
@@ -579,13 +577,9 @@ describe("FocusTaskPicker", () => {
       }),
     ];
 
-    // Mock useQuery to return the two relevant tasks when guest mode is detected
     mockUseQuery.mockImplementation((options: MockQueryOptions) => {
-      if (
-        options.queryKey?.[0] === "focus-tasks" &&
-        options.queryKey?.[2] === true
-      ) {
-        return { data: [guestTasks[0], guestTasks[1]], isLoading: false };
+      if (options.queryKey?.[0] === "focus-tasks") {
+        return { data: [testTasks[0], testTasks[1]], isLoading: false };
       }
       if (options.queryKey?.[0] === "task")
         return { data: null, isLoading: false };
@@ -603,15 +597,11 @@ describe("FocusTaskPicker", () => {
     expect(screen.queryByText("Future task")).not.toBeInTheDocument();
   });
 
-  it("[T3] shows empty state for guest mode when no tasks due today", () => {
-    mockIsGuestMode = true;
+  it("[T3] shows empty state when no tasks due today", () => {
     mockActiveTaskId = null;
 
     mockUseQuery.mockImplementation((options: MockQueryOptions) => {
-      if (
-        options.queryKey?.[0] === "focus-tasks" &&
-        options.queryKey?.[2] === true
-      ) {
+      if (options.queryKey?.[0] === "focus-tasks") {
         return { data: [], isLoading: false };
       }
       if (options.queryKey?.[0] === "task")
@@ -625,8 +615,7 @@ describe("FocusTaskPicker", () => {
     expect(screen.getByText("Nothing due today")).toBeInTheDocument();
   });
 
-  it("[T4] has enabled=true for picker regardless of guest mode when open", () => {
-    mockIsGuestMode = true;
+  it("[T4] has enabled=true for picker when open", () => {
     mockActiveTaskId = null;
 
     const callArgs: MockQueryOptions[] = [];
@@ -650,19 +639,15 @@ describe("FocusTaskPicker", () => {
     expect(lastFocusTaskCall.enabled).toBe(true);
   });
 
-  // ===================================================================
-  // Task 2 Tests — Guest-mode branch for chip detail (active task name)
-  // ===================================================================
-
-  it("[T5] shows task name on chip from mockStore for guest mode", () => {
-    mockIsGuestMode = true;
+  it("[T5] shows task name on chip for active task", () => {
     mockActiveTaskId = "g-1";
-    mockStoreTasks = [createMockTask({ id: "g-1", content: "Write report" })];
 
-    // Task query is disabled for guests, mockStore fallback handles it
     mockUseQuery.mockImplementation((options: MockQueryOptions) => {
-      if (options.queryKey?.[0] === "task") {
-        return { data: null, isLoading: false };
+      if (options.queryKey?.[0] === "task" && options.queryKey?.[1] === "g-1") {
+        return {
+          data: createMockTask({ id: "g-1", content: "Write report" }),
+          isLoading: false,
+        };
       }
       if (options.queryKey?.[0] === "focus-tasks") {
         return { data: [], isLoading: false };
@@ -675,8 +660,7 @@ describe("FocusTaskPicker", () => {
     expect(screen.queryByText("Add task")).not.toBeInTheDocument();
   });
 
-  it("[T6] shows task name on chip from Supabase query for auth mode", () => {
-    mockIsGuestMode = false;
+  it("[T6] shows task name on chip from query for active task", () => {
     mockActiveTaskId = "task-123";
 
     mockUseQuery.mockImplementation((options: MockQueryOptions) => {
@@ -699,9 +683,7 @@ describe("FocusTaskPicker", () => {
     expect(screen.getByText("Supabase task")).toBeInTheDocument();
   });
 
-  it("[T7] shows 'Add task' placeholder when no activeTaskId (either mode)", () => {
-    // Auth mode — no active task
-    mockIsGuestMode = false;
+  it("[T7] shows 'Add task' placeholder when no activeTaskId", () => {
     mockActiveTaskId = null;
 
     mockUseQuery.mockImplementation((options: MockQueryOptions) => {
@@ -715,38 +697,24 @@ describe("FocusTaskPicker", () => {
     const { unmount } = render(<FocusTaskPicker />);
     expect(screen.getByText("Add task")).toBeInTheDocument();
     unmount();
-
-    // Guest mode — no active task
-    mockIsGuestMode = true;
-    mockActiveTaskId = null;
-
-    render(<FocusTaskPicker />);
-    expect(screen.getByText("Add task")).toBeInTheDocument();
   });
 
-  it("[T8] does not fire Supabase task query for guest mode (disabled)", () => {
-    mockIsGuestMode = true;
+  it("[T8] shows active task correctly without guest branching", () => {
     mockActiveTaskId = "g-1";
-    mockStoreTasks = [
-      createMockTask({ id: "g-1", content: "Guest chip task" }),
-    ];
 
-    const callArgs: MockQueryOptions[] = [];
     mockUseQuery.mockImplementation((options: MockQueryOptions) => {
-      callArgs.push(options);
+      if (options.queryKey?.[0] === "task" && options.queryKey?.[1] === "g-1") {
+        return {
+          data: createMockTask({ id: "g-1", content: "Guest chip task" }),
+          isLoading: false,
+        };
+      }
       return { data: null, isLoading: false };
     });
 
     render(<FocusTaskPicker />);
 
-    // Chip should show guest task name from mockStore
+    // Chip should show task name
     expect(screen.getByText("Guest chip task")).toBeInTheDocument();
-
-    // The task query for guest mode should have enabled=false
-    const guestTaskQuery = callArgs.find(
-      (opts) => opts.queryKey?.[0] === "task" && opts.queryKey?.[2] === true,
-    );
-    expect(guestTaskQuery).toBeDefined();
-    expect(guestTaskQuery!.enabled).toBe(false);
   });
 });

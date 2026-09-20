@@ -117,11 +117,11 @@ describe("BackupSyncSettings", () => {
     expect(screen.getByText("Backup Reminders")).toBeInTheDocument();
   });
 
-  it("hides the Backup Reminders card for registered users", () => {
+  it("shows the Backup Reminders card for local users", () => {
     useAuthMock.mockReturnValue({ isGuestMode: false });
     render(<BackupSyncSettings />);
 
-    expect(screen.queryByText("Backup Reminders")).not.toBeInTheDocument();
+    expect(screen.getByText("Backup Reminders")).toBeInTheDocument();
   });
 
   it("toggling the Switch updates backupReminderEnabled in the store", () => {

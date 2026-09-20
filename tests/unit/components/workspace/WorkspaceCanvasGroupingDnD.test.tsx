@@ -187,10 +187,17 @@ function renderCanvas(initialNodes: WorkspaceNode[]) {
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
   queryClient.setQueryData(
+    workspaceKeys.nodes.list("ws-1", false),
+    initialNodes,
+  );
+  queryClient.setQueryData(
     workspaceKeys.nodes.list("ws-1", true),
     initialNodes,
   );
+  queryClient.setQueryData(workspaceKeys.nodes.of("ws-1"), initialNodes);
+  queryClient.setQueryData(workspaceKeys.edges.list("ws-1", false), []);
   queryClient.setQueryData(workspaceKeys.edges.list("ws-1", true), []);
+  queryClient.setQueryData(workspaceKeys.edges.of("ws-1"), []);
 
   const result = render(
     <QueryClientProvider client={queryClient}>
@@ -239,14 +246,11 @@ describe("WorkspaceCanvas Grouping Drag and Drop (DnD)", () => {
     fireEvent.click(stopBtn);
 
     await waitFor(() => {
-      expect(mockRemoveFromGroup).toHaveBeenCalledWith(
-        expect.objectContaining({ isGuestMode: true }),
-        {
-          workspaceId: "ws-1",
-          nodeId: "task-1",
-          position: { x: 900, y: 900 }, // Parent (100) + relative (800)
-        },
-      );
+      expect(mockRemoveFromGroup).toHaveBeenCalledWith(expect.anything(), {
+        workspaceId: "ws-1",
+        nodeId: "task-1",
+        position: { x: 900, y: 900 }, // Parent (100) + relative (800)
+      });
     });
   });
 
@@ -292,15 +296,12 @@ describe("WorkspaceCanvas Grouping Drag and Drop (DnD)", () => {
     fireEvent.click(stopBtn);
 
     await waitFor(() => {
-      expect(mockAddToGroup).toHaveBeenCalledWith(
-        expect.objectContaining({ isGuestMode: true }),
-        {
-          workspaceId: "ws-1",
-          nodeId: "task-1",
-          groupId: "group-1",
-          position: { x: 50, y: 50 }, // abs (150) - group (100)
-        },
-      );
+      expect(mockAddToGroup).toHaveBeenCalledWith(expect.anything(), {
+        workspaceId: "ws-1",
+        nodeId: "task-1",
+        groupId: "group-1",
+        position: { x: 50, y: 50 }, // abs (150) - group (100)
+      });
     });
   });
 

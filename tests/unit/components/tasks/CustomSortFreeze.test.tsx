@@ -44,6 +44,17 @@ vi.mock("@/lib/mock/mock-store", () => ({
   },
 }));
 
+// The clients read and write through the local DAL registry now, so the fixture
+// drives the same in-memory store through that seam.
+vi.mock("@/lib/api/local-dal", async () => {
+  const { createFakeLocalDal } = await import("../../support/fakeLocalDal");
+  return {
+    registerLocalDal: () => {},
+    isLocalDalMode: () => true,
+    getLocalDal: () => createFakeLocalDal(storeState),
+  };
+});
+
 vi.mock("@/components/AuthProvider", () => ({
   useAuth: () => ({ isGuestMode: true }),
 }));

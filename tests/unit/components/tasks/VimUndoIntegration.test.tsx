@@ -14,6 +14,7 @@ import { QueryClientProvider, QueryClient } from "@tanstack/react-query";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import TaskList from "@/components/tasks/TaskList";
 import { useUiStore } from "@/lib/store/uiStore";
+import { getLocalDal } from "@/lib/api/local-dal";
 import { mockStore } from "@/lib/mock/mock-store";
 
 vi.mock("next/navigation", () => ({
@@ -104,7 +105,9 @@ describe("d then u round trip (real mutation, guest mode)", () => {
     fireEvent.keyDown(document, { key: "d", code: "KeyD" });
 
     await waitFor(() => {
-      expect(mockStore.getTask(task.id)).toBeNull();
+      // The guest write path resolves through the local DAL, so that is where
+      // the deletion has to land.
+      expect(getLocalDal()?.tasks.getById(task.id)).toBeNull();
     });
     // useDeleteTask's onSuccess registers the undo closure asynchronously.
     await waitFor(() => {

@@ -72,7 +72,6 @@ describe("useTasks hook (Task Continuity Data)", () => {
     // When: useTasks is called with showCompleted: false (default)
     const { result } = renderHook(() => useTasks(), { wrapper });
 
-    // Then: It should include the active task AND today's completed task
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
     const taskIds = result.current.data?.map((t) => t.id);

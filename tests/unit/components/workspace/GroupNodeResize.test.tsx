@@ -119,7 +119,15 @@ function renderTestGroup(
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
   queryClient.setQueryData(
+    workspaceKeys.nodes.list(groupRow.workspace_id, false),
+    allNodes,
+  );
+  queryClient.setQueryData(
     workspaceKeys.nodes.list(groupRow.workspace_id, true),
+    allNodes,
+  );
+  queryClient.setQueryData(
+    workspaceKeys.nodes.of(groupRow.workspace_id),
     allNodes,
   );
 

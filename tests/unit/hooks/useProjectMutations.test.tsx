@@ -60,7 +60,7 @@ describe("useArchiveProject", () => {
       { id: "1", name: "Project A", is_archived: false },
       { id: "2", name: "Project B", is_archived: false },
     ];
-    queryClient.setQueryData(["projects", false], initialProjects);
+    queryClient.setQueryData(["projects"], initialProjects);
 
     const { result } = renderHook(() => useArchiveProject(), {
       wrapper: createWrapper(queryClient),
@@ -69,10 +69,7 @@ describe("useArchiveProject", () => {
     result.current.mutate("1");
 
     await waitFor(() => {
-      const cached = queryClient.getQueryData<Partial<Project>[]>([
-        "projects",
-        false,
-      ]);
+      const cached = queryClient.getQueryData<Partial<Project>[]>(["projects"]);
       expect(cached?.length).toBe(1);
       expect(cached?.[0]?.id).toBe("2");
     });
@@ -87,7 +84,7 @@ describe("useArchiveProject", () => {
     const initialProjects: Partial<Project>[] = [
       { id: "1", name: "Project A", is_archived: false },
     ];
-    queryClient.setQueryData(["projects", false], initialProjects);
+    queryClient.setQueryData(["projects"], initialProjects);
 
     const { result } = renderHook(() => useArchiveProject(), {
       wrapper: createWrapper(queryClient),
@@ -99,10 +96,7 @@ describe("useArchiveProject", () => {
       expect(result.current.isError).toBe(true);
     });
 
-    const cached = queryClient.getQueryData<Partial<Project>[]>([
-      "projects",
-      false,
-    ]);
+    const cached = queryClient.getQueryData<Partial<Project>[]>(["projects"]);
     expect(cached?.length).toBe(1);
     expect(cached?.[0]?.id).toBe("1");
   });
