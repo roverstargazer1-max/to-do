@@ -32,7 +32,6 @@ describe("GET /api/health", () => {
   });
 
   it("returns 503 when the database query fails", async () => {
-     
     const dbIndex = (await import("@/lib/db/index")) as any;
     dbIndex.__setMockShouldFail(true);
 
