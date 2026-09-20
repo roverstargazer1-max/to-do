@@ -81,6 +81,19 @@ const publicDest = path.join(standaloneDir, "public");
 copyDirRecursive(publicSrc, publicDest, assetFilter);
 
 console.log(
+  "Ensuring better-sqlite3 and native prebuilds are present in .next/standalone/node_modules...",
+);
+const betterSqlite3Src = path.join(rootDir, "node_modules", "better-sqlite3");
+const betterSqlite3Dest = path.join(
+  standaloneDir,
+  "node_modules",
+  "better-sqlite3",
+);
+if (fs.existsSync(betterSqlite3Src)) {
+  copyDirRecursive(betterSqlite3Src, betterSqlite3Dest, assetFilter);
+}
+
+console.log(
   "Stripping unneeded sourcemaps and type definitions from .next/standalone...",
 );
 cleanUnneededFiles(standaloneDir);

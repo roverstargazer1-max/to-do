@@ -36,6 +36,10 @@ const nextConfig: NextConfig = {
     ? [process.env.LAN_DEV_ORIGIN]
     : [],
   output: isElectron ? "standalone" : isMobile ? "export" : undefined,
+  outputFileTracingRoot: process.cwd(),
+  outputFileTracingExcludes: {
+    "*": ["**/AppData/**"],
+  },
   productionBrowserSourceMaps: false,
   images: {
     // Disable server image optimization for mobile (export) and electron (Chromium decodes natively)
@@ -43,6 +47,7 @@ const nextConfig: NextConfig = {
   },
   // Empty turbopack config to silence webpack warning
   turbopack: {},
+  serverExternalPackages: ["better-sqlite3"],
   reactCompiler: true,
   poweredByHeader: false,
   async headers() {
@@ -83,17 +88,17 @@ const config = withBundleAnalyzer(
 );
 
 // no-ops (no source map upload) unless SENTRY_AUTH_TOKEN + org/project are set
-export default withSentryConfig(config, {
-  org: process.env.SENTRY_ORG,
-  project: process.env.SENTRY_PROJECT,
-  silent: !process.env.CI,
-  widenClientFileUpload: true,
-  // Uploads source maps once after the full build instead of once per
-  // compiler pass (client/server/edge) — faster in CI when a token is set.
-  useRunAfterProductionCompileHook: true,
-  webpack: {
-    treeshake: {
-      removeDebugLogging: true,
-    },
-  },
-});
+export default isElectron
+  ? config
+  : withSentryConfig(config, {
+      org: process.env.SENTRY_ORG,
+      project: process.env.SENTRY_PROJECT,
+      silent: !process.env.CI,
+      widenClientFileUpload: true,
+      useRunAfterProductionCompileHook: true,
+      webpack: {
+        treeshake: {
+          removeDebugLogging: true,
+        },
+      },
+    });
