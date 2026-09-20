@@ -208,6 +208,18 @@ export const settings = {
     `此备份创建于 ${params.date}。恢复将用其覆盖账户中的所有内容——不在该备份中的数据都会丢失。此操作无法撤销。`,
   "settings.backup.replace.description":
     "恢复将用服务器上的备份覆盖账户中的所有内容。不在该备份中的数据都会丢失。此操作无法撤销。",
+  "settings.backup.sqlite.title": "SQLite 数据库 (.db)",
+  "settings.backup.sqlite.description":
+    "创建即时 SQLite 数据库快照（零停机），或直接从 .db 文件恢复数据库。",
+  "settings.backup.sqlite.snapshot": "创建数据库快照 (.db)",
+  "settings.backup.sqlite.restore": "恢复数据库 (.db)",
+  "settings.backup.sqlite.snapshotSuccess": "SQLite 快照下载成功",
+  "settings.backup.sqlite.snapshotFailed": "创建 SQLite 快照失败",
+  "settings.backup.sqlite.restoreSuccess": "SQLite 数据库恢复成功",
+  "settings.backup.sqlite.restoreFailed": "恢复 SQLite 数据库失败",
+  "settings.backup.sqlite.restoreConfirmTitle": "确认恢复 SQLite 数据库？",
+  "settings.backup.sqlite.restoreConfirmDescription":
+    "从 SQLite 文件恢复将完全替换当前的本地数据库并重新加载工作区。如果需要，请先创建当前数据库的快照备份。",
   "settings.backup.replace.confirm": "替换",
   "settings.backup.toast.exported": "备份下载成功",
   "settings.backup.toast.exportFailed": "创建备份失败",

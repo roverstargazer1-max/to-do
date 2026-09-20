@@ -13,6 +13,7 @@ import {
   Cloud,
   Trash2,
   BellRing,
+  Database,
 } from "lucide-react";
 import { notify } from "@/lib/notify";
 import { Button } from "@/components/ui/button";
@@ -34,41 +35,26 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { cn } from "@/lib/utils";
 import { useHaptic } from "@/lib/hooks/useHaptic";
 import { useDateFormatter } from "@/lib/i18n/useDateFormatter";
 import { useTranslation } from "@/lib/i18n/useTranslation";
 import { tr } from "@/lib/i18n/tr";
 import { useUiStore } from "@/lib/store/uiStore";
-import {
-  createBackupZip,
-  parseBackupZip,
-  downloadBackup,
-} from "@/lib/backup/export-import";
+import { createBackupZip } from "@/lib/backup/export-import";
 import {
   testWebDavConnection,
   uploadWebDavBackup,
   downloadWebDavBackup,
   type WebDAVCredentials,
 } from "@/lib/backup/webdav-sync";
-import { mockStore } from "@/lib/mock/mock-store";
-import { guestWorkspaceStore } from "@/lib/workspace/guest-store";
-import { guestVisualAssetStore } from "@/lib/visual/guest-store";
-import { InMemoryVisualAssetStore } from "@/lib/visual/store";
 import {
-  collectVisualBackupData,
-  restoreVisualBackupData,
-} from "@/lib/backup/visual-data";
+  collectLocalBackupData,
+  restoreLocalBackupData,
+} from "@/lib/backup/local-backup";
 import { useLocationHistoryStore } from "@/lib/store/locationHistoryStore";
 import type { BackupData } from "@/lib/backup/types";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useAuth } from "@/components/AuthProvider";
 import { useAccountData } from "@/lib/hooks/useAccountData";
-import { createClient } from "@/lib/supabase/client";
-import {
-  collectCloudBackup,
-  replaceCloudBackup,
-} from "@/lib/backup/cloud-data";
 import { DeleteConfirmationDialog } from "@/components/ui/DeleteConfirmationDialog";
 import { ImportDialog } from "./ImportDialog";
 import { SETTINGS_CARD_CLASS } from "@/components/settings/settingsCardClass";
@@ -325,82 +311,11 @@ function BackupRemindersCard() {
   );
 }
 
-/**
- * A Guest's whole data set, workspace canvas included (ticket 09): the
- * IndexedDB workspace store is read alongside the mockStore blob, row ids
- * preserved verbatim per Backup convention. Async because the canvas lives
- * in IndexedDB, not synchronous localStorage.
- */
-async function buildGuestBackupData(): Promise<BackupData> {
-  const visual = await collectVisualBackupData(guestVisualAssetStore);
-  return {
-    metadata: {
-      version: 1,
-      appVersion: process.env.NEXT_PUBLIC_APP_VERSION || "1.0.0",
-      exportedAt: new Date().toISOString(),
-    },
-    tasks: mockStore.getTasks(),
-    projects: mockStore.getProjects(),
-    habits: mockStore.getHabits(),
-    habit_entries: mockStore.getHabitEntries(),
-    focus_logs: mockStore.getFocusLogs(),
-    events: mockStore.getEvents(),
-    location_history: useLocationHistoryStore.getState().locations,
-    workspaces: await guestWorkspaceStore.listWorkspaces(),
-    workspace_nodes: await guestWorkspaceStore.listAllNodes(),
-    ...visual,
-  };
-}
-
-/**
- * One fixed restore path for the guest canvas (ticket 09, ADR 0015): sections
- * absent from a pre-workspace backup restore as an empty canvas — no merge,
- * no conflict model, overwrite-on-backup.
- */
-async function restoreGuestWorkspaceBackup(data: BackupData): Promise<void> {
-  // Validate and hydrate the complete visual section before replacing either
-  // Guest collection. This prevents a corrupt image manifest from leaving a
-  // new canvas pointing at a partially restored asset set.
-  const validatedVisualStore = new InMemoryVisualAssetStore();
-  await restoreVisualBackupData(data, validatedVisualStore);
-
-  const previousWorkspace = {
-    workspaces: await guestWorkspaceStore.listWorkspaces(),
-    nodes: await guestWorkspaceStore.listAllNodes(),
-  };
-  const previousVisual = await guestVisualAssetStore.exportState();
-  try {
-    await guestWorkspaceStore.restoreBackup(
-      data.workspaces ?? [],
-      data.workspace_nodes ?? [],
-    );
-    await guestVisualAssetStore.importState(
-      await validatedVisualStore.exportState(),
-    );
-  } catch (error) {
-    try {
-      await guestWorkspaceStore.restoreBackup(
-        previousWorkspace.workspaces,
-        previousWorkspace.nodes,
-      );
-      await guestVisualAssetStore.importState(previousVisual);
-    } catch (rollbackError) {
-      throw new Error(
-        `Guest Backup restore failed and rollback was incomplete: ${rollbackError instanceof Error ? rollbackError.message : String(rollbackError)}`,
-        { cause: error },
-      );
-    }
-    throw error;
-  }
-}
-
 export function BackupSyncSettings() {
   const { trigger } = useHaptic();
-  const { isGuestMode, user } = useAuth();
   const { exportData, importData } = useAccountData();
   const { formatMonthDayYear, formatClock } = useDateFormatter();
   const { t } = useTranslation();
-  const supabase = createClient();
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -426,8 +341,11 @@ export function BackupSyncSettings() {
     "idle" | "success" | "error"
   >("idle");
   const [isSyncing, setIsSyncing] = useState(false);
-  // Pre-fetched so the confirmation dialog can display the backup export timestamp.
   const [pendingRestore, setPendingRestore] = useState<BackupData | null>(null);
+  const sqliteFileInputRef = useRef<HTMLInputElement>(null);
+  const [isCreatingSnapshot, setIsCreatingSnapshot] = useState(false);
+  const [isRestoringSqlite, setIsRestoringSqlite] = useState(false);
+  const [pendingSqliteFile, setPendingSqliteFile] = useState<File | null>(null);
 
   const invalidateDataQueries = async () => {
     await Promise.all([
@@ -452,24 +370,13 @@ export function BackupSyncSettings() {
 
   const handleExport = async () => {
     trigger("toggle");
-
-    if (!isGuestMode) {
-      await exportData();
-      return;
-    }
-
     setIsExporting(true);
     try {
-      const blob = await createBackupZip(await buildGuestBackupData());
-      downloadBackup(blob);
-
+      await exportData();
       localStorage.setItem("kanso_last_backup_date", new Date().toISOString());
-
-      notify.success(tr("settings.backup.toast.exported"));
       trigger("success");
     } catch (err) {
       console.error("Export failed:", err);
-      notify.error(tr("settings.backup.toast.exportFailed"));
       trigger("thud");
     } finally {
       setIsExporting(false);
@@ -485,52 +392,101 @@ export function BackupSyncSettings() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (!isGuestMode) {
-      await importData(file);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = "";
-      }
-      return;
-    }
-
     setIsImporting(true);
     trigger("toggle");
-    const loadingToastId = notify.loading(
-      tr("settings.backup.toast.importing", { name: file.name }),
-    );
-
     try {
-      const backupData = await parseBackupZip(file);
-
-      // Single write so large restores don't repeatedly stringify a growing payload.
-      mockStore.restoreBackup(backupData);
-      await restoreGuestWorkspaceBackup(backupData);
-      useLocationHistoryStore.setState({
-        locations: backupData.location_history ?? [],
-      });
-
+      await importData(file);
       await invalidateDataQueries();
-
-      notify.success(
-        tr("settings.backup.toast.imported", {
-          tasks: backupData.tasks.length,
-          projects: backupData.projects.length,
-        }),
-        {
-          id: loadingToastId,
-        },
-      );
       trigger("success");
     } catch (err) {
       console.error("Import failed:", err);
-      notify.error(tr("settings.backup.toast.importFailed"), {
-        id: loadingToastId,
-      });
       trigger("thud");
     } finally {
       setIsImporting(false);
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
+      }
+    }
+  };
+
+  const handleCreateSnapshot = async () => {
+    trigger("toggle");
+    setIsCreatingSnapshot(true);
+    try {
+      const res = await fetch("/api/db/snapshot");
+      if (!res.ok) {
+        throw new Error(`Snapshot failed: ${res.statusText}`);
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `kagelin-snapshot-${new Date().toISOString().replace(/[:.]/g, "-")}.db`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      notify.success(t("settings.backup.sqlite.snapshotSuccess"));
+      trigger("success");
+    } catch (err) {
+      console.error("Snapshot error:", err);
+      notify.error(t("settings.backup.sqlite.snapshotFailed"));
+      trigger("thud");
+    } finally {
+      setIsCreatingSnapshot(false);
+    }
+  };
+
+  const handleRestoreSqliteSelect = (
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setPendingSqliteFile(file);
+    trigger("toggle");
+  };
+
+  const runRestoreSqlite = async () => {
+    if (!pendingSqliteFile) return;
+    const file = pendingSqliteFile;
+    setPendingSqliteFile(null);
+    setIsRestoringSqlite(true);
+    trigger("toggle");
+    const loadingToastId = notify.loading("Restoring SQLite database...");
+
+    try {
+      const buffer = await file.arrayBuffer();
+      const res = await fetch("/api/db/restore", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/octet-stream",
+        },
+        body: buffer,
+      });
+
+      if (!res.ok) {
+        const errorJson = await res.json().catch(() => ({}));
+        throw new Error(errorJson.error || `Restore failed: ${res.statusText}`);
+      }
+
+      await invalidateDataQueries();
+      notify.success(t("settings.backup.sqlite.restoreSuccess"), {
+        id: loadingToastId,
+      });
+      trigger("success");
+      setTimeout(() => {
+        window.location.reload();
+      }, 500);
+    } catch (err) {
+      console.error("Restore error:", err);
+      notify.error(t("settings.backup.sqlite.restoreFailed"), {
+        id: loadingToastId,
+      });
+      trigger("thud");
+    } finally {
+      setIsRestoringSqlite(false);
+      if (sqliteFileInputRef.current) {
+        sqliteFileInputRef.current.value = "";
       }
     }
   };
@@ -589,9 +545,7 @@ export function BackupSyncSettings() {
     trigger("toggle");
 
     try {
-      const backupData: BackupData = isGuestMode
-        ? await buildGuestBackupData()
-        : await collectCloudBackup(supabase);
+      const backupData: BackupData = await collectLocalBackupData();
 
       const blob = await createBackupZip(backupData);
       const result = await uploadWebDavBackup(webdavCredentials, blob);
@@ -651,13 +605,7 @@ export function BackupSyncSettings() {
     setIsSyncing(true);
 
     try {
-      if (isGuestMode) {
-        mockStore.restoreBackup(data);
-        await restoreGuestWorkspaceBackup(data);
-      } else {
-        if (!user) return;
-        await replaceCloudBackup(supabase, user.id, data);
-      }
+      await restoreLocalBackupData(data);
       useLocationHistoryStore.setState({
         locations: data.location_history ?? [],
       });
@@ -684,6 +632,14 @@ export function BackupSyncSettings() {
         className="hidden"
         aria-label={t("settings.backup.importFileAria")}
       />
+      <input
+        ref={sqliteFileInputRef}
+        type="file"
+        accept=".db,application/x-sqlite3,application/vnd.sqlite3"
+        onChange={handleRestoreSqliteSelect}
+        className="hidden"
+        aria-label={t("settings.backup.sqlite.restore")}
+      />
 
       <Tabs defaultValue="local" className="space-y-4">
         <TabsList className="grid grid-cols-2 bg-secondary/10 p-1 rounded-lg h-11 border border-border/40 shadow-none">
@@ -706,11 +662,7 @@ export function BackupSyncSettings() {
         </TabsList>
 
         <TabsContent value="local" className="mt-0 outline-none">
-          <div
-            className={cn(
-              isGuestMode && "flex flex-col gap-4 md:grid md:grid-cols-2",
-            )}
-          >
+          <div className="flex flex-col gap-4 md:grid md:grid-cols-2">
             <Card className={SETTINGS_CARD_CLASS}>
               <CardHeader className="pb-3 px-4 pt-5">
                 <CardTitle className="flex items-center gap-2 text-base font-medium tracking-tight">
@@ -721,11 +673,7 @@ export function BackupSyncSettings() {
                   {t("settings.backup.local.title")}
                 </CardTitle>
                 <CardDescription className="text-xs text-muted-foreground/80 lowercase">
-                  {t(
-                    isGuestMode
-                      ? "settings.backup.local.descriptionGuest"
-                      : "settings.backup.local.descriptionCloud",
-                  )}
+                  {t("settings.backup.local.descriptionGuest")}
                 </CardDescription>
               </CardHeader>
               <CardContent className="flex gap-3 px-4 pb-5 pt-0">
@@ -777,7 +725,55 @@ export function BackupSyncSettings() {
                 </Button>
               </div>
             </Card>
-            {isGuestMode && <BackupRemindersCard />}
+            <Card className={SETTINGS_CARD_CLASS}>
+              <CardHeader className="pb-3 px-4 pt-5">
+                <CardTitle className="flex items-center gap-2 text-base font-medium tracking-tight">
+                  <Database className="h-4 w-4 text-brand" strokeWidth={2.25} />
+                  {t("settings.backup.sqlite.title")}
+                </CardTitle>
+                <CardDescription className="text-xs text-muted-foreground/80">
+                  {t("settings.backup.sqlite.description")}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="flex gap-3 px-4 pb-5 pt-0">
+                <Button
+                  variant="outline"
+                  onClick={handleCreateSnapshot}
+                  disabled={isCreatingSnapshot}
+                  className="flex-1 gap-2 h-10 border-border/60 hover:bg-secondary/40 transition-all font-medium"
+                >
+                  {isCreatingSnapshot ? (
+                    <Loader2
+                      className="h-4 w-4 animate-spin"
+                      strokeWidth={2.25}
+                    />
+                  ) : (
+                    <Download className="h-4 w-4" strokeWidth={2.25} />
+                  )}
+                  {t("settings.backup.sqlite.snapshot")}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    trigger("toggle");
+                    sqliteFileInputRef.current?.click();
+                  }}
+                  disabled={isRestoringSqlite}
+                  className="flex-1 gap-2 h-10 border-border/60 hover:bg-secondary/40 transition-all font-medium"
+                >
+                  {isRestoringSqlite ? (
+                    <Loader2
+                      className="h-4 w-4 animate-spin"
+                      strokeWidth={2.25}
+                    />
+                  ) : (
+                    <Upload className="h-4 w-4" strokeWidth={2.25} />
+                  )}
+                  {t("settings.backup.sqlite.restore")}
+                </Button>
+              </CardContent>
+            </Card>
+            <BackupRemindersCard />
           </div>
         </TabsContent>
 
@@ -812,6 +808,20 @@ export function BackupSyncSettings() {
             : t("settings.backup.replace.description")
         }
         confirmLabel={t("settings.backup.replace.confirm")}
+      />
+
+      <DeleteConfirmationDialog
+        isOpen={pendingSqliteFile !== null}
+        onClose={() => {
+          setPendingSqliteFile(null);
+          if (sqliteFileInputRef.current) {
+            sqliteFileInputRef.current.value = "";
+          }
+        }}
+        onConfirm={runRestoreSqlite}
+        title={t("settings.backup.sqlite.restoreConfirmTitle")}
+        description={t("settings.backup.sqlite.restoreConfirmDescription")}
+        confirmLabel={t("settings.backup.sqlite.restore")}
       />
     </div>
   );

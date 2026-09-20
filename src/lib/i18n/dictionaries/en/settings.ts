@@ -230,6 +230,20 @@ export const settings = {
     `This backup was taken ${params.date}. Restoring overwrites everything in your account with it — anything not in that backup is lost. This cannot be undone.`,
   "settings.backup.replace.description":
     "Restoring overwrites everything in your account with the backup on the server. Anything not in that backup is lost. This cannot be undone.",
+  "settings.backup.sqlite.title": "SQLite Database (.db)",
+  "settings.backup.sqlite.description":
+    "Create an instant point-in-time SQLite snapshot or restore a database file directly.",
+  "settings.backup.sqlite.snapshot": "Create Database Snapshot (.db)",
+  "settings.backup.sqlite.restore": "Restore Database (.db)",
+  "settings.backup.sqlite.snapshotSuccess":
+    "SQLite snapshot downloaded successfully",
+  "settings.backup.sqlite.snapshotFailed": "Failed to create SQLite snapshot",
+  "settings.backup.sqlite.restoreSuccess":
+    "SQLite database restored successfully",
+  "settings.backup.sqlite.restoreFailed": "Failed to restore SQLite database",
+  "settings.backup.sqlite.restoreConfirmTitle": "Restore SQLite Database?",
+  "settings.backup.sqlite.restoreConfirmDescription":
+    "Restoring from a SQLite file will replace the current local database and reload the workspace. Make sure you have a backup of your current database if needed.",
   "settings.backup.replace.confirm": "Replace",
   "settings.backup.toast.exported": "Backup downloaded successfully",
   "settings.backup.toast.exportFailed": "Failed to create backup",
