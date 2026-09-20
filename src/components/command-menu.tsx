@@ -10,7 +10,6 @@ import {
   HomeIcon,
   CheckCircle2,
   Columns,
-  LogOut,
   FolderPlus,
   Keyboard,
   Monitor,
@@ -50,7 +49,6 @@ import { useHabitActions } from "@/components/habits/HabitActionsProvider";
 import { useCompletedTasks } from "@/components/CompletedTasksProvider";
 import { useAuth } from "@/components/AuthProvider";
 import { useSidebar } from "@/components/ui/sidebar";
-import { SignOutConfirmation } from "@/components/auth/SignOutConfirmation";
 import { useDocumentPiP } from "@/lib/hooks/useDocumentPiP";
 import { useUiStore } from "@/lib/store/uiStore";
 import { useBackNavigation } from "@/lib/hooks/useBackNavigation";
@@ -182,7 +180,6 @@ function CommandSearchResults({
 export function CommandMenu({ open, onOpenChange }: CommandMenuProps) {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const [showSignOutConfirm, setShowSignOutConfirm] = React.useState(false);
   const { setTheme, resolvedTheme } = useTheme();
   const { openAddTask } = useTaskActions();
   const { openCreateProject } = useProjectActions();
@@ -190,7 +187,7 @@ export function CommandMenu({ open, onOpenChange }: CommandMenuProps) {
   const { openAddHabit, openEditHabit } = useHabitActions();
   const { openCreateEvent, setDate } = useCalendarStore();
   const { openSheet: openCompletedSheet } = useCompletedTasks();
-  const { user, signOut, isGuestMode } = useAuth();
+  const { user, isGuestMode } = useAuth();
   const { toggleSidebar } = useSidebar();
   const { openPiP, closePiP, isPiPActive } = useDocumentPiP();
   const setShortcutsHelpOpen = useUiStore(
@@ -496,27 +493,9 @@ export function CommandMenu({ open, onOpenChange }: CommandMenuProps) {
                 <span>{t("command.copyUserId")}</span>
               </CommandItem>
             )}
-            {process.env.NEXT_PUBLIC_LOCAL_SINGLE_USER !== "true" && (
-              <CommandItem
-                onSelect={() => runCommand(() => setShowSignOutConfirm(true))}
-                className="sumi-red-action"
-              >
-                <LogOut className="mr-2 h-5 w-5" />
-                <span>{t("command.signOut")}</span>
-              </CommandItem>
-            )}
           </CommandGroup>
         </CommandList>
       </CommandDialog>
-
-      <SignOutConfirmation
-        isOpen={showSignOutConfirm}
-        onClose={() => setShowSignOutConfirm(false)}
-        onConfirm={() => {
-          signOut();
-          setShowSignOutConfirm(false);
-        }}
-      />
     </>
   );
 }

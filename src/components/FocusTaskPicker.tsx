@@ -21,16 +21,13 @@ import { useActiveTask } from "@/lib/hooks/useActiveTask";
 import { useTimerStore } from "@/lib/store/timerStore";
 import { useTimerActions } from "@/components/TimerProvider";
 import { useQuery } from "@tanstack/react-query";
-import { createClient } from "@/lib/supabase/client";
-import { fetchAllRows } from "@/lib/supabase/paginate";
+import { tasksClient } from "@/lib/api/tasks-client";
 import { notify } from "@/lib/notify";
 import type { Task } from "@/lib/types/task";
 import { cn } from "@/lib/utils";
 import { isBefore, isToday, parseISO, startOfDay } from "date-fns";
 import { Target, Check, Repeat } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useAuth } from "@/components/AuthProvider";
-import { mockStore } from "@/lib/mock/mock-store";
 import { useProjects } from "@/lib/hooks/useProjects";
 import { useTranslation } from "@/lib/i18n/useTranslation";
 
@@ -45,8 +42,6 @@ export function FocusTaskPicker() {
   const isDesktop = useMediaQuery("(min-width: 768px)");
   const { trigger } = useHaptic();
   const { t } = useTranslation();
-  const { isGuestMode } = useAuth();
-  const supabase = createClient();
   const { data: projectsData } = useProjects();
 
   const activeTaskId = useTimerStore((s) => s.state.activeTaskId);
@@ -71,44 +66,27 @@ export function FocusTaskPicker() {
   }, []);
 
   const { data: pickerTasks, isLoading: pickerLoading } = useQuery({
-    queryKey: ["focus-tasks", todayDateStr, isGuestMode],
+    queryKey: ["focus-tasks", todayDateStr],
     queryFn: async () => {
       const endOfToday = getEndOfToday();
       const startOfToday = new Date();
       startOfToday.setHours(0, 0, 0, 0);
-      const startISO = startOfToday.toISOString();
-      const endISO = endOfToday.toISOString();
-      if (isGuestMode) {
-        return mockStore.getTasks().filter((t) => {
-          if (t.parent_id) return false;
-          const doDate = t.do_date ? new Date(t.do_date) : null;
-          const dueDate = t.due_date ? new Date(t.due_date) : null;
-          if (t.is_completed) {
-            return (
-              (doDate && doDate >= startOfToday && doDate <= endOfToday) ||
-              (dueDate && dueDate >= startOfToday && dueDate <= endOfToday)
-            );
-          }
-          return (
-            (doDate && doDate <= endOfToday) ||
-            (dueDate && dueDate <= endOfToday)
-          );
-        });
-      }
 
-      // Overdue backlog has no lower bound; page to prevent silent 1000-row cap.
-      return fetchAllRows<Task>((from, to) =>
-        supabase
-          .from("tasks")
-          .select("*")
-          .is("parent_id", null)
-          .or(
-            `and(is_completed.eq.false,or(do_date.lte.${endISO},due_date.lte.${endISO})),and(is_completed.eq.true,or(and(do_date.gte.${startISO},do_date.lte.${endISO}),and(due_date.gte.${startISO},due_date.lte.${endISO})))`,
-          )
-          .order("day_order", { ascending: true })
-          .order("id", { ascending: true })
-          .range(from, to),
-      );
+      const allTasks = await tasksClient.list({ showCompleted: true });
+      return allTasks.filter((t) => {
+        if (t.parent_id) return false;
+        const doDate = t.do_date ? new Date(t.do_date) : null;
+        const dueDate = t.due_date ? new Date(t.due_date) : null;
+        if (t.is_completed) {
+          return (
+            (doDate && doDate >= startOfToday && doDate <= endOfToday) ||
+            (dueDate && dueDate >= startOfToday && dueDate <= endOfToday)
+          );
+        }
+        return (
+          (doDate && doDate <= endOfToday) || (dueDate && dueDate <= endOfToday)
+        );
+      });
     },
     enabled: open,
   });

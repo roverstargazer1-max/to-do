@@ -2,20 +2,14 @@
 
 import { useEffect, useCallback, useRef, useMemo } from "react";
 import { notify } from "@/lib/notify";
-import { useAuth } from "@/components/AuthProvider";
-import { mockStore } from "@/lib/mock/mock-store";
 import { useUiStore } from "@/lib/store/uiStore";
 import { tr } from "@/lib/i18n/tr";
-import type { BackupData } from "@/lib/backup/types";
-import { guestVisualAssetStore } from "@/lib/visual/guest-store";
-import { collectVisualBackupData } from "@/lib/backup/visual-data";
 
 const STORAGE_KEY = "kanso_last_backup_date";
 const SESSION_KEY = "kanso_backup_prompted";
 
-/** Prompts guest users to back up weekly via a dismissible toast, not a modal. */
+/** Prompts users to back up weekly via a dismissible toast. */
 export function useWeeklyBackup() {
-  const { isGuestMode } = useAuth();
   const backupReminderEnabled = useUiStore((s) => s.backupReminderEnabled);
   const backupReminderFrequencyDays = useUiStore(
     (s) => s.backupReminderFrequencyDays,
@@ -36,29 +30,19 @@ export function useWeeklyBackup() {
 
   const triggerBackup = useCallback(async () => {
     try {
-      const visual = await collectVisualBackupData(guestVisualAssetStore);
-      const backupData: BackupData = {
-        metadata: {
-          version: 1,
-          appVersion: process.env.NEXT_PUBLIC_APP_VERSION || "1.14.3",
-          exportedAt: new Date().toISOString(),
-        },
-        tasks: mockStore.getTasks(),
-        projects: mockStore.getProjects(),
-        habits: mockStore.getHabits(),
-        habit_entries: mockStore.getHabitEntries(),
-        focus_logs: mockStore.getFocusLogs(),
-        events: mockStore.getEvents(),
-        ...visual,
-      };
-
-      const { createBackupZip, downloadBackup } =
-        await import("@/lib/backup/export-import");
-      const blob = await createBackupZip(backupData);
-      downloadBackup(blob);
+      const res = await fetch("/api/db/snapshot");
+      if (!res.ok) throw new Error("Failed to create snapshot");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `kagelin-snapshot-${new Date().toISOString().replace(/[:.]/g, "-")}.db`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
 
       updateLastBackupDate();
-
       notify.success(tr("common.backup.downloaded"));
     } catch (error) {
       console.error("Backup failed:", error);
@@ -67,7 +51,6 @@ export function useWeeklyBackup() {
   }, [updateLastBackupDate]);
 
   useEffect(() => {
-    if (!isGuestMode) return;
     if (!backupReminderEnabled) return;
     if (hasPrompted.current) return;
     if (typeof window !== "undefined" && sessionStorage.getItem(SESSION_KEY))
@@ -78,10 +61,7 @@ export function useWeeklyBackup() {
       !lastBackupDate || Date.now() - lastBackupDate.getTime() > frequencyMs;
 
     if (isStale) {
-      // Delay so this doesn't interrupt initial page load.
       const timeoutId = setTimeout(() => {
-        // Set flags only after the toast actually shows, so Strict Mode's
-        // double-invoke doesn't skip it.
         hasPrompted.current = true;
         if (typeof window !== "undefined") {
           sessionStorage.setItem(SESSION_KEY, "true");
@@ -92,7 +72,7 @@ export function useWeeklyBackup() {
           action: {
             label: tr("common.backup.backUpNow"),
             onClick: () => {
-              triggerBackup();
+              void triggerBackup();
             },
           },
         });
@@ -101,16 +81,9 @@ export function useWeeklyBackup() {
       return () => clearTimeout(timeoutId);
     }
   }, [
-    isGuestMode,
     backupReminderEnabled,
     backupReminderFrequencyDays,
     lastBackupDate,
     triggerBackup,
   ]);
-
-  return {
-    lastBackupDate,
-    triggerBackup,
-    updateLastBackupDate,
-  };
 }

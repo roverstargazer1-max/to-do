@@ -5,7 +5,6 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { focusMutations } from "@/lib/mutations/focus";
 import { useUiStore } from "@/lib/store/uiStore";
 import { useFocusHistoryStore } from "@/lib/store/focusHistoryStore";
-import { useAuth } from "@/components/AuthProvider";
 import { useFocusSounds } from "@/lib/hooks/useFocusSounds";
 import { usePathname } from "next/navigation";
 import { usePushNotifications } from "@/lib/hooks/usePushNotifications";
@@ -43,7 +42,6 @@ export function useFocusTimer() {
   const queryClient = useQueryClient();
   const pathname = usePathname();
   const { showNotification } = usePushNotifications();
-  const { isGuestMode } = useAuth();
   const { play } = useFocusSounds();
   const { trigger } = useHaptic();
 
@@ -295,7 +293,7 @@ export function useFocusTimer() {
   useEffect(() => {
     if (hasSyncedRef.current) return;
     hasSyncedRef.current = true;
-    if (isGuestMode || !useTimerStore.getState().state.isRunning) return;
+    if (!useTimerStore.getState().state.isRunning) return;
 
     (async () => {
       await hydrate();
@@ -304,7 +302,7 @@ export function useFocusTimer() {
         syncToServer();
       }
     })();
-  }, [isGuestMode, hydrate, syncToServer]);
+  }, [hydrate, syncToServer]);
 
   return {
     state,

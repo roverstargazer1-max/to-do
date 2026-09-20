@@ -9,7 +9,7 @@ export const workspaceKeys = {
   all: ["workspaces"] as const,
 
   /** The list entry `useWorkspaces` reads. */
-  list: (isGuestMode: boolean) => ["workspaces", { isGuestMode }] as const,
+  list: (isGuestMode?: boolean) => ["workspaces", { isGuestMode }] as const,
 
   nodes: {
     /** Root prefix matching every per-workspace node list. */
@@ -20,7 +20,7 @@ export const workspaceKeys = {
      * The list entry `useWorkspaceNodes` reads — mode flag rides the key so
      * guest and cloud entries never collide and invalidations stay scoped.
      */
-    list: (workspaceId: string, isGuestMode: boolean) =>
+    list: (workspaceId: string, isGuestMode?: boolean) =>
       ["workspace-nodes", workspaceId, { isGuestMode }] as const,
   },
 
@@ -30,7 +30,7 @@ export const workspaceKeys = {
     /** Prefix matching the `["workspace-edges", workspaceId, { isGuestMode }]` entry. */
     of: (workspaceId: string) => ["workspace-edges", workspaceId] as const,
     /** The list entry `useWorkspaceEdges` reads (ADR 0021). */
-    list: (workspaceId: string, isGuestMode: boolean) =>
+    list: (workspaceId: string, isGuestMode?: boolean) =>
       ["workspace-edges", workspaceId, { isGuestMode }] as const,
   },
 };

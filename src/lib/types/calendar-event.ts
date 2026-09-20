@@ -44,15 +44,15 @@ export interface CalendarEvent {
 
 export interface CreateCalendarEventInput {
   title: string;
-  description?: string;
-  location?: string;
+  description?: string | null;
+  location?: string | null;
   start_time: string; // ISO string
   end_time: string; // ISO string
   all_day?: boolean;
-  color?: string;
-  category?: string;
-  recurrence_rule?: string;
-  metadata?: Record<string, unknown>;
+  color?: string | null;
+  category?: string | null;
+  recurrence_rule?: string | null;
+  metadata?: Record<string, unknown> | null;
 }
 
 export interface UpdateCalendarEventInput {

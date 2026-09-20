@@ -24,11 +24,11 @@
  */
 import type { QueryClient } from "@tanstack/react-query";
 import { taskMutations } from "@/lib/mutations/task";
-import { mockStore } from "@/lib/mock/mock-store";
 import { taskKeys } from "@/lib/queries/task-keys";
 import { trackTelemetry } from "@/lib/telemetry/client";
 import { publishDomainEvent } from "@/lib/events/domain-bus";
 import { useUiStore } from "@/lib/store/uiStore";
+import { mockStore } from "@/lib/mock/mock-store";
 import { notify } from "@/lib/notify";
 import { tr } from "@/lib/i18n/tr";
 import {
@@ -48,7 +48,7 @@ import type { WorkspaceNode } from "@/lib/types/workspace";
  */
 export interface TaskCommandContext {
   readonly queryClient: QueryClient;
-  readonly isGuestMode: boolean;
+  readonly isGuestMode?: boolean;
   readonly hapticTrigger?: (signature: HapticSignature) => void;
 }
 
@@ -137,13 +137,8 @@ export const taskCommands = {
     try {
       const result = await taskMutations.toggle({ id, is_completed });
 
-      // Telemetry (moved verbatim from useToggleTask.onSuccess): guests get
-      // a year of pre-seeded demo tasks; interacting with them shouldn't
-      // inflate the "Engagement & Throughput" KPI.
-      if (!(ctx.isGuestMode && mockStore.isSeedId(id))) {
-        if (is_completed) {
-          trackTelemetry("task_action", { action: "completed" });
-        }
+      if (is_completed && !mockStore.isSeedId(id)) {
+        trackTelemetry("task_action", { action: "completed" });
       }
 
       // Domain Events: past-tense facts, published after the write lands,
@@ -478,29 +473,23 @@ export const taskCommands = {
     const { queryClient } = ctx;
 
     try {
-      if (ctx.isGuestMode) {
-        mockStore.addTask(task);
-      } else {
-        // Parent goes first since subtasks' parent_id references it.
-        await taskMutations.restore(task, subtasks);
-      }
+      // Parent goes first since subtasks' parent_id references it.
+      await taskMutations.restore(task, subtasks);
 
       // Node revival failure must not surface a failed "Task restored"
       // toast — the entity is back; a missed node re-insert degrades to the
       // same honest state any non-command deletion leaves.
       await reinsertNodes(
-        { queryClient, isGuestMode: ctx.isGuestMode },
+        { queryClient, isGuestMode: false },
         removedNodes,
       ).catch((err: unknown) => {
         console.warn("Node revival after undo failed:", err);
       });
     } finally {
       queryClient.invalidateQueries({ queryKey: taskKeys.all });
-      if (!ctx.isGuestMode) {
-        queryClient.invalidateQueries({
-          queryKey: taskKeys.subtasks.of(task.id),
-        });
-      }
+      queryClient.invalidateQueries({
+        queryKey: taskKeys.subtasks.of(task.id),
+      });
     }
 
     publishDomainEvent({
@@ -680,9 +669,7 @@ export const taskCommands = {
     try {
       const newTask = await taskMutations.duplicate(sourceTask, overrides);
 
-      // Guests get a year of pre-seeded demo tasks; interacting with them
-      // shouldn't inflate the "Engagement & Throughput" telemetry KPI.
-      if (!(ctx.isGuestMode && mockStore.isSeedId(sourceTask.id))) {
+      if (!mockStore.isSeedId(sourceTask.id)) {
         trackTelemetry("task_action", { action: "created" });
       }
       trigger("success");

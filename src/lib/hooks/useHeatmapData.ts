@@ -1,10 +1,8 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { createClient } from "@/lib/supabase/client";
-import { useAuth } from "@/components/AuthProvider";
-import { mockStore } from "@/lib/mock/mock-store";
 import { subDays, eachDayOfInterval, format } from "date-fns";
-import { fetchAllRows } from "@/lib/supabase/paginate";
+import { focusClient } from "@/lib/api/focus-client";
+import { tasksClient } from "@/lib/api/tasks-client";
 
 export type MetricType = "combined" | "focus" | "tasks";
 
@@ -28,56 +26,26 @@ export interface UseHeatmapDataReturn {
  * Returns activity data for the past 365 days.
  */
 export function useHeatmapData(): UseHeatmapDataReturn {
-  const { isGuestMode } = useAuth();
-
   const { data: rawData, isLoading } = useQuery({
-    queryKey: ["heatmap-data", isGuestMode],
+    queryKey: ["heatmap-data"],
     staleTime: 300000,
     queryFn: async () => {
       const yearAgoIso = subDays(new Date(), 365).toISOString();
 
-      if (isGuestMode) {
-        return {
-          focusLogs: mockStore
-            .getFocusLogs()
-            .filter((log) => log.start_time >= yearAgoIso),
-          tasks: mockStore
-            .getTasks()
-            .filter(
-              (task) =>
-                task.is_completed &&
-                task.completed_at &&
-                task.completed_at >= yearAgoIso,
-            ),
-        };
-      }
-
-      const supabase = createClient();
-      const [focusLogs, tasks] = await Promise.all([
-        // Page full year to prevent silent 1000-row cap, tiebreaking on id for deterministic paging.
-        fetchAllRows<{ start_time: string; duration_seconds: number | null }>(
-          (from, to) =>
-            supabase
-              .from("focus_logs")
-              .select("start_time, duration_seconds")
-              .gte("start_time", yearAgoIso)
-              .order("start_time", { ascending: true })
-              .order("id", { ascending: true })
-              .range(from, to),
-        ),
-        fetchAllRows<{ completed_at: string | null }>((from, to) =>
-          supabase
-            .from("tasks")
-            .select("completed_at")
-            .eq("is_completed", true)
-            .gte("completed_at", yearAgoIso)
-            .order("completed_at", { ascending: true })
-            .order("id", { ascending: true })
-            .range(from, to),
-        ),
+      const [focusRes, allTasks] = await Promise.all([
+        focusClient.list("local_user", 10000),
+        tasksClient.list({ showCompleted: true }),
       ]);
 
-      return { focusLogs, tasks };
+      return {
+        focusLogs: focusRes.logs.filter((log) => log.start_time >= yearAgoIso),
+        tasks: allTasks.filter(
+          (task) =>
+            task.is_completed &&
+            task.completed_at &&
+            task.completed_at >= yearAgoIso,
+        ),
+      };
     },
   });
 

@@ -1,5 +1,4 @@
 import { useQuery } from "@tanstack/react-query";
-import { createClient } from "@/lib/supabase/client";
 import {
   subDays,
   startOfDay,
@@ -7,9 +6,9 @@ import {
   eachDayOfInterval,
   parseISO,
 } from "date-fns";
-import { useAuth } from "@/components/AuthProvider";
-import { mockStore } from "@/lib/mock/mock-store";
-import { fetchAllRows } from "@/lib/supabase/paginate";
+import { focusClient } from "@/lib/api/focus-client";
+import { tasksClient } from "@/lib/api/tasks-client";
+import { habitsClient } from "@/lib/api/habits-client";
 import { PERIOD_DAY_COUNT, type StatsPeriod } from "@/lib/types/stats";
 
 export interface DailyStats {
@@ -317,75 +316,35 @@ export function calculateStats(
 }
 
 export function useStats(period: StatsPeriod = "30d") {
-  const { isGuestMode } = useAuth();
-
   return useQuery({
-    queryKey: ["stats-dashboard", isGuestMode, period],
+    queryKey: ["stats-dashboard", period],
     staleTime: 60000,
     placeholderData: (previousData) => previousData,
     queryFn: async (): Promise<StatsData> => {
-      let rawLogs, rawTasks, rawHabits;
       const now = new Date();
       const lowerBound = fetchLowerBound(period, now);
 
-      if (isGuestMode) {
-        rawLogs = lowerBound
-          ? mockStore
-              .getFocusLogs()
-              .filter((log) => log.start_time >= lowerBound.toISOString())
-          : mockStore.getFocusLogs();
-        rawTasks = mockStore.getTasks();
-        rawHabits = lowerBound
-          ? mockStore
-              .getHabitEntries()
-              .filter((entry) => entry.date >= format(lowerBound, "yyyy-MM-dd"))
-          : mockStore.getHabitEntries();
-      } else {
-        const supabase = createClient();
+      const [focusRes, allTasks, allHabits] = await Promise.all([
+        focusClient.list("local_user", 10000),
+        tasksClient.list({ showCompleted: true }),
+        habitsClient.list("local_user"),
+      ]);
 
-        const [logs, tasks, habits] = await Promise.all([
-          fetchAllRows<StatsLog>((from, to) => {
-            let q = supabase
-              .from("focus_logs")
-              .select("start_time, duration_seconds")
-              .order("start_time", { ascending: true })
-              .order("id", { ascending: true });
-            if (lowerBound) {
-              q = q.gte("start_time", lowerBound.toISOString());
-            }
-            return q.range(from, to);
-          }),
-          supabase.auth.getSession().then(({ data: { session } }) => {
-            const userId = session?.user?.id;
-            if (!userId) throw new Error("Not authenticated");
-            return fetchAllRows<StatsTask>((from, to) =>
-              supabase
-                .from("tasks")
-                .select("is_completed, completed_at, project_id, priority")
-                .eq("user_id", userId)
-                .order("id", { ascending: true })
-                .range(from, to),
-            );
-          }),
-          fetchAllRows<{ date: string }>((from, to) => {
-            // date alone isn't unique across habits (schema only guarantees
-            // UNIQUE(habit_id, date)) — order by id too so .range() pages deterministically
-            let q = supabase
-              .from("habit_entries")
-              .select("date")
-              .order("date", { ascending: true })
-              .order("id", { ascending: true });
-            if (lowerBound) {
-              q = q.gte("date", format(lowerBound, "yyyy-MM-dd"));
-            }
-            return q.range(from, to);
-          }),
-        ]);
+      const allHabitEntries = allHabits.flatMap((h) => h.entries);
 
-        rawLogs = logs;
-        rawTasks = tasks;
-        rawHabits = habits;
-      }
+      const rawLogs = lowerBound
+        ? focusRes.logs.filter(
+            (log) => log.start_time >= lowerBound.toISOString(),
+          )
+        : focusRes.logs;
+
+      const rawTasks = allTasks;
+
+      const rawHabits = lowerBound
+        ? allHabitEntries.filter(
+            (entry) => entry.date >= format(lowerBound, "yyyy-MM-dd"),
+          )
+        : allHabitEntries;
 
       return calculateStats(rawLogs, rawTasks, rawHabits, period, now);
     },

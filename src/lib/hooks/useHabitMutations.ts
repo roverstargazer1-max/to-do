@@ -1,13 +1,10 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useAuth } from "@/components/AuthProvider";
 import { handleMutationError } from "@/lib/utils/mutation-error";
 import type { HabitEntry, HabitWithEntries } from "@/lib/types/habit";
 import { getCurrentStreak } from "@/lib/utils/habit-streak";
 import { trackTelemetry } from "@/lib/telemetry/client";
-import { mockStore } from "@/lib/mock/mock-store";
-
 import { habitMutations } from "@/lib/mutations/habit";
 
 export function useCreateHabit() {
@@ -42,7 +39,6 @@ export function useUpdateHabit() {
 
 export function useDeleteHabit() {
   const queryClient = useQueryClient();
-  const { isGuestMode } = useAuth();
 
   return useMutation({
     mutationKey: ["deleteHabit"],
@@ -52,12 +48,11 @@ export function useDeleteHabit() {
 
       const previousHabits = queryClient.getQueryData<HabitWithEntries[]>([
         "habits",
-        { includeArchived: false, isGuestMode },
+        { includeArchived: false },
       ]);
 
-      // Optimistically remove from cache
       queryClient.setQueryData<HabitWithEntries[]>(
-        ["habits", { includeArchived: false, isGuestMode }],
+        ["habits", { includeArchived: false }],
         (old) => old?.filter((habit) => habit.id !== habitId),
       );
 
@@ -66,7 +61,7 @@ export function useDeleteHabit() {
     onError: (err, _vars, context) => {
       if (context?.previousHabits) {
         queryClient.setQueryData(
-          ["habits", { includeArchived: false, isGuestMode }],
+          ["habits", { includeArchived: false }],
           context.previousHabits,
         );
       }
@@ -80,7 +75,6 @@ export function useDeleteHabit() {
 
 export function useReorderHabits() {
   const queryClient = useQueryClient();
-  const { isGuestMode } = useAuth();
 
   return useMutation({
     mutationKey: ["reorderHabits"],
@@ -88,12 +82,10 @@ export function useReorderHabits() {
     onMutate: async (pairs: { id: string; sort_order: number }[]) => {
       await queryClient.cancelQueries({ queryKey: ["habits"] });
 
-      const queryKey = ["habits", { includeArchived: false, isGuestMode }];
+      const queryKey = ["habits", { includeArchived: false }];
       const previousHabits =
         queryClient.getQueryData<HabitWithEntries[]>(queryKey);
 
-      // Optimistically write the new sort_order into the cache and re-sort so the
-      // list reflects the drop immediately (survives the onSettled refetch).
       queryClient.setQueryData<HabitWithEntries[]>(queryKey, (old) => {
         if (!old) return old;
         const sortOrderById = new Map(pairs.map((p) => [p.id, p.sort_order]));
@@ -122,7 +114,6 @@ export function useReorderHabits() {
 
 export function useMarkHabitComplete() {
   const queryClient = useQueryClient();
-  const { isGuestMode } = useAuth();
 
   return useMutation({
     mutationKey: ["markHabitComplete"],
@@ -132,12 +123,11 @@ export function useMarkHabitComplete() {
 
       const previousHabits = queryClient.getQueryData<HabitWithEntries[]>([
         "habits",
-        { includeArchived: false, isGuestMode },
+        { includeArchived: false },
       ]);
 
-      // Optimistically update the entry
       queryClient.setQueryData<HabitWithEntries[]>(
-        ["habits", { includeArchived: false, isGuestMode }],
+        ["habits", { includeArchived: false }],
         (old) =>
           old?.map((habit) => {
             if (habit.id !== habitId) return habit;
@@ -147,7 +137,6 @@ export function useMarkHabitComplete() {
             );
 
             if (existingEntryIndex >= 0) {
-              // Update existing entry
               const updatedEntries = [...habit.entries];
               updatedEntries[existingEntryIndex] = {
                 ...updatedEntries[existingEntryIndex],
@@ -155,9 +144,8 @@ export function useMarkHabitComplete() {
               };
               return { ...habit, entries: updatedEntries };
             } else {
-              // Add new entry
               const newEntry: HabitEntry = {
-                id: crypto.randomUUID(), // Temporary ID
+                id: crypto.randomUUID(),
                 habit_id: habitId,
                 date,
                 value,
@@ -174,14 +162,10 @@ export function useMarkHabitComplete() {
       return { previousHabits };
     },
     onSuccess: (_data, variables) => {
-      // Guests get a year of pre-seeded demo habits; interacting with them
-      // shouldn't inflate the "Habit Consistency" telemetry KPI.
-      if (isGuestMode && mockStore.isSeedId(variables.habitId)) return;
-
       if ((variables.value ?? 1) >= 1) {
         const habits = queryClient.getQueryData<HabitWithEntries[]>([
           "habits",
-          { includeArchived: false, isGuestMode },
+          { includeArchived: false },
         ]);
         const habit = habits?.find((h) => h.id === variables.habitId);
         let streakMilestone: "7" | "30" | "100" | undefined;
@@ -200,7 +184,7 @@ export function useMarkHabitComplete() {
     onError: (err, _vars, context) => {
       if (context?.previousHabits) {
         queryClient.setQueryData(
-          ["habits", { includeArchived: false, isGuestMode }],
+          ["habits", { includeArchived: false }],
           context.previousHabits,
         );
       }

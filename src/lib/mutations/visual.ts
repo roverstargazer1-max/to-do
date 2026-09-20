@@ -1,7 +1,5 @@
-import { createClient } from "@/lib/supabase/client";
 import { workspaceMutations } from "@/lib/mutations/workspace";
-import { guestVisualAssetStore } from "@/lib/visual/guest-store";
-import { SupabaseVisualAssetStore } from "@/lib/visual/supabase-store";
+import { localVisualAssetStore } from "@/lib/visual/local-store";
 import {
   VisualWorkspaceService,
   type CreateVisualAnnotationInput,
@@ -14,33 +12,12 @@ import {
 } from "@/lib/visual/service";
 import type { VisualAssetStore } from "@/lib/visual/store";
 
-export function isGuestVisualMode(): boolean {
-  return (
-    typeof window !== "undefined" &&
-    localStorage.getItem("kanso_guest_mode") === "true"
-  );
-}
-
-async function currentVisualUserId(): Promise<string> {
-  if (isGuestVisualMode()) return "guest";
-  const supabase = createClient();
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
-  const user = session?.user;
-  if (user) return user.id;
-  if (process.env.KAGELIN_MCP_USER_ID) return process.env.KAGELIN_MCP_USER_ID;
-  throw new Error("Not authenticated");
-}
-
 function currentStore(): VisualAssetStore {
-  return isGuestVisualMode()
-    ? guestVisualAssetStore
-    : new SupabaseVisualAssetStore(createClient());
+  return localVisualAssetStore;
 }
 
 export async function createCurrentVisualService(): Promise<VisualWorkspaceService> {
-  const userId = await currentVisualUserId();
+  const userId = "local_user";
   return new VisualWorkspaceService(currentStore(), {
     userId,
     getWorkspace: async (workspaceId) =>

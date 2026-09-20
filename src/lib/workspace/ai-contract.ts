@@ -1,7 +1,6 @@
 import { z } from "zod";
 import { VisualServiceError, visualErrorToRecord } from "@/lib/visual/service";
 import { VisualValidationError } from "@/lib/visual/validation";
-import { GuestAssetBridgeError } from "@/lib/visual/guest-asset-bridge";
 
 /**
  * External Workspace AI contract versions.
@@ -190,21 +189,6 @@ export function canonicalizeForReplay(value: unknown): string {
 }
 
 export function toErrorPayload(err: unknown): WorkspaceMcpErrorPayload {
-  if (err instanceof GuestAssetBridgeError) {
-    return {
-      success: false,
-      contractVersion: WORKSPACE_MCP_CONTRACT_VERSION,
-      error: {
-        category: "execution",
-        message: err.message,
-        details: {
-          ...err.details,
-          visualCode: "bridge_unavailable",
-          bridgeReason: err.reason,
-        },
-      },
-    };
-  }
   if (
     err instanceof VisualServiceError ||
     err instanceof VisualValidationError

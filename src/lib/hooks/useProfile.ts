@@ -1,106 +1,43 @@
 "use client";
 
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { createClient } from "@/lib/supabase/client";
-import { useAuth } from "@/components/AuthProvider";
 import {
   Profile,
-  UserSettings,
   DEFAULT_USER_SETTINGS,
-  type EditableProfileFields,
+  EditableProfileFields,
+  UserSettings,
 } from "../types/profile";
 
-export function useProfile(options?: { enabled?: boolean }) {
-  const { user, isGuestMode } = useAuth();
-  const queryClient = useQueryClient();
-  const enabled = options?.enabled ?? true;
+type ProfilePatch = Partial<EditableProfileFields>;
 
-  const query = useQuery({
-    queryKey: ["profile", user?.id],
-    queryFn: async (): Promise<Profile | null> => {
-      if (!user || isGuestMode) return null;
+type SettingsPatch = Partial<{
+  notifications: Partial<NonNullable<UserSettings["notifications"]>>;
+  adminLandingPage: UserSettings["adminLandingPage"];
+}>;
 
-      const supabase = createClient();
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", user.id)
-        .single();
+const LOCAL_PROFILE: Profile = {
+  id: "local_user",
+  display_name: "Local User",
+  timezone: "UTC",
+  is_premium: true,
+  is_admin: false,
+  created_at: new Date().toISOString(),
+  updated_at: new Date().toISOString(),
+  settings: DEFAULT_USER_SETTINGS,
+};
 
-      if (error) {
-        console.error("Error fetching profile:", error);
-        return null;
-      }
-
-      // Ensure settings has defaults (deep merge notifications)
-      const profile = data as Profile;
-      return {
-        ...profile,
-        settings: {
-          ...DEFAULT_USER_SETTINGS,
-          ...profile.settings,
-          notifications: {
-            ...DEFAULT_USER_SETTINGS.notifications,
-            ...(profile.settings?.notifications || {}),
-          } as UserSettings["notifications"],
-        },
-      };
-    },
-    enabled: !!user && !isGuestMode && enabled,
-  });
-
-  const updateProfile = useMutation({
-    mutationFn: async (updates: Partial<EditableProfileFields>) => {
-      if (!user || isGuestMode) return;
-
-      const supabase = createClient();
-      const { error } = await supabase
-        .from("profiles")
-        .update(updates)
-        .eq("id", user.id);
-
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["profile", user?.id] });
-    },
-  });
-
-  const updateSettings = useMutation({
-    mutationFn: async (newSettings: Partial<UserSettings>) => {
-      if (!user || isGuestMode) return;
-
-      const cachedProfile = queryClient.getQueryData<Profile>([
-        "profile",
-        user?.id,
-      ]);
-      const currentSettings = cachedProfile?.settings || DEFAULT_USER_SETTINGS;
-      const mergedSettings = {
-        ...currentSettings,
-        ...newSettings,
-        notifications: {
-          ...(currentSettings.notifications || {}),
-          ...(newSettings.notifications || {}),
-        },
-      };
-
-      const supabase = createClient();
-      const { error } = await supabase
-        .from("profiles")
-        .update({ settings: mergedSettings })
-        .eq("id", user.id);
-
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["profile", user?.id] });
-    },
-  });
-
+export function useProfile(_options?: { enabled?: boolean }) {
   return {
-    profile: query.data ?? null,
-    isLoading: query.isLoading,
-    updateProfile,
-    updateSettings,
+    profile: LOCAL_PROFILE,
+    isLoading: false,
+    updateProfile: {
+      mutate: async (_args?: ProfilePatch) => {},
+      mutateAsync: async (_args?: ProfilePatch) => {},
+      isPending: false,
+    },
+    updateSettings: {
+      mutate: async (_args?: SettingsPatch) => {},
+      mutateAsync: async (_args?: SettingsPatch) => {},
+      isPending: false,
+    },
   };
 }

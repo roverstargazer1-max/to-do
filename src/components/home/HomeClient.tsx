@@ -2,7 +2,7 @@
 
 import { useAuth } from "@/components/AuthProvider";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useTransition } from "react";
+import { useTransition } from "react";
 import TaskList from "@/components/tasks/TaskList";
 import { TasksPageHeader } from "@/components/tasks/TasksPageHeader";
 import { useUiStore } from "@/lib/store/uiStore";
@@ -56,12 +56,6 @@ export function HomeClient() {
 
   const currentProjectId = searchParams.get("project") || "all";
   const filter = searchParams.get("filter") || undefined;
-
-  useEffect(() => {
-    if (!loading && !user) {
-      router.push("/login");
-    }
-  }, [user, loading, router]);
 
   if (loading) {
     return (

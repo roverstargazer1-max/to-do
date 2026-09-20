@@ -20,7 +20,7 @@ import {
   Package,
   ExternalLink,
 } from "lucide-react";
-import { GitHubIcon } from "@/components/auth/ProviderIcons";
+import { GitHubIcon } from "@/components/ui/GitHubIcon";
 import { REPO_URL, PRIVACY_URL, TERMS_URL } from "@/lib/links";
 import { ICON_LED_ROW_CLASS } from "@/components/settings/iconLedRowClass";
 import { useTranslation } from "@/lib/i18n/useTranslation";

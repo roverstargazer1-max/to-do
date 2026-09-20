@@ -59,7 +59,7 @@ import type {
 
 export interface NodeCommandContext {
   readonly queryClient: QueryClient;
-  readonly isGuestMode: boolean;
+  readonly isGuestMode?: boolean;
 }
 
 /** Invalidates the nodes family: every per-workspace list, both modes. */

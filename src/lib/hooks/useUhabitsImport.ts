@@ -19,10 +19,7 @@ import type { TranslationKey } from "@/lib/i18n/dictionaries/en";
 import { useHaptic } from "@/lib/hooks/useHaptic";
 import { habitMutations } from "@/lib/mutations/habit";
 import { useQueryClient } from "@tanstack/react-query";
-import { createClient } from "@/lib/supabase/client";
-import { mockStore } from "@/lib/mock/mock-store";
-
-const ENTRY_CHUNK_SIZE = 500;
+import { habitsClient } from "@/lib/api/habits-client";
 
 export function useUhabitsImport() {
   const [isImporting, setIsImporting] = useState(false);
@@ -62,44 +59,21 @@ export function useUhabitsImport() {
         return;
       }
 
-      const isGuest =
-        typeof window !== "undefined" &&
-        localStorage.getItem("kanso_guest_mode") === "true";
-
       // Best-effort, backgrounded capture for round-trip export (ADR 0006).
-      void persistImportSource(
-        { source_app: "uhabits", file_name: file.name, raw: source },
-        { isGuest },
-      ).catch((err) => Sentry.captureException(err));
+      void persistImportSource({
+        source_app: "uhabits",
+        file_name: file.name,
+        raw: source,
+      }).catch((err) => Sentry.captureException(err));
 
-      let habitsToImport = habits;
-      let skippedCount = 0;
-      let nextSortOrder = 0;
-      if (!isGuest) {
-        const supabase = createClient();
-        // eslint-disable-next-line local/no-unbounded-supabase-select -- habit definitions, not entries
-        const { data: existing } = await supabase
-          .from("habits")
-          .select("name, sort_order");
-        if (existing && existing.length > 0) {
-          const existingNames = new Set(
-            existing.map((h) => h.name.toLowerCase()),
-          );
-          habitsToImport = habits.filter(
-            (h) => !existingNames.has(h.name.toLowerCase()),
-          );
-          skippedCount = habits.length - habitsToImport.length;
-          nextSortOrder = Math.max(...existing.map((h) => h.sort_order)) + 1;
-        }
-      } else {
-        const existingNames = new Set(
-          mockStore.getHabits().map((h) => h.name.toLowerCase()),
-        );
-        habitsToImport = habits.filter(
-          (h) => !existingNames.has(h.name.toLowerCase()),
-        );
-        skippedCount = habits.length - habitsToImport.length;
-      }
+      const existingHabits = await habitsClient.list();
+      const existingNames = new Set(
+        existingHabits.map((h) => h.name.toLowerCase()),
+      );
+      const habitsToImport = habits.filter(
+        (h) => !existingNames.has(h.name.toLowerCase()),
+      );
+      const skippedCount = habits.length - habitsToImport.length;
 
       if (habitsToImport.length === 0) {
         notify.info(tr("habits.import.allExist", { count: habits.length }), {
@@ -115,15 +89,10 @@ export function useUhabitsImport() {
         },
       );
 
-      // tempId (from parseUhabitsFile) -> actualId (DB / mock store)
       const habitIdMap = new Map<string, string>();
 
-      // Raw create avoids invalidating the habits query once per habit.
       for (const habit of habitsToImport) {
-        const created = await habitMutations.create({
-          ...toCreateHabitInput(habit),
-          sort_order: isGuest ? undefined : nextSortOrder++,
-        });
+        const created = await habitMutations.create(toCreateHabitInput(habit));
         habitIdMap.set(habit.id, created.id);
       }
 
@@ -136,26 +105,10 @@ export function useUhabitsImport() {
           { id: loadingToastId },
         );
 
-        const remapped = entries
-          .filter((e) => habitIdMap.has(e.habit_id))
-          .map((e) => ({
-            id: crypto.randomUUID(),
-            habit_id: habitIdMap.get(e.habit_id)!,
-            date: e.date,
-            value: e.value,
-            created_at: e.created_at,
-          }));
-
-        if (isGuest) {
-          mockStore.addHabitEntries(remapped);
-        } else {
-          const supabase = createClient();
-          for (let i = 0; i < remapped.length; i += ENTRY_CHUNK_SIZE) {
-            const { error } = await supabase
-              .from("habit_entries")
-              .insert(remapped.slice(i, i + ENTRY_CHUNK_SIZE));
-            if (error) throw error;
-          }
+        const remapped = entries.filter((e) => habitIdMap.has(e.habit_id));
+        for (const e of remapped) {
+          const targetId = habitIdMap.get(e.habit_id)!;
+          await habitsClient.recordEntry(targetId, e.date, e.value);
         }
       }
 
@@ -176,7 +129,6 @@ export function useUhabitsImport() {
       trigger("success");
       return true;
     } catch (err) {
-      // Parsing already succeeded, so this is a save failure, not a bad file.
       return reportImportFailure(err, SAVE_ERROR_MESSAGE);
     } finally {
       setIsImporting(false);

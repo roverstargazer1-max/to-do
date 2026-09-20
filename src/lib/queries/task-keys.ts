@@ -36,7 +36,7 @@ export const taskKeys = {
    * pre-command hooks' key, verbatim. `hashKey` drops undefined properties,
    * so this resolves to the same cache entry as `list({ isGuestMode })`.
    */
-  defaultList: (isGuestMode: boolean) =>
+  defaultList: (isGuestMode?: boolean) =>
     [
       "tasks",
       { projectId: undefined, showCompleted: false, isGuestMode },

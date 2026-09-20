@@ -10,6 +10,7 @@
  * propagation: a tab hears only its own commands, matching the app-wide
  * baseline.
  */
+import * as Sentry from "@sentry/nextjs";
 import type { DomainEvent } from "./domain-event";
 
 export type DomainEventHandler = (event: DomainEvent) => void;
@@ -39,6 +40,7 @@ export function publishDomainEvent(event: DomainEvent): void {
       handler(event);
     } catch (err) {
       console.error("Domain event handler error:", err);
+      Sentry.captureException(err);
     }
   }
 }

@@ -34,7 +34,7 @@ import type { WorkspaceNode } from "@/lib/types/workspace";
 
 export interface NodeCleanupContext {
   readonly queryClient: QueryClient;
-  readonly isGuestMode: boolean;
+  readonly isGuestMode?: boolean;
 }
 
 /** Invalidates the nodes family: every per-workspace list, both modes. */

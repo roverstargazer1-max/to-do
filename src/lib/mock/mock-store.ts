@@ -11,6 +11,7 @@ import type { Habit, HabitEntry } from "@/lib/types/habit";
 import type { FocusLog } from "@/lib/types/focus";
 import type { CalendarEvent } from "@/lib/types/calendar-event";
 import type { BackupData } from "@/lib/backup/types";
+import { getLocalDal } from "@/lib/api/local-dal";
 
 export const STORAGE_KEY = "kanso_guest_data_v11";
 
@@ -670,14 +671,37 @@ class MockStore {
   }
 
   getTasks(): Task[] {
+    const dal = getLocalDal();
+    if (dal) {
+      try {
+        const rows = dal.tasks.list({ showCompleted: true });
+        if (rows && rows.length > 0) return rows;
+      } catch {}
+    }
     return this.data.tasks;
   }
 
   getTask(id: string): Task | null {
+    const dal = getLocalDal();
+    if (dal) {
+      try {
+        const row = dal.tasks.getById(id);
+        if (row) return row;
+      } catch {}
+    }
     return this.data.tasks.find((t) => t.id === id) || null;
   }
 
   getSubtasks(parentId: string): Task[] {
+    const dal = getLocalDal();
+    if (dal) {
+      try {
+        const rows = dal.tasks
+          .list({ showCompleted: true })
+          .filter((t) => t.parent_id === parentId);
+        if (rows && rows.length > 0) return rows;
+      } catch {}
+    }
     return this.data.tasks.filter((t) => t.parent_id === parentId);
   }
 
@@ -728,6 +752,38 @@ class MockStore {
 
     this.data.tasks = [...this.data.tasks, newTask];
     this.saveToStorage();
+
+    const dal = getLocalDal();
+    if (dal) {
+      try {
+        if (dal.tasks.getById(newTask.id)) {
+          dal.tasks.update(newTask.id, newTask);
+        } else {
+          dal.tasks.create({
+            id: newTask.id,
+            user_id: newTask.user_id,
+            content: newTask.content,
+            description: newTask.description,
+            priority: newTask.priority,
+            due_date: newTask.due_date,
+            do_date: newTask.do_date,
+            is_evening: newTask.is_evening,
+            is_completed: newTask.is_completed,
+            completed_at: newTask.completed_at,
+            project_id: newTask.project_id,
+            parent_id: newTask.parent_id,
+            day_order: newTask.day_order,
+            recurrence: newTask.recurrence,
+            recurring_series_id: newTask.recurring_series_id,
+            google_event_id: newTask.google_event_id,
+            google_etag: newTask.google_etag,
+            created_at: newTask.created_at,
+            updated_at: newTask.updated_at,
+          });
+        }
+      } catch {}
+    }
+
     return newTask;
   }
 
@@ -744,6 +800,14 @@ class MockStore {
     this.data.tasks = updatedTasks;
 
     this.saveToStorage();
+
+    const dal = getLocalDal();
+    if (dal) {
+      try {
+        dal.tasks.update(id, updates);
+      } catch {}
+    }
+
     return this.data.tasks[index];
   }
 
@@ -754,14 +818,35 @@ class MockStore {
     this.data.tasks = this.data.tasks.filter((t) => t.id !== id);
     this.unmarkSeedId(id);
     this.saveToStorage();
+
+    const dal = getLocalDal();
+    if (dal) {
+      try {
+        dal.tasks.delete(id);
+      } catch {}
+    }
+
     return true;
   }
 
   getProjects(): Project[] {
+    const dal = getLocalDal();
+    if (dal) {
+      try {
+        const rows = dal.projects.list();
+        if (rows && rows.length > 0) return rows;
+      } catch {}
+    }
     return this.data.projects;
   }
 
   getProject(id: string): Project | null {
+    const dal = getLocalDal();
+    if (dal) {
+      try {
+        return dal.projects.getById(id);
+      } catch {}
+    }
     return this.data.projects.find((p) => p.id === id) || null;
   }
 
@@ -769,11 +854,14 @@ class MockStore {
     project: Omit<Project, "id" | "user_id" | "created_at" | "updated_at">,
   ): Project {
     const now = new Date().toISOString();
+    const passedId = (project as { id?: string }).id;
     const newProject: Project = {
       ...project,
-      id: `guest-project-${Date.now()}-${Math.random()
-        .toString(36)
-        .substr(2, 9)}`,
+      id:
+        passedId ||
+        `guest-project-${Date.now()}-${Math.random()
+          .toString(36)
+          .substr(2, 9)}`,
       user_id: "guest",
       created_at: now,
       updated_at: now,
@@ -781,6 +869,25 @@ class MockStore {
 
     this.data.projects = [...this.data.projects, newProject];
     this.saveToStorage();
+
+    const dal = getLocalDal();
+    if (dal) {
+      try {
+        if (dal.projects.getById(newProject.id)) {
+          dal.projects.update(newProject.id, newProject);
+        } else {
+          dal.projects.create({
+            id: newProject.id,
+            name: newProject.name,
+            color: newProject.color,
+            view_style: newProject.view_style,
+            is_inbox: newProject.is_inbox,
+            is_archived: newProject.is_archived,
+          });
+        }
+      } catch {}
+    }
+
     return newProject;
   }
 
@@ -797,6 +904,14 @@ class MockStore {
     this.data.projects = updatedProjects;
 
     this.saveToStorage();
+
+    const dal = getLocalDal();
+    if (dal) {
+      try {
+        dal.projects.update(id, updates);
+      } catch {}
+    }
+
     return this.data.projects[index];
   }
 
@@ -807,6 +922,14 @@ class MockStore {
     this.data.projects = this.data.projects.filter((p) => p.id !== id);
     this.unmarkSeedId(id);
     this.saveToStorage();
+
+    const dal = getLocalDal();
+    if (dal) {
+      try {
+        dal.projects.delete(id);
+      } catch {}
+    }
+
     return true;
   }
 
@@ -835,6 +958,12 @@ class MockStore {
   }
 
   getFocusLogs(): FocusLog[] {
+    const dal = getLocalDal();
+    if (dal) {
+      try {
+        return dal.focus.list();
+      } catch {}
+    }
     return this.data.focus_logs || [];
   }
 
@@ -849,10 +978,25 @@ class MockStore {
     if (!this.data.focus_logs) this.data.focus_logs = [];
     this.data.focus_logs = [...this.data.focus_logs, newLog];
     this.saveToStorage();
+
+    const dal = getLocalDal();
+    if (dal) {
+      try {
+        dal.focus.create(newLog);
+      } catch {}
+    }
+
     return newLog;
   }
 
   getHabits(): Habit[] {
+    const dal = getLocalDal();
+    if (dal) {
+      try {
+        const rows = dal.habits.list();
+        if (rows && rows.length > 0) return rows;
+      } catch {}
+    }
     return this.data.habits || [];
   }
 
@@ -884,6 +1028,18 @@ class MockStore {
     if (!this.data.habits) this.data.habits = [];
     this.data.habits = [...this.data.habits, newHabit];
     this.saveToStorage();
+
+    const dal = getLocalDal();
+    if (dal) {
+      try {
+        if (dal.habits.getById(newHabit.id)) {
+          dal.habits.update(newHabit.id, newHabit);
+        } else {
+          dal.habits.create(newHabit);
+        }
+      } catch {}
+    }
+
     return newHabit;
   }
 
@@ -900,6 +1056,14 @@ class MockStore {
     this.data.habits = updatedHabits;
 
     this.saveToStorage();
+
+    const dal = getLocalDal();
+    if (dal) {
+      try {
+        dal.habits.update(id, updates);
+      } catch {}
+    }
+
     return this.data.habits[index];
   }
 
@@ -914,6 +1078,14 @@ class MockStore {
     this.unmarkSeedId(id);
 
     this.saveToStorage();
+
+    const dal = getLocalDal();
+    if (dal) {
+      try {
+        dal.habits.delete(id);
+      } catch {}
+    }
+
     return true;
   }
 
@@ -963,10 +1135,25 @@ class MockStore {
     };
     this.data.habit_entries = [...this.data.habit_entries, newEntry];
     this.saveToStorage();
+
+    const dal = getLocalDal();
+    if (dal) {
+      try {
+        dal.habits.upsertEntry(habitId, date, value);
+      } catch {}
+    }
+
     return newEntry;
   }
 
   getEvents(): CalendarEvent[] {
+    const dal = getLocalDal();
+    if (dal) {
+      try {
+        const rows = dal.calendar.list();
+        if (rows && rows.length > 0) return rows;
+      } catch {}
+    }
     return this.data.events || [];
   }
 
@@ -990,6 +1177,18 @@ class MockStore {
     if (!this.data.events) this.data.events = [];
     this.data.events = [...this.data.events, newEvent];
     this.saveToStorage();
+
+    const dal = getLocalDal();
+    if (dal) {
+      try {
+        if (dal.calendar.getById(newEvent.id)) {
+          dal.calendar.update(newEvent.id, newEvent);
+        } else {
+          dal.calendar.create(newEvent);
+        }
+      } catch {}
+    }
+
     return newEvent;
   }
 
@@ -1009,6 +1208,14 @@ class MockStore {
     this.data.events = updatedEvents;
 
     this.saveToStorage();
+
+    const dal = getLocalDal();
+    if (dal) {
+      try {
+        dal.calendar.update(id, updates);
+      } catch {}
+    }
+
     return this.data.events[index];
   }
 
@@ -1019,6 +1226,14 @@ class MockStore {
     this.data.events = this.data.events.filter((e) => e.id !== id);
     this.unmarkSeedId(id);
     this.saveToStorage();
+
+    const dal = getLocalDal();
+    if (dal) {
+      try {
+        dal.calendar.delete(id);
+      } catch {}
+    }
+
     return true;
   }
 
@@ -1075,6 +1290,15 @@ class MockStore {
     if (!this.data.habit_entries) this.data.habit_entries = [];
     this.data.habit_entries = this.data.habit_entries.concat(entries);
     this.saveToStorage();
+
+    const dal = getLocalDal();
+    if (dal) {
+      try {
+        for (const entry of entries) {
+          dal.habits.upsertEntry(entry.habit_id, entry.date, entry.value);
+        }
+      } catch {}
+    }
   }
 
   // Lets telemetry exempt interactions with demo content.
@@ -1095,8 +1319,62 @@ class MockStore {
   }
 
   reset(): void {
+    this.clearData();
     this.data = this.getInitialData();
     this.saveToStorage();
+    const dal = getLocalDal();
+    if (dal) {
+      try {
+        for (const p of this.data.projects) {
+          dal.projects.create({
+            id: p.id,
+            name: p.name,
+            color: p.color,
+            view_style: p.view_style,
+            is_inbox: p.is_inbox,
+            is_archived: p.is_archived,
+          });
+        }
+        for (const t of this.data.tasks) {
+          dal.tasks.create({
+            id: t.id,
+            content: t.content,
+            description: t.description,
+            priority: t.priority,
+            due_date: t.due_date,
+            do_date: t.do_date,
+            is_evening: t.is_evening,
+            is_completed: t.is_completed,
+            completed_at: t.completed_at,
+            day_order: t.day_order,
+            project_id: t.project_id,
+            parent_id: t.parent_id,
+            recurring_series_id: t.recurring_series_id,
+            recurrence: t.recurrence,
+          });
+        }
+        for (const h of this.data.habits) {
+          dal.habits.create({
+            id: h.id,
+            name: h.name,
+            description: h.description,
+            color: h.color,
+            icon: h.icon,
+            start_date: h.start_date,
+            sort_order: h.sort_order,
+            habitType: h.habit_type,
+            frequencyCount: h.frequency_count,
+            frequencyPeriod: h.frequency_period,
+            targetType: h.target_type,
+            targetValue: h.target_value,
+            unit: h.unit,
+          });
+        }
+        for (const e of this.data.events) {
+          dal.calendar.create(e);
+        }
+      } catch {}
+    }
   }
 
   clearData(): void {
@@ -1110,6 +1388,15 @@ class MockStore {
       lastUpdated: new Date().toISOString(),
     };
     this.saveToStorage();
+
+    const dal = getLocalDal();
+    if (dal) {
+      try {
+        dal.maintenance.clearDomainData();
+      } catch (err) {
+        console.error("clearData SQLite error:", err);
+      }
+    }
   }
 
   clearStorage(): void {

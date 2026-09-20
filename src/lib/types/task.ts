@@ -43,14 +43,20 @@ export interface Project {
 
 export interface CreateTaskInput {
   content: string;
-  description?: string;
+  description?: string | null;
   priority?: 1 | 2 | 3 | 4;
-  due_date?: string;
-  do_date?: string;
+  due_date?: string | null;
+  do_date?: string | null;
   is_evening?: boolean;
-  project_id?: string;
-  parent_id?: string;
+  project_id?: string | null;
+  parent_id?: string | null;
   recurrence?: RecurrenceRule | null;
+  recurring_series_id?: string | null;
+  is_completed?: boolean;
+  completed_at?: string | null;
+  day_order?: number;
+  google_event_id?: string | null;
+  google_etag?: string | null;
 }
 
 export interface UpdateTaskInput {
@@ -66,4 +72,11 @@ export interface UpdateTaskInput {
   project_id?: string | null;
   recurrence?: RecurrenceRule | null;
   recurring_series_id?: string | null;
+}
+
+export interface ListTasksOptions {
+  projectId?: string | null;
+  showCompleted?: boolean;
+  filter?: string;
+  userId?: string;
 }

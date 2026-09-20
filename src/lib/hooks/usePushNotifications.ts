@@ -4,7 +4,6 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useUiStore } from "@/lib/store/uiStore";
 import { removePushSubscription, syncPushSubscription } from "@/lib/push-api";
 import { displayNotification } from "@/lib/notifications";
-import { useAuth } from "@/components/AuthProvider";
 
 type NotificationPermission = "default" | "granted" | "denied";
 
@@ -18,7 +17,6 @@ interface PushPermissionResult {
 }
 
 export function usePushNotifications() {
-  const { isGuestMode } = useAuth();
   const notificationsEnabled = useUiStore(
     (state) => state.notificationsEnabled,
   );
@@ -63,22 +61,20 @@ export function usePushNotifications() {
 
   const sendSubscriptionToBackend = useCallback(
     async (sub: PushSubscription) => {
-      if (isGuestMode) return;
       await syncPushSubscription(sub);
     },
-    [isGuestMode],
+    [],
   );
 
   const removeSubscriptionFromBackend = useCallback(
     async (endpoint: string) => {
-      if (isGuestMode) return;
       try {
         await removePushSubscription(endpoint);
       } catch (error) {
         console.error("Error removing subscription from backend:", error);
       }
     },
-    [isGuestMode],
+    [],
   );
 
   const clearExistingSubscription = useCallback(
@@ -99,7 +95,6 @@ export function usePushNotifications() {
       permissionOverride?: NotificationPermission,
       options?: SubscribeOptions,
     ): Promise<PushSubscription | null> => {
-      if (isGuestMode) return null;
       const effectivePermission = permissionOverride || permission;
       if (!isSupported || effectivePermission !== "granted") {
         return null;
@@ -146,7 +141,6 @@ export function usePushNotifications() {
       }
     },
     [
-      isGuestMode,
       isSupported,
       permission,
       clearExistingSubscription,
@@ -158,7 +152,7 @@ export function usePushNotifications() {
 
   const requestPermission = useCallback(
     async (options?: SubscribeOptions): Promise<PushPermissionResult> => {
-      if (isGuestMode || !isSupported) {
+      if (!isSupported) {
         return { permission: "denied", subscription: null };
       }
 
@@ -184,7 +178,7 @@ export function usePushNotifications() {
         return { permission: "denied", subscription: null };
       }
     },
-    [isGuestMode, isSupported, subscribeToPush],
+    [isSupported, subscribeToPush],
   );
 
   const unsubscribe = useCallback(async (): Promise<boolean> => {
@@ -231,7 +225,7 @@ export function usePushNotifications() {
   );
 
   useEffect(() => {
-    if (isGuestMode || !isSupported || !notificationsEnabled) return;
+    if (!isSupported || !notificationsEnabled) return;
     const initSubscription = async () => {
       try {
         const registration = await getServiceWorkerRegistration();
@@ -248,7 +242,6 @@ export function usePushNotifications() {
     };
     initSubscription();
   }, [
-    isGuestMode,
     isSupported,
     notificationsEnabled,
     permission,
@@ -265,7 +258,7 @@ export function usePushNotifications() {
 
   // Re-validate on tab focus to catch Chrome Android's auto-rotated subscriptions
   useEffect(() => {
-    if (isGuestMode || !isSupported || !notificationsEnabled) return;
+    if (!isSupported || !notificationsEnabled) return;
 
     const handleVisibilityChange = async () => {
       if (document.visibilityState !== "visible") return;
@@ -299,7 +292,6 @@ export function usePushNotifications() {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, [
-    isGuestMode,
     isSupported,
     notificationsEnabled,
     permission,

@@ -1,11 +1,7 @@
-import { createClient } from "@/lib/supabase/client";
-import { mockStore } from "@/lib/mock/mock-store";
+import { tasksClient } from "@/lib/api/tasks-client";
 import { calculateNextDueDate } from "@/lib/utils/recurrence";
 import type { Task, CreateTaskInput, UpdateTaskInput } from "@/lib/types/task";
 
-// A hard-deleted task is re-inserted rather than updated, so it needs its
-// full row shape rebuilt from the in-memory Task — shared by taskMutations
-// .restore for both the parent and its subtasks.
 function toRestorePayload(task: Task) {
   return {
     id: task.id,
@@ -27,12 +23,6 @@ function toRestorePayload(task: Task) {
   };
 }
 
-// Fields common to a duplicated row, shared by taskMutations.duplicate for
-// both the parent and every subtask, guest and Supabase alike. Recurrence
-// and series identity are always stripped — a pasted occurrence must never
-// rejoin its source series — and completion state resets since a duplicate
-// starts as fresh, uncompleted work. parentId is threaded through explicitly
-// since a subtask's copy must land under its *new* parent, not the source's.
 function toDuplicatePayload(task: Task, parentId: string | null) {
   return {
     content: task.content,
@@ -56,77 +46,7 @@ export const taskMutations = {
   create: async (
     input: CreateTaskInput & { _clientId?: string },
   ): Promise<Task> => {
-    const isGuest =
-      typeof window !== "undefined" &&
-      localStorage.getItem("kanso_guest_mode") === "true";
-
-    if (isGuest) {
-      // day_order intentionally omitted: mockStore.addTask() defaults it to
-      // append-at-the-end (current task count), matching the Supabase max+1
-      // below. A hardcoded 0 here would tie every new task at the top slot.
-      return mockStore.addTask({
-        id: input._clientId,
-        content: input.content,
-        description: input.description || null,
-        priority: input.priority || 4,
-        due_date: input.due_date || null,
-        do_date: input.do_date || null,
-        is_evening: input.is_evening || false,
-        project_id: input.project_id || null,
-        parent_id: input.parent_id || null,
-        recurrence: input.recurrence || null,
-        recurring_series_id: input.recurrence ? crypto.randomUUID() : null,
-        is_completed: false,
-        completed_at: null,
-        google_event_id: null,
-        google_etag: null,
-      });
-    }
-
-    const supabase = createClient();
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-    const user = session?.user;
-    if (!user) throw new Error("Not authenticated");
-
-    const taskId = input._clientId || crypto.randomUUID();
-    const seriesId = input.recurrence ? crypto.randomUUID() : null;
-
-    // Append to the bottom: new task gets max(day_order) + 1 for the user.
-    // The column DEFAULTs to 0, which would tie every new task at the very
-    // top of custom sort once other tasks have been dragged to real values.
-    const { data: lastTask } = await supabase
-      .from("tasks")
-      .select("day_order")
-      .eq("user_id", user.id)
-      .order("day_order", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    const nextDayOrder = (lastTask?.day_order ?? -1) + 1;
-
-    const { data, error } = await supabase
-      .from("tasks")
-      .insert({
-        id: taskId,
-        user_id: user.id,
-        content: input.content,
-        description: input.description || null,
-        priority: input.priority || 4,
-        due_date: input.due_date || null,
-        do_date: input.do_date || null,
-        is_evening: input.is_evening || false,
-        project_id: input.project_id || null,
-        parent_id: input.parent_id || null,
-        recurrence: input.recurrence || null,
-        recurring_series_id: seriesId,
-        day_order: nextDayOrder,
-      })
-      .select()
-      .single();
-
-    if (error) throw new Error(error.message);
-    return data as Task;
+    return tasksClient.create(input);
   },
 
   toggle: async ({
@@ -136,120 +56,13 @@ export const taskMutations = {
     id: string;
     is_completed: boolean;
   }): Promise<{ task: Task; newRecurringTask?: Task }> => {
-    const isGuest =
-      typeof window !== "undefined" &&
-      localStorage.getItem("kanso_guest_mode") === "true";
+    const updatedTask = await tasksClient.update(id, {
+      is_completed,
+      completed_at: is_completed ? new Date().toISOString() : null,
+    });
 
-    if (isGuest) {
-      const updatedTask = mockStore.updateTask(id, {
-        is_completed,
-        completed_at: is_completed ? new Date().toISOString() : null,
-      });
-
-      if (!updatedTask) throw new Error("Task not found");
-
-      if (is_completed) {
-        mockStore.addFocusLog({
-          user_id: "guest",
-          task_id: id,
-          start_time: new Date(Date.now() - 25 * 60000).toISOString(),
-          end_time: new Date().toISOString(),
-          duration_seconds: 25 * 60,
-        });
-      }
-
-      let newRecurringTask: Task | undefined;
-      let recurrenceRule = updatedTask.recurrence;
-      if (typeof recurrenceRule === "string") {
-        try {
-          recurrenceRule = JSON.parse(recurrenceRule);
-        } catch {
-          recurrenceRule = null;
-        }
-      }
-
-      if (is_completed && recurrenceRule) {
-        const now = new Date();
-        const nextDueDateIso = calculateNextDueDate(
-          now,
-          recurrenceRule,
-          updatedTask.due_date,
-        ).toISOString();
-        const nextDoDateIso = updatedTask.do_date
-          ? calculateNextDueDate(
-              now,
-              recurrenceRule,
-              updatedTask.do_date,
-            ).toISOString()
-          : null;
-
-        // Self-heal: generate series id if parent lacks one (legacy row)
-        let seriesId = updatedTask.recurring_series_id;
-        if (!seriesId) {
-          seriesId = crypto.randomUUID();
-          mockStore.updateTask(id, { recurring_series_id: seriesId });
-          updatedTask.recurring_series_id = seriesId;
-        }
-
-        // Prevent duplicate future instances in mock store
-        const alreadyExists = mockStore
-          .getTasks()
-          .some(
-            (t) =>
-              t.content === updatedTask.content &&
-              t.project_id === updatedTask.project_id &&
-              t.due_date === nextDueDateIso &&
-              !t.is_completed,
-          );
-
-        if (!alreadyExists) {
-          newRecurringTask = mockStore.addTask({
-            project_id: updatedTask.project_id,
-            content: updatedTask.content,
-            description: updatedTask.description,
-            priority: updatedTask.priority,
-            due_date: nextDueDateIso,
-            do_date: nextDoDateIso,
-            is_evening: updatedTask.is_evening || false,
-            recurrence: recurrenceRule,
-            recurring_series_id: seriesId,
-            is_completed: false,
-            completed_at: null,
-            google_event_id: null,
-            google_etag: null,
-            parent_id: null,
-          } as Task);
-        }
-      }
-
-      return { task: updatedTask, newRecurringTask };
-    }
-
-    const supabase = createClient();
-    const { data: currentTask, error: fetchError } = await supabase
-      .from("tasks")
-      .select("*")
-      .eq("id", id)
-      .single();
-
-    if (fetchError) throw new Error(fetchError.message);
-
-    const { data, error } = await supabase
-      .from("tasks")
-      .update({
-        is_completed,
-        completed_at: is_completed ? new Date().toISOString() : null,
-      })
-      .eq("id", id)
-      .select()
-      .single();
-
-    if (error) throw new Error(error.message);
-
-    const updatedTask = data as Task;
     let newRecurringTask: Task | undefined;
-
-    let recurrenceRule = currentTask.recurrence;
+    let recurrenceRule = updatedTask.recurrence;
     if (typeof recurrenceRule === "string") {
       try {
         recurrenceRule = JSON.parse(recurrenceRule);
@@ -263,72 +76,48 @@ export const taskMutations = {
       const nextDueDateIso = calculateNextDueDate(
         now,
         recurrenceRule,
-        currentTask.due_date,
+        updatedTask.due_date,
       ).toISOString();
-      const nextDoDateIso = currentTask.do_date
+      const nextDoDateIso = updatedTask.do_date
         ? calculateNextDueDate(
             now,
             recurrenceRule,
-            currentTask.do_date,
+            updatedTask.do_date,
           ).toISOString()
         : null;
 
-      // Self-heal: generate series id if parent lacks one (legacy row)
-      let seriesId = currentTask.recurring_series_id;
+      let seriesId = updatedTask.recurring_series_id;
       if (!seriesId) {
         seriesId = crypto.randomUUID();
-        await supabase
-          .from("tasks")
-          .update({ recurring_series_id: seriesId })
-          .eq("id", id);
+        await tasksClient.update(id, { recurring_series_id: seriesId });
+        updatedTask.recurring_series_id = seriesId;
       }
 
-      // Prevent duplicate future instances if already created
-      // eslint-disable-next-line local/no-unbounded-supabase-select -- five equality filters incl. an exact due_date
-      const existingTasks = await supabase
-        .from("tasks")
-        .select("id")
-        .eq("user_id", currentTask.user_id)
-        .eq("content", currentTask.content)
-        .eq("project_id", currentTask.project_id)
-        .eq("due_date", nextDueDateIso)
-        .eq("is_completed", false);
+      const existingTasks = await tasksClient.list({
+        projectId: updatedTask.project_id,
+        showCompleted: false,
+      });
 
-      if (!existingTasks.data?.length) {
-        // Append to the bottom, same as a manually created task — otherwise
-        // the DB's day_order default of 0 ties the recurring instance at the
-        // top of custom sort.
-        const { data: lastTask } = await supabase
-          .from("tasks")
-          .select("day_order")
-          .eq("user_id", currentTask.user_id)
-          .order("day_order", { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        const nextDayOrder = (lastTask?.day_order ?? -1) + 1;
+      const alreadyExists = existingTasks.some(
+        (t) =>
+          t.content === updatedTask.content &&
+          t.project_id === updatedTask.project_id &&
+          t.due_date === nextDueDateIso &&
+          !t.is_completed,
+      );
 
-        const { data: newTask, error: createError } = await supabase
-          .from("tasks")
-          .insert({
-            user_id: currentTask.user_id,
-            project_id: currentTask.project_id,
-            content: currentTask.content,
-            description: currentTask.description,
-            priority: currentTask.priority,
-            due_date: nextDueDateIso,
-            do_date: nextDoDateIso,
-            is_evening: currentTask.is_evening || false,
-            recurrence: recurrenceRule,
-            recurring_series_id: seriesId,
-            is_completed: false,
-            day_order: nextDayOrder,
-          })
-          .select()
-          .single();
-
-        if (!createError) {
-          newRecurringTask = newTask as Task;
-        }
+      if (!alreadyExists) {
+        newRecurringTask = await tasksClient.create({
+          project_id: updatedTask.project_id,
+          content: updatedTask.content,
+          description: updatedTask.description,
+          priority: updatedTask.priority,
+          due_date: nextDueDateIso,
+          do_date: nextDoDateIso,
+          is_evening: updatedTask.is_evening || false,
+          recurrence: recurrenceRule,
+          recurring_series_id: seriesId,
+        });
       }
     }
 
@@ -336,251 +125,67 @@ export const taskMutations = {
   },
 
   update: async (input: UpdateTaskInput): Promise<Task> => {
-    const isGuest =
-      typeof window !== "undefined" &&
-      localStorage.getItem("kanso_guest_mode") === "true";
     const { id, ...updates } = input;
-
-    if (isGuest) {
-      const existing = mockStore.getTask(id);
-      if (!existing) throw new Error("Task not found");
-
-      if (updates.recurrence && !existing.recurring_series_id) {
-        updates.recurring_series_id = crypto.randomUUID();
-      }
-
-      const result = mockStore.updateTask(id, updates);
-      if (!result) throw new Error("Task not found");
-      return result;
-    }
-
-    const supabase = createClient();
-
-    if (updates.recurrence) {
-      const { data: current, error: fetchError } = await supabase
-        .from("tasks")
-        .select("recurring_series_id")
-        .eq("id", id)
-        .single();
-
-      if (fetchError) throw new Error(fetchError.message);
-      if (!current) throw new Error("Task not found");
-
-      if (!current.recurring_series_id) {
-        updates.recurring_series_id = crypto.randomUUID();
-      }
-    }
-
-    const { data, error } = await supabase
-      .from("tasks")
-      .update(updates)
-      .eq("id", id)
-      .select()
-      .single();
-
-    if (error) throw new Error(error.message);
-    return data as Task;
+    return tasksClient.update(id, updates);
   },
 
-  // Hard-deletes a task. tasks.parent_id cascades at the DB level, so any
-  // subtasks are destroyed along with it — fetched here first and returned
-  // so the caller can restore the whole subtree if the user hits Undo.
   delete: async (id: string): Promise<Task[]> => {
-    const isGuest =
-      typeof window !== "undefined" &&
-      localStorage.getItem("kanso_guest_mode") === "true";
-
-    if (isGuest) {
-      // mockStore.deleteTask doesn't cascade, so subtasks aren't lost here —
-      // nothing to capture for restore.
-      mockStore.deleteTask(id);
-      return [];
-    }
-
-    const supabase = createClient();
-
-    // eslint-disable-next-line local/no-unbounded-supabase-select -- subtasks of one parent
-    const { data: subtasks, error: subtasksError } = await supabase
-      .from("tasks")
-      .select("*")
-      .eq("parent_id", id);
-    if (subtasksError) throw new Error(subtasksError.message);
-
-    const { error } = await supabase.from("tasks").delete().eq("id", id);
-    if (error) throw new Error(error.message);
-
-    return (subtasks as Task[]) ?? [];
+    const all = await tasksClient.list({ showCompleted: true });
+    const subtasks = all.filter((t) => t.parent_id === id);
+    await tasksClient.delete(id);
+    return subtasks;
   },
 
-  // Re-inserts a hard-deleted task for useDeleteTask's Undo action, along
-  // with any subtasks the delete cascaded away. Parent goes first since
-  // subtasks' parent_id references it.
   restore: async (task: Task, subtasks: Task[] = []): Promise<void> => {
-    const supabase = createClient();
-
-    const { error } = await supabase
-      .from("tasks")
-      .insert(toRestorePayload(task));
-    if (error) throw new Error(error.message);
-
-    if (subtasks.length > 0) {
-      const { error: subtasksError } = await supabase
-        .from("tasks")
-        .insert(subtasks.map(toRestorePayload));
-      if (subtasksError) throw new Error(subtasksError.message);
+    await tasksClient.create(toRestorePayload(task));
+    for (const subtask of subtasks) {
+      await tasksClient.create(toRestorePayload(subtask));
     }
   },
 
-  // Accepts pre-computed {id, day_order} pairs produced by the slot-value-swap
-  // in useReorderTasks.onMutate. Each task receives the day_order value from
-  // the cache slot it is moving into — not a fresh sequential 0,1,2... — so
-  // the globally-sorted flat array remains stable across all sections/groups.
   reorder: async (
     pairs: { id: string; day_order: number }[],
   ): Promise<void> => {
-    const isGuest =
-      typeof window !== "undefined" &&
-      localStorage.getItem("kanso_guest_mode") === "true";
-
-    if (isGuest) {
-      pairs.forEach(({ id, day_order }) => {
-        mockStore.updateTask(id, { day_order });
-      });
-      return;
-    }
-
-    const supabase = createClient();
-
     for (const { id, day_order } of pairs) {
-      const { error } = await supabase
-        .from("tasks")
-        .update({ day_order })
-        .eq("id", id);
-      if (error) throw new Error(error.message);
+      await tasksClient.update(id, { day_order });
     }
   },
 
   clearCompleted: async (): Promise<void> => {
-    const isGuest =
-      typeof window !== "undefined" &&
-      localStorage.getItem("kanso_guest_mode") === "true";
-
-    if (isGuest) {
-      const completedTasks = mockStore.getTasks().filter((t) => t.is_completed);
-      completedTasks.forEach((t) => mockStore.deleteTask(t.id));
-      return;
+    const all = await tasksClient.list({ showCompleted: true });
+    for (const t of all) {
+      if (t.is_completed) {
+        await tasksClient.delete(t.id);
+      }
     }
-
-    const supabase = createClient();
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-    const user = session?.user;
-    if (!user) throw new Error("Not authenticated");
-
-    const { error } = await supabase
-      .from("tasks")
-      .delete()
-      .eq("user_id", user.id)
-      .eq("is_completed", true);
-
-    if (error) throw new Error(error.message);
   },
 
   duplicate: async (
     sourceTask: Task,
     overrides?: Partial<Task>,
   ): Promise<Task> => {
-    const isGuest =
-      typeof window !== "undefined" &&
-      localStorage.getItem("kanso_guest_mode") === "true";
+    const duplicatedTask = await tasksClient.create({
+      ...toDuplicatePayload(sourceTask, sourceTask.parent_id || null),
+      ...overrides,
+    });
 
-    if (isGuest) {
-      const duplicatedTask = mockStore.addTask({
-        ...toDuplicatePayload(sourceTask, sourceTask.parent_id || null),
-        ...overrides,
-      });
+    const allTasks = await tasksClient.list({ showCompleted: true });
 
-      const duplicateSubtasksRecursively = (
-        originalParentId: string,
-        newParentId: string,
-      ) => {
-        for (const subtask of mockStore.getSubtasks(originalParentId)) {
-          const newSubtask = mockStore.addTask(
-            toDuplicatePayload(subtask, newParentId),
-          );
-          duplicateSubtasksRecursively(subtask.id, newSubtask.id);
-        }
-      };
-
-      duplicateSubtasksRecursively(sourceTask.id, duplicatedTask.id);
-
-      return duplicatedTask;
-    }
-
-    const supabase = createClient();
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-    const user = session?.user;
-    if (!user) throw new Error("Not authenticated");
-
-    const { data: lastTask } = await supabase
-      .from("tasks")
-      .select("day_order")
-      .eq("user_id", user.id)
-      .order("day_order", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    const nextDayOrder = (lastTask?.day_order ?? -1) + 1;
-
-    const { data: duplicatedTask, error } = await supabase
-      .from("tasks")
-      .insert({
-        user_id: user.id,
-        ...toDuplicatePayload(sourceTask, sourceTask.parent_id || null),
-        ...overrides,
-        day_order: nextDayOrder,
-      })
-      .select()
-      .single();
-
-    if (error) throw new Error(error.message);
-
-    // Throws (rather than swallowing) on either a fetch or insert error, so
-    // a broken subtree surfaces as a failed paste instead of a silent
-    // partial copy reported to the user as a success.
     const duplicateSubtasksRecursively = async (
       originalParentId: string,
       newParentId: string,
     ) => {
-      // eslint-disable-next-line local/no-unbounded-supabase-select -- subtasks of one parent
-      const { data: subtasks, error: subtasksError } = await supabase
-        .from("tasks")
-        .select("*")
-        .eq("parent_id", originalParentId);
-
-      if (subtasksError) throw new Error(subtasksError.message);
-      if (!subtasks || subtasks.length === 0) return;
-
-      for (const subtask of subtasks) {
-        const { data: newSubtask, error: insertError } = await supabase
-          .from("tasks")
-          .insert({
-            user_id: user.id,
-            ...toDuplicatePayload(subtask, newParentId),
-            day_order: subtask.day_order ?? 0,
-          })
-          .select()
-          .single();
-
-        if (insertError) throw new Error(insertError.message);
+      const children = allTasks.filter((t) => t.parent_id === originalParentId);
+      for (const subtask of children) {
+        const newSubtask = await tasksClient.create({
+          ...toDuplicatePayload(subtask, newParentId),
+        });
         await duplicateSubtasksRecursively(subtask.id, newSubtask.id);
       }
     };
 
     await duplicateSubtasksRecursively(sourceTask.id, duplicatedTask.id);
 
-    return duplicatedTask as Task;
+    return duplicatedTask;
   },
 };

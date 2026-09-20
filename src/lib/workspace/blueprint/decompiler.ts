@@ -8,13 +8,14 @@ import type {
 import type { Task, Project } from "@/lib/types/task";
 import type { Habit } from "@/lib/types/habit";
 import { workspaceMutations } from "@/lib/mutations/workspace";
-import { mockStore } from "@/lib/mock/mock-store";
+import { tasksClient } from "@/lib/api/tasks-client";
+import { projectsClient } from "@/lib/api/projects-client";
+import { habitsClient } from "@/lib/api/habits-client";
 import { taskKeys } from "@/lib/queries/task-keys";
 import type { VisualAsset, VisualRelation } from "@/lib/types/visual";
 
 export interface DecompilerContext {
   queryClient?: QueryClient;
-  isGuestMode?: boolean;
   workspace?: Workspace;
   nodes?: WorkspaceNode[];
   edges?: WorkspaceEdge[];
@@ -106,11 +107,6 @@ export async function decompileWorkspaceToSnapshot(
   workspaceId: string,
   context: DecompilerContext = {},
 ): Promise<WorkspaceSnapshot> {
-  const isGuest =
-    context.isGuestMode ??
-    (typeof window !== "undefined" &&
-      localStorage.getItem("kanso_guest_mode") === "true");
-
   // 1. Fetch workspace row if not supplied
   let workspace = context.workspace;
   if (!workspace) {
@@ -138,11 +134,12 @@ export async function decompileWorkspaceToSnapshot(
       const found = cached?.find((t) => t.id === taskId);
       if (found) return found;
     }
-    if (isGuest) {
-      const tasks = mockStore.getTasks();
+    try {
+      const tasks = await tasksClient.list({ showCompleted: true });
       return tasks.find((t) => t.id === taskId) ?? null;
+    } catch {
+      return null;
     }
-    return null;
   };
 
   const resolveProject = async (projectId: string): Promise<Project | null> => {
@@ -155,11 +152,12 @@ export async function decompileWorkspaceToSnapshot(
       const found = cached?.find((p) => p.id === projectId);
       if (found) return found;
     }
-    if (isGuest) {
-      const projects = mockStore.getProjects();
+    try {
+      const projects = await projectsClient.list();
       return projects.find((p) => p.id === projectId) ?? null;
+    } catch {
+      return null;
     }
-    return null;
   };
 
   const resolveHabit = async (habitId: string): Promise<Habit | null> => {
@@ -172,11 +170,12 @@ export async function decompileWorkspaceToSnapshot(
       const found = cached?.find((h) => h.id === habitId);
       if (found) return found;
     }
-    if (isGuest) {
-      const habits = mockStore.getHabits();
+    try {
+      const habits = await habitsClient.list();
       return habits.find((h) => h.id === habitId) ?? null;
+    } catch {
+      return null;
     }
-    return null;
   };
 
   // 3. Build group map and categorize nodes

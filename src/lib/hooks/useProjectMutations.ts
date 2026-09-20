@@ -1,7 +1,6 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useAuth } from "@/components/AuthProvider";
 import { handleMutationError } from "@/lib/utils/mutation-error";
 import type { Project, Task } from "@/lib/types/task";
 import { projectMutations } from "@/lib/mutations/project";
@@ -10,7 +9,6 @@ import { removeNodesReferencing } from "@/lib/commands/node-cleanup";
 
 export function useCreateProject() {
   const queryClient = useQueryClient();
-  const { isGuestMode } = useAuth();
 
   return useMutation({
     mutationKey: ["createProject"],
@@ -20,7 +18,6 @@ export function useCreateProject() {
 
       const previousProjects = queryClient.getQueryData<Project[]>([
         "projects",
-        isGuestMode,
       ]);
 
       const optimisticProject: Project = {
@@ -35,7 +32,7 @@ export function useCreateProject() {
         updated_at: new Date().toISOString(),
       };
 
-      queryClient.setQueryData<Project[]>(["projects", isGuestMode], (old) => [
+      queryClient.setQueryData<Project[]>(["projects"], (old) => [
         ...(old || []),
         optimisticProject,
       ]);
@@ -44,10 +41,7 @@ export function useCreateProject() {
     },
     onError: (err, _newProject, context) => {
       if (context?.previousProjects) {
-        queryClient.setQueryData(
-          ["projects", isGuestMode],
-          context.previousProjects,
-        );
+        queryClient.setQueryData(["projects"], context.previousProjects);
       }
       handleMutationError(err);
     },
@@ -74,7 +68,6 @@ export function useUpdateProject() {
 
 export function useArchiveProject() {
   const queryClient = useQueryClient();
-  const { isGuestMode } = useAuth();
 
   return useMutation({
     mutationKey: ["archiveProject"],
@@ -84,10 +77,9 @@ export function useArchiveProject() {
 
       const previousProjects = queryClient.getQueryData<Project[]>([
         "projects",
-        isGuestMode,
       ]);
 
-      queryClient.setQueryData<Project[]>(["projects", isGuestMode], (old) =>
+      queryClient.setQueryData<Project[]>(["projects"], (old) =>
         old?.filter((project) => project.id !== id),
       );
 
@@ -95,10 +87,7 @@ export function useArchiveProject() {
     },
     onError: (err, _id, context) => {
       if (context?.previousProjects) {
-        queryClient.setQueryData(
-          ["projects", isGuestMode],
-          context.previousProjects,
-        );
+        queryClient.setQueryData(["projects"], context.previousProjects);
       }
       handleMutationError(err);
     },
@@ -126,14 +115,10 @@ export function useMoveTasksToInbox() {
 
 export function useDeleteProjectTasks() {
   const queryClient = useQueryClient();
-  const { isGuestMode } = useAuth();
 
   return useMutation({
     mutationKey: ["deleteProjectTasks"],
     mutationFn: async (projectId: string) => {
-      // The task ids this delete will destroy, from the best client
-      // knowledge before the write lands (ADR 0019). A task the cache never
-      // saw leaves its node as a dismissable orphan placeholder.
       const taskIds = [
         ...new Set(
           queryClient
@@ -148,12 +133,8 @@ export function useDeleteProjectTasks() {
 
       await projectMutations.deleteProjectTasks(projectId);
 
-      // The project hard-delete flow's node cleanup — the interim wiring
-      // until project commands migrate (ticket 08). Nodes referencing the
-      // destroyed tasks are removed across workspaces; a cleanup failure
-      // degrades to orphan placeholders, never a failed task delete.
       await removeNodesReferencing(
-        { queryClient, isGuestMode },
+        { queryClient },
         { entityType: "task", entityIds: taskIds },
       ).catch((err: unknown) => {
         console.warn(

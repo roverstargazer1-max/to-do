@@ -4,14 +4,11 @@ import { useState } from "react";
 import { useTheme } from "next-themes";
 import { useAuth } from "@/components/AuthProvider";
 import { Button } from "@/components/ui/button";
-import { LoaderOverlay } from "@/components/ui/loader-overlay";
 import {
   Moon,
   Sun,
   Monitor,
-  LogOut,
   User,
-  Loader2,
   ArrowLeft,
   RotateCcw,
   Trash2,
@@ -20,8 +17,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-import { useRouter, useSearchParams } from "next/navigation";
-import dynamic from "next/dynamic";
+import { useSearchParams } from "next/navigation";
 import { useMediaQuery } from "@/lib/hooks/useMediaQuery";
 import { useUiStore, type GoalsState } from "@/lib/store/uiStore";
 import { Switch } from "@/components/ui/switch";
@@ -44,21 +40,12 @@ import { DeleteUserDataDialog } from "@/components/settings/DeleteUserDataDialog
 import { BackupSyncSettings } from "@/components/settings/BackupSyncSettings";
 import { AccountSection } from "@/components/settings/AccountSection";
 import { PrivacySection } from "@/components/settings/PrivacySection";
-import { useAccountData } from "@/lib/hooks/useAccountData";
 import { useProfile } from "@/lib/hooks/useProfile";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ChangelogPopup } from "@/components/ui/ChangelogPopup";
 import { AboutSheet } from "@/components/settings/AboutSheet";
 import { PreviewBadge } from "@/components/ui/PreviewBadge";
 import { Info } from "lucide-react";
-
-const SignOutConfirmation = dynamic(
-  () =>
-    import("@/components/auth/SignOutConfirmation").then(
-      (mod) => mod.SignOutConfirmation,
-    ),
-  { ssr: false },
-);
 
 const SECTION_TAB_TRIGGER_CLASS =
   "rounded-md gap-2 text-[13px] font-medium tracking-tight data-[state=active]:bg-brand data-[state=active]:text-brand-foreground data-[state=active]:shadow-none transition-seijaku-fast h-9 border border-transparent data-[state=active]:border-brand/20 text-muted-foreground hover:text-foreground hover:bg-secondary/40";
@@ -107,16 +94,13 @@ export function SettingsClient({ version }: SettingsClientProps) {
   const setTimeFormat = useUiStore((state) => state.setTimeFormat);
   const goals = useUiStore((state) => state.goals);
   const setGoals = useUiStore((state) => state.setGoals);
-  const { user, signOut, isGuestMode } = useAuth();
-  const router = useRouter();
+  const { user, isGuestMode } = useAuth();
   const anchoredBack = useAnchoredBack();
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
   const clearGuestData = useClearGuestData();
   const resetDemoData = useResetDemoData();
 
-  const [isSigningOut, setIsSigningOut] = useState(false);
-  const [showSignOutConfirm, setShowSignOutConfirm] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isChangelogOpen, setIsChangelogOpen] = useState(false);
   const [isAboutOpen, setIsAboutOpen] = useState(false);
@@ -131,33 +115,16 @@ export function SettingsClient({ version }: SettingsClientProps) {
   });
   const isDesktop = useMediaQuery("(min-width: 768px)");
   const { trigger } = useHaptic();
-  const { clearCloudData } = useAccountData();
   const { profile } = useProfile({ enabled: activeTab === "account" });
-
-  // user goes null before the redirect to /login lands; avoids a flash.
-  if (!user) {
-    return <LoaderOverlay message={t("settings.signingOut")} />;
-  }
 
   const handleTabChange = (v: string) => {
     trigger("toggle");
     setActiveTab(v as "appearance" | "preferences" | "account");
   };
 
-  const handleSignOut = async () => {
-    setShowSignOutConfirm(false);
-    setIsSigningOut(true);
-    await signOut();
-    router.push("/login");
-  };
-
   const handleClearData = async () => {
-    if (!isGuestMode) {
-      await clearCloudData();
-      await queryClient.invalidateQueries();
-      return;
-    }
     clearGuestData();
+    await queryClient.invalidateQueries();
   };
 
   const themeOptions = [
@@ -448,16 +415,6 @@ export function SettingsClient({ version }: SettingsClientProps) {
                       {t("settings.guest.description")}
                     </p>
                     <div className="flex flex-col gap-2">
-                      <Button
-                        className="w-full bg-brand hover:bg-brand/90 text-brand-foreground transition-all font-semibold"
-                        onClick={() => {
-                          trigger("toggle");
-                          router.push("/login");
-                        }}
-                      >
-                        <User className="h-4 w-4 mr-2" />
-                        {t("settings.guest.syncToAccount")}
-                      </Button>
                       <div className="flex gap-2">
                         <Button
                           variant="outline"
@@ -520,51 +477,10 @@ export function SettingsClient({ version }: SettingsClientProps) {
                     }
                   />
 
-                  {!isGuestMode && <AccountSection />}
-
-                  {process.env.NEXT_PUBLIC_LOCAL_SINGLE_USER !== "true" && (
-                    <>
-                      <BackupSyncSettings />
-
-                      {!isGuestMode && (
-                        <Button
-                          variant="outline"
-                          className="w-full justify-start shadow-none text-destructive border-destructive-surface-border hover:border-destructive hover:bg-destructive-surface-hover transition-all"
-                          onClick={() => {
-                            trigger("thud");
-                            setIsDeleteDialogOpen(true);
-                          }}
-                          disabled={isSigningOut}
-                        >
-                          <Trash2 className="h-4 w-4 mr-2" strokeWidth={2.25} />
-                          {t("settings.account.deleteCloudData")}
-                        </Button>
-                      )}
-
-                      <Button
-                        variant="destructive"
-                        className="w-full justify-start shadow-none"
-                        onClick={() => {
-                          trigger("thud");
-                          setShowSignOutConfirm(true);
-                        }}
-                        disabled={isSigningOut}
-                      >
-                        {isSigningOut ? (
-                          <>
-                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                            {t("settings.signingOut")}
-                          </>
-                        ) : (
-                          <>
-                            <LogOut className="h-4 w-4 mr-2" />
-                            {t("settings.account.signOut")}
-                          </>
-                        )}
-                      </Button>
-                    </>
-                  )}
+                  <AccountSection />
                 </div>
+
+                <BackupSyncSettings />
               </section>
             )}
 
@@ -599,12 +515,6 @@ export function SettingsClient({ version }: SettingsClientProps) {
         </div>
       </div>
 
-      <SignOutConfirmation
-        isOpen={showSignOutConfirm}
-        onClose={() => setShowSignOutConfirm(false)}
-        onConfirm={handleSignOut}
-      />
-
       <DeleteUserDataDialog
         open={isDeleteDialogOpen}
         onOpenChange={setIsDeleteDialogOpen}
@@ -626,8 +536,6 @@ export function SettingsClient({ version }: SettingsClientProps) {
           setIsChangelogOpen(true);
         }}
       />
-
-      {isSigningOut && <LoaderOverlay message={t("settings.signingOut")} />}
     </>
   );
 }
