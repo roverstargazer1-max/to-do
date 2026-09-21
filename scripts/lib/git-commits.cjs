@@ -14,6 +14,17 @@ function selectLastTag(tags, { excludePreRelease = false } = {}) {
 }
 
 function getLastTag(options) {
+  try {
+    const args = ["describe", "--tags", "--abbrev=0"];
+    if (options && options.excludePreRelease) {
+      args.push("--exclude=*-*");
+    }
+    const tag = execFileSync("git", args, { encoding: "utf-8" }).trim();
+    if (tag) return tag;
+  } catch {
+    // Fall back to git tag listing if describe fails (e.g. shallow clone or initial commit)
+  }
+
   let tags;
   try {
     tags = execFileSync("git", ["tag", "--list", "--sort=-v:refname"], {
