@@ -22,6 +22,8 @@ export function applyChromiumSwitches(
   platform: NodeJS.Platform = process.platform,
 ): void {
   commandLine.appendSwitch("enable-gpu-rasterization");
+  commandLine.appendSwitch("js-flags", "--max-old-space-size=160 --expose-gc");
+  commandLine.appendSwitch("enable-features", "MemorySaverMode");
 
   if (platform !== "darwin") {
     commandLine.appendSwitch("enable-zero-copy");
@@ -53,10 +55,10 @@ export function checkRosettaTranslation(
 
 /**
  * V8 flags for Next.js standalone child process.
- * Caps heap to 256MB to prevent unbounded memory growth while avoiding GC thrashing.
+ * Caps heap to 160MB to prevent unbounded memory growth and exposes GC for post-boot and idle purging.
  */
 export function getStandaloneServerExecArgv(): string[] {
-  return ["--max-old-space-size=256"];
+  return ["--max-old-space-size=160", "--expose-gc"];
 }
 
 export interface StandaloneServerSpawnOptions {

@@ -24,6 +24,14 @@ describe("Electron runtime switches and platform tuning", () => {
     const switchNames = switches.map((s) => s.switchName);
 
     expect(switchNames).toContain("enable-gpu-rasterization");
+    expect(switches).toContainEqual({
+      switchName: "js-flags",
+      value: "--max-old-space-size=160 --expose-gc",
+    });
+    expect(switches).toContainEqual({
+      switchName: "enable-features",
+      value: "MemorySaverMode",
+    });
     expect(switchNames).not.toContain("enable-zero-copy");
     expect(switchNames).not.toContain("ignore-gpu-blocklist");
     expect(switchNames).not.toContain("disable-features");
@@ -45,6 +53,14 @@ describe("Electron runtime switches and platform tuning", () => {
     expect(switchNames).toContain("enable-zero-copy");
     expect(switchNames).toContain("ignore-gpu-blocklist");
     expect(switches).toContainEqual({
+      switchName: "js-flags",
+      value: "--max-old-space-size=160 --expose-gc",
+    });
+    expect(switches).toContainEqual({
+      switchName: "enable-features",
+      value: "MemorySaverMode",
+    });
+    expect(switches).toContainEqual({
       switchName: "disable-features",
       value: "CalculateNativeWinOcclusion",
     });
@@ -65,6 +81,14 @@ describe("Electron runtime switches and platform tuning", () => {
     expect(switchNames).toContain("enable-gpu-rasterization");
     expect(switchNames).toContain("enable-zero-copy");
     expect(switchNames).toContain("ignore-gpu-blocklist");
+    expect(switches).toContainEqual({
+      switchName: "js-flags",
+      value: "--max-old-space-size=160 --expose-gc",
+    });
+    expect(switches).toContainEqual({
+      switchName: "enable-features",
+      value: "MemorySaverMode",
+    });
     expect(switchNames).not.toContain("disable-features");
   });
 });
@@ -97,10 +121,11 @@ describe("Rosetta 2 translation detection", () => {
 });
 
 describe("Next.js standalone subprocess heap governance", () => {
-  it("configures 256MB max old space size without aggressive size optimization flags", () => {
+  it("configures 160MB max old space size and exposes garbage collection without aggressive size optimization flags", () => {
     const execArgv = getStandaloneServerExecArgv();
 
-    expect(execArgv).toContain("--max-old-space-size=256");
+    expect(execArgv).toContain("--max-old-space-size=160");
+    expect(execArgv).toContain("--expose-gc");
     expect(execArgv).not.toContain("--optimize-for-size");
   });
 
@@ -114,7 +139,10 @@ describe("Next.js standalone subprocess heap governance", () => {
 
     expect(config.serverPath).toBe("/path/to/.next/standalone/server.js");
     expect(config.options.cwd).toBe("/path/to/.next/standalone");
-    expect(config.options.execArgv).toEqual(["--max-old-space-size=256"]);
+    expect(config.options.execArgv).toEqual([
+      "--max-old-space-size=160",
+      "--expose-gc",
+    ]);
     expect(config.options.env.PORT).toBe("4321");
     expect(config.options.env.HOSTNAME).toBe("127.0.0.1");
     expect(config.options.env.NODE_ENV).toBe("production");

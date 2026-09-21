@@ -36,6 +36,7 @@ const nextConfig: NextConfig = {
     ? [process.env.LAN_DEV_ORIGIN]
     : [],
   output: isElectron ? "standalone" : isMobile ? "export" : undefined,
+  cacheMaxMemorySize: isElectron ? 0 : undefined,
   outputFileTracingRoot: process.cwd(),
   outputFileTracingExcludes: {
     "*": ["**/AppData/**"],

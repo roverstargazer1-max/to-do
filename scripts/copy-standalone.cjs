@@ -93,9 +93,46 @@ if (fs.existsSync(betterSqlite3Src)) {
   copyDirRecursive(betterSqlite3Src, betterSqlite3Dest, assetFilter);
 }
 
-console.log(
-  "Stripping unneeded sourcemaps and type definitions from .next/standalone...",
-);
+// Inject standalone memory governance IPC handler into server.js
+const serverJsPath = path.join(standaloneDir, "server.js");
+if (fs.existsSync(serverJsPath)) {
+  const originalServerJs = fs.readFileSync(serverJsPath, "utf8");
+  const injectionMarker = "// [Kagelin Memory Governance]";
+  if (!originalServerJs.includes(injectionMarker)) {
+    const memoryGovernorCode = `
+${injectionMarker}
+if (process.send) {
+  process.on('message', (msg) => {
+    if (msg && (msg.type === 'compact-memory' || msg.type === 'gc')) {
+      if (typeof global.gc === 'function') {
+        try {
+          global.gc();
+        } catch {}
+      }
+      try {
+        const dbPath = process.env.KAGELIN_DB_PATH;
+        if (dbPath) {
+          const Database = require('better-sqlite3');
+          const db = new Database(dbPath);
+          db.pragma('shrink_memory;');
+          db.close();
+        }
+      } catch {}
+      try {
+        process.send({ type: 'compact-memory-complete' });
+      } catch {}
+    }
+  });
+}
+`;
+    fs.writeFileSync(
+      serverJsPath,
+      memoryGovernorCode + "\n" + originalServerJs,
+      "utf8",
+    );
+  }
+}
+
 cleanUnneededFiles(standaloneDir);
 
 // Verification assertions
