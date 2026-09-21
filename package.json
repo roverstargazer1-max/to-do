@@ -200,6 +200,7 @@
       "icon": "public/icon.png"
     },
     "mac": {
+      "artifactName": "${productName}-${version}-${arch}.${ext}",
       "target": [
         {
           "target": "dmg",

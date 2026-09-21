@@ -97,12 +97,11 @@ describe("Rosetta 2 translation detection", () => {
 });
 
 describe("Next.js standalone subprocess heap governance", () => {
-  it("configures 96MB max old space size and V8 size optimization flags", () => {
+  it("configures 256MB max old space size without aggressive size optimization flags", () => {
     const execArgv = getStandaloneServerExecArgv();
 
-    expect(execArgv).toContain("--max-old-space-size=96");
-    expect(execArgv).not.toContain("--max-old-space-size=192");
-    expect(execArgv).toContain("--optimize-for-size");
+    expect(execArgv).toContain("--max-old-space-size=256");
+    expect(execArgv).not.toContain("--optimize-for-size");
   });
 
   it("builds correct standalone server spawn configuration with constrained heap flags", () => {
@@ -115,10 +114,7 @@ describe("Next.js standalone subprocess heap governance", () => {
 
     expect(config.serverPath).toBe("/path/to/.next/standalone/server.js");
     expect(config.options.cwd).toBe("/path/to/.next/standalone");
-    expect(config.options.execArgv).toEqual([
-      "--max-old-space-size=96",
-      "--optimize-for-size",
-    ]);
+    expect(config.options.execArgv).toEqual(["--max-old-space-size=256"]);
     expect(config.options.env.PORT).toBe("4321");
     expect(config.options.env.HOSTNAME).toBe("127.0.0.1");
     expect(config.options.env.NODE_ENV).toBe("production");
@@ -146,5 +142,12 @@ describe("Next.js standalone subprocess heap governance", () => {
     } finally {
       await new Promise<void>((resolve) => server.close(() => resolve()));
     }
+  });
+
+  it("rejects when server fails to bind within timeout", async () => {
+    const unreachableUrl = "http://127.0.0.1:49999";
+    await expect(waitForServer(unreachableUrl, 300)).rejects.toThrow(
+      "Timeout waiting for Next.js server",
+    );
   });
 });

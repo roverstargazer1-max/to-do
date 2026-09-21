@@ -1,5 +1,5 @@
 import * as path from "node:path";
-import * as http from "node:http";
+import * as net from "node:net";
 
 export interface CommandLineApplier {
   appendSwitch(switchName: string, value?: string): void;
@@ -53,10 +53,10 @@ export function checkRosettaTranslation(
 
 /**
  * V8 flags for Next.js standalone child process.
- * Caps heap to 96MB and enables size-optimized garbage collection.
+ * Caps heap to 256MB to prevent unbounded memory growth while avoiding GC thrashing.
  */
 export function getStandaloneServerExecArgv(): string[] {
-  return ["--max-old-space-size=96", "--optimize-for-size"];
+  return ["--max-old-space-size=256"];
 }
 
 export interface StandaloneServerSpawnOptions {
@@ -98,30 +98,36 @@ export function buildStandaloneServerSpawnConfig(
 }
 
 export function waitForServer(url: string, timeoutMs = 25000): Promise<void> {
+  const parsed = new URL(url);
+  const port = Number(parsed.port) || (parsed.protocol === "https:" ? 443 : 80);
+  const host =
+    parsed.hostname === "localhost"
+      ? "127.0.0.1"
+      : parsed.hostname || "127.0.0.1";
   const start = Date.now();
+
   return new Promise((resolve, reject) => {
     let resolved = false;
 
     const check = () => {
       if (resolved) return;
-      const req = http.get(url, (res) => {
+      const socket = net.createConnection({ port, host }, () => {
         if (!resolved) {
           resolved = true;
-          res.resume();
+          socket.destroy();
           resolve();
         }
       });
 
-      req.setTimeout(1000, () => {
-        req.destroy();
+      socket.setTimeout(1000, () => {
+        socket.destroy();
         retry();
       });
 
-      req.on("error", () => {
+      socket.on("error", () => {
+        socket.destroy();
         retry();
       });
-
-      req.end();
     };
 
     const retry = () => {
