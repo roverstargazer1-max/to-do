@@ -1,5 +1,15 @@
 [
   {
+    "version": "1.4.1",
+    "date": "2026-09-21",
+    "channel": "stable",
+    "sections": {
+      "Fixed": [
+        "Implement atomic mirror restore to prevent calendar event duplication"
+      ]
+    }
+  },
+  {
     "version": "1.4.0",
     "date": "2026-09-21",
     "channel": "stable",
@@ -1062,16 +1072,6 @@
       "Fixed": [
         "Align local and push notification tags so they replace instead of stacking",
         "Stop duplicate timer notifications from a schedule race"
-      ]
-    }
-  },
-  {
-    "version": "1.27.0-preview.1",
-    "date": "2026-08-01",
-    "channel": "preview",
-    "sections": {
-      "Fixed": [
-        "Make scheduled push delivery reliable (timer/task isolation, claim, retry)"
       ]
     }
   }
