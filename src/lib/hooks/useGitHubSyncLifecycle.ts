@@ -79,7 +79,10 @@ export function useGitHubSyncLifecycle() {
               queryClient.invalidateQueries({ queryKey: ["project"] }),
               queryClient.invalidateQueries({ queryKey: ["habits"] }),
               queryClient.invalidateQueries({ queryKey: ["habit"] }),
+              queryClient.invalidateQueries({ queryKey: ["subtasks"] }),
+              queryClient.invalidateQueries({ queryKey: ["inbox-project"] }),
               queryClient.invalidateQueries({ queryKey: ["calendar-events"] }),
+              queryClient.invalidateQueries({ queryKey: ["calendar-tasks"] }),
               queryClient.invalidateQueries({ queryKey: ["workspaces"] }),
               queryClient.invalidateQueries({ queryKey: ["workspace-nodes"] }),
             ]);

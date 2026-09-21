@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
+import * as fs from "node:fs";
+import * as path from "node:path";
 import * as Sentry from "@sentry/nextjs";
 import { getDatabase } from "@/lib/db/index";
+import { getDatabasePath } from "@/lib/db/config";
 import { assetService } from "@/lib/assets/asset-service";
 import type { FocusLog } from "@/lib/db/repositories/focus-repository";
 import type { Task, Project } from "@/lib/types/task";
@@ -13,6 +16,8 @@ import type {
 } from "@/lib/types/workspace";
 
 interface LegacyMigrationPayload {
+  replace?: boolean;
+  createSnapshot?: boolean;
   guestData?: {
     projects?: Project[];
     tasks?: Task[];
@@ -40,7 +45,65 @@ export async function POST(request: NextRequest) {
     const body = (await request.json()) as LegacyMigrationPayload;
     const db = getDatabase();
 
+    // Auto-create point-in-time snapshot before replacement if requested
+    const targetDbPath = getDatabasePath();
+    if (
+      body.replace &&
+      body.createSnapshot !== false &&
+      targetDbPath &&
+      targetDbPath !== ":memory:"
+    ) {
+      try {
+        const snapshotDir = path.join(path.dirname(targetDbPath), "snapshots");
+        if (!fs.existsSync(snapshotDir)) {
+          fs.mkdirSync(snapshotDir, { recursive: true });
+        }
+        const snapshotFile = path.join(
+          snapshotDir,
+          `auto-backup-${Date.now()}.db`,
+        );
+        db.prepare("VACUUM INTO ?").run(snapshotFile);
+      } catch (e) {
+        console.warn(
+          "[migrate-legacy] Auto-snapshot before replace failed:",
+          e,
+        );
+        Sentry.captureException(e);
+      }
+    }
+
     const insertAll = db.transaction(() => {
+      if (body.replace) {
+        // Safe domain-by-domain clearing in FK dependency order before mirror insertion
+        if (
+          body.workspaceData?.edges !== undefined ||
+          body.workspaceData?.nodes !== undefined ||
+          body.workspaceData?.workspaces !== undefined
+        ) {
+          db.exec(
+            "DELETE FROM workspace_edges; DELETE FROM workspace_nodes; DELETE FROM workspaces;",
+          );
+        }
+        if (
+          body.guestData?.habit_entries !== undefined ||
+          body.guestData?.habits !== undefined
+        ) {
+          db.exec("DELETE FROM habit_entries; DELETE FROM habits;");
+        }
+        if (body.guestData?.focus_logs !== undefined) {
+          db.exec("DELETE FROM focus_logs;");
+        }
+        if (body.guestData?.tasks !== undefined) {
+          db.exec("DELETE FROM tasks;");
+        }
+        if (body.guestData?.projects !== undefined) {
+          db.exec("DELETE FROM projects;");
+        }
+        if (body.guestData?.events !== undefined) {
+          db.exec("DELETE FROM calendar_events;");
+        }
+      }
+
       // 1. Projects
       if (body.guestData?.projects) {
         const stmt = db.prepare(
@@ -328,7 +391,12 @@ export async function POST(request: NextRequest) {
       }
     });
 
-    insertAll();
+    db.pragma("foreign_keys = OFF;");
+    try {
+      insertAll();
+    } finally {
+      db.pragma("foreign_keys = ON;");
+    }
 
     // 10. Extract & Save Visual Assets to disk
     if (body.visualAssets && body.visualAssets.length > 0) {

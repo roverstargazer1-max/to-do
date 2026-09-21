@@ -202,4 +202,97 @@ describe("05: Silent Legacy Data Migration (IndexedDB/localStorage to SQLite)", 
     ).c;
     expect(taskCount).toBe(1);
   });
+
+  it("performs clean mirror restore when replace: true, removing stale records and preventing duplicates", async () => {
+    const db = getDatabase(testDbPath);
+
+    // 1. Seed existing local records that should NOT be in the restored data
+    db.prepare(
+      `
+      INSERT INTO calendar_events (id, user_id, title, start_time, end_time, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `,
+    ).run(
+      "local-stale-ev",
+      "local_user",
+      "Local Stale Event",
+      "2026-05-01T10:00:00Z",
+      "2026-05-01T11:00:00Z",
+      new Date().toISOString(),
+      new Date().toISOString(),
+    );
+
+    db.prepare(
+      `
+      INSERT INTO tasks (id, user_id, content, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?)
+    `,
+    ).run(
+      "local-stale-task",
+      "local_user",
+      "Local Stale Task",
+      new Date().toISOString(),
+      new Date().toISOString(),
+    );
+
+    expect(
+      db.prepare("SELECT count(*) as c FROM calendar_events").get() as any,
+    ).toMatchObject({ c: 1 });
+    expect(
+      db.prepare("SELECT count(*) as c FROM tasks").get() as any,
+    ).toMatchObject({ c: 1 });
+
+    // 2. Perform restore with replace: true and incoming remote payload
+    const remotePayload = {
+      replace: true,
+      createSnapshot: true,
+      guestData: {
+        events: [
+          {
+            id: "remote-ev-1",
+            title: "Remote Sync Event",
+            start_time: "2026-05-01T10:00:00Z",
+            end_time: "2026-05-01T11:00:00Z",
+            all_day: false,
+            color: "#4B6CB7",
+            user_id: "local_user",
+          },
+        ],
+        tasks: [
+          {
+            id: "remote-task-1",
+            content: "Remote Sync Task",
+            user_id: "local_user",
+            priority: 2,
+            is_completed: false,
+          },
+        ],
+      },
+    };
+
+    const req = new NextRequest("http://localhost:3000/api/db/migrate-legacy", {
+      method: "POST",
+      body: JSON.stringify(remotePayload),
+    });
+    const res = await postMigrateLegacy(req);
+    expect(res.status).toBe(200);
+
+    // 3. Verify that old local records were replaced without duplication
+    const allEvents = db
+      .prepare("SELECT * FROM calendar_events")
+      .all() as any[];
+    expect(allEvents.length).toBe(1);
+    expect(allEvents[0].id).toBe("remote-ev-1");
+    expect(allEvents[0].title).toBe("Remote Sync Event");
+
+    const allTasks = db.prepare("SELECT * FROM tasks").all() as any[];
+    expect(allTasks.length).toBe(1);
+    expect(allTasks[0].id).toBe("remote-task-1");
+
+    // 4. Verify auto-snapshot was created in snapshots directory
+    const snapshotsDir = path.join(path.dirname(testDbPath), "snapshots");
+    expect(fs.existsSync(snapshotsDir)).toBe(true);
+    const files = fs.readdirSync(snapshotsDir);
+    expect(files.some((f) => f.startsWith("auto-backup-"))).toBe(true);
+  });
 });

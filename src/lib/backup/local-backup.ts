@@ -44,11 +44,19 @@ export async function collectLocalBackupData(): Promise<BackupData> {
   };
 }
 
-export async function restoreLocalBackupData(data: BackupData): Promise<void> {
+export async function restoreLocalBackupData(
+  data: BackupData,
+  options?: { replace?: boolean; createSnapshot?: boolean },
+): Promise<void> {
+  const replace = options?.replace ?? true;
+  const createSnapshot = options?.createSnapshot ?? true;
+
   const res = await fetch("/api/db/migrate-legacy", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
+      replace,
+      createSnapshot,
       guestData: {
         projects: data.projects,
         tasks: data.tasks,
