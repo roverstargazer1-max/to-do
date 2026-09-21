@@ -12,12 +12,21 @@ import {
   waitForServer,
 } from "./runtime-flags";
 import { MemoryGovernor } from "./memory-governor";
+import {
+  handleAppActivate,
+  handleBeforeQuit,
+  handleSecondInstance,
+  handleWindowAllClosed,
+  setupWindowCloseHandler,
+} from "./window-lifecycle";
 
 // Hardware acceleration and performance optimization switches tailored by platform
 applyChromiumSwitches(app.commandLine);
 
 let mainWindow: BrowserWindow | null = null;
 let serverProcess: ChildProcess | null = null;
+let isQuitting = false;
+let currentTargetUrl = "http://localhost:3000";
 const memoryGovernor = new MemoryGovernor({ logger: log });
 
 const isDev = !app.isPackaged && process.env.ELECTRON_DEV === "1";
@@ -215,6 +224,7 @@ function getIconPath(): string {
 }
 
 async function createWindow(targetUrl: string) {
+  currentTargetUrl = targetUrl;
   const iconPath = getIconPath();
   log(`[Electron] Creating main window with target URL: ${targetUrl}`);
 
@@ -237,6 +247,8 @@ async function createWindow(targetUrl: string) {
       backgroundThrottling: true,
     },
   });
+
+  setupWindowCloseHandler(mainWindow, () => isQuitting);
 
   let windowShown = false;
   const showWindow = () => {
@@ -321,17 +333,12 @@ if (!gotTheLock) {
 } else {
   app.on("second-instance", () => {
     log("[Electron] Second instance requested; focusing main window.");
-    if (mainWindow) {
-      if (mainWindow.isMinimized()) mainWindow.restore();
-      mainWindow.focus();
-    }
+    handleSecondInstance(() => mainWindow);
   });
 
   app.whenReady().then(async () => {
     try {
       checkRosettaTranslation(app, log);
-
-      let targetUrl = "http://localhost:3000";
 
       if (isDev) {
         log(
@@ -342,19 +349,26 @@ if (!gotTheLock) {
         const port = await resolveStableServerPort(userDataPath, getFreePort);
         await startStandaloneServer(port);
         persistServerPort(userDataPath, port);
-        targetUrl = `http://127.0.0.1:${port}`;
+        currentTargetUrl = `http://127.0.0.1:${port}`;
       }
 
-      await createWindow(targetUrl);
+      await createWindow(currentTargetUrl);
     } catch (err) {
       log(`[Electron] Failed to start application: ${String(err)}`, true);
       app.quit();
     }
 
-    app.on("activate", () => {
-      if (BrowserWindow.getAllWindows().length === 0 && mainWindow) {
-        mainWindow.show();
-      }
+    app.on("activate", async () => {
+      await handleAppActivate(
+        () => mainWindow,
+        () => BrowserWindow.getAllWindows().length,
+        async () => {
+          log(
+            "[Electron] Reactivating with no windows open; creating new window.",
+          );
+          await createWindow(currentTargetUrl);
+        },
+      );
     });
   });
 
@@ -381,13 +395,18 @@ if (!gotTheLock) {
   });
 
   app.on("before-quit", () => {
-    stopServer();
+    handleBeforeQuit(
+      (val) => {
+        isQuitting = val;
+      },
+      () => stopServer(),
+    );
   });
 
   app.on("window-all-closed", () => {
-    stopServer();
-    if (process.platform !== "darwin") {
-      app.quit();
-    }
+    handleWindowAllClosed(
+      () => stopServer(),
+      () => app.quit(),
+    );
   });
 }
