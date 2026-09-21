@@ -1,3 +1,6 @@
+import * as path from "node:path";
+import * as http from "node:http";
+
 export interface CommandLineApplier {
   appendSwitch(switchName: string, value?: string): void;
 }
@@ -46,4 +49,91 @@ export function checkRosettaTranslation(
     return true;
   }
   return false;
+}
+
+/**
+ * V8 flags for Next.js standalone child process.
+ * Caps heap to 96MB and enables size-optimized garbage collection.
+ */
+export function getStandaloneServerExecArgv(): string[] {
+  return ["--max-old-space-size=96", "--optimize-for-size"];
+}
+
+export interface StandaloneServerSpawnOptions {
+  cwd: string;
+  env: NodeJS.ProcessEnv;
+  execArgv: string[];
+  stdio: ("ignore" | "pipe" | "ipc")[];
+}
+
+export function buildStandaloneServerSpawnConfig(
+  serverPath: string,
+  port: number,
+  userDataPath: string,
+  baseEnv: NodeJS.ProcessEnv | Record<string, string | undefined> = process.env,
+): { serverPath: string; options: StandaloneServerSpawnOptions } {
+  const env: NodeJS.ProcessEnv = {
+    ...baseEnv,
+    PORT: String(port),
+    HOSTNAME: "127.0.0.1",
+    NODE_ENV: "production",
+    NEXT_TELEMETRY_DISABLED: "1",
+    ELECTRON_RUN_AS_NODE: "1",
+    KAGELIN_DB_PATH:
+      baseEnv.KAGELIN_DB_PATH || path.join(userDataPath, "data.db"),
+    KAGELIN_ASSETS_PATH:
+      baseEnv.KAGELIN_ASSETS_PATH || path.join(userDataPath, "assets"),
+    NEXT_PUBLIC_APP_URL: `http://127.0.0.1:${port}`,
+  };
+
+  return {
+    serverPath,
+    options: {
+      cwd: path.dirname(serverPath),
+      env,
+      execArgv: getStandaloneServerExecArgv(),
+      stdio: ["ignore", "pipe", "pipe", "ipc"],
+    },
+  };
+}
+
+export function waitForServer(url: string, timeoutMs = 25000): Promise<void> {
+  const start = Date.now();
+  return new Promise((resolve, reject) => {
+    let resolved = false;
+
+    const check = () => {
+      if (resolved) return;
+      const req = http.get(url, (res) => {
+        if (!resolved) {
+          resolved = true;
+          res.resume();
+          resolve();
+        }
+      });
+
+      req.setTimeout(1000, () => {
+        req.destroy();
+        retry();
+      });
+
+      req.on("error", () => {
+        retry();
+      });
+
+      req.end();
+    };
+
+    const retry = () => {
+      if (resolved) return;
+      if (Date.now() - start > timeoutMs) {
+        reject(new Error(`Timeout waiting for Next.js server at ${url}`));
+      } else {
+        const delay = Date.now() - start < 1500 ? 50 : 150;
+        setTimeout(check, delay);
+      }
+    };
+
+    check();
+  });
 }

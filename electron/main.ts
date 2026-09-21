@@ -1,14 +1,15 @@
 import { app, BrowserWindow, shell } from "electron";
 import * as path from "node:path";
 import * as net from "node:net";
-import * as http from "node:http";
 import * as fs from "node:fs";
 import { fork, ChildProcess } from "node:child_process";
 import { initAutoUpdater } from "./updater";
 import { persistServerPort, resolveStableServerPort } from "./server-port";
 import {
   applyChromiumSwitches,
+  buildStandaloneServerSpawnConfig,
   checkRosettaTranslation,
+  waitForServer,
 } from "./runtime-flags";
 
 // Hardware acceleration and performance optimization switches tailored by platform
@@ -103,47 +104,6 @@ function getFreePort(): Promise<number> {
   });
 }
 
-function waitForServer(url: string, timeoutMs = 25000): Promise<void> {
-  const start = Date.now();
-  return new Promise((resolve, reject) => {
-    let resolved = false;
-
-    const check = () => {
-      if (resolved) return;
-      const req = http.get(url, (res) => {
-        if (!resolved) {
-          resolved = true;
-          res.resume();
-          resolve();
-        }
-      });
-
-      req.setTimeout(1000, () => {
-        req.destroy();
-        retry();
-      });
-
-      req.on("error", () => {
-        retry();
-      });
-
-      req.end();
-    };
-
-    const retry = () => {
-      if (resolved) return;
-      if (Date.now() - start > timeoutMs) {
-        reject(new Error(`Timeout waiting for Next.js server at ${url}`));
-      } else {
-        const delay = Date.now() - start < 1500 ? 50 : 150;
-        setTimeout(check, delay);
-      }
-    };
-
-    check();
-  });
-}
-
 function resolveServerPath(): string {
   const candidates = [
     // Unpacked extraResources location (cleanest packaging)
@@ -186,28 +146,14 @@ function startStandaloneServer(port: number): Promise<void> {
       return reject(err);
     }
 
-    const env = {
-      ...process.env,
-      PORT: String(port),
-      HOSTNAME: "127.0.0.1",
-      NODE_ENV: "production",
-      NEXT_TELEMETRY_DISABLED: "1",
-      ELECTRON_RUN_AS_NODE: "1",
-      KAGELIN_DB_PATH:
-        process.env.KAGELIN_DB_PATH ||
-        path.join(app.getPath("userData"), "data.db"),
-      KAGELIN_ASSETS_PATH:
-        process.env.KAGELIN_ASSETS_PATH ||
-        path.join(app.getPath("userData"), "assets"),
-      NEXT_PUBLIC_APP_URL: `http://127.0.0.1:${port}`,
-    };
+    const config = buildStandaloneServerSpawnConfig(
+      serverPath,
+      port,
+      app.getPath("userData"),
+      process.env,
+    );
 
-    serverProcess = fork(serverPath, [], {
-      cwd: path.dirname(serverPath),
-      env,
-      execArgv: ["--max-old-space-size=192"],
-      stdio: ["ignore", "pipe", "pipe", "ipc"],
-    });
+    serverProcess = fork(config.serverPath, [], config.options);
 
     serverProcess.stdout?.on("data", (data) => {
       logServer(data, false);
