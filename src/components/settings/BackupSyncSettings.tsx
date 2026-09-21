@@ -15,6 +15,9 @@ import {
   BellRing,
   Database,
 } from "lucide-react";
+import { GitHubIcon } from "@/components/ui/GitHubIcon";
+import { GitHubSyncCard } from "@/components/settings/GitHubSyncCard";
+import { useGitHubSyncStore } from "@/lib/store/githubSyncStore";
 import { notify } from "@/lib/notify";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -641,8 +644,19 @@ export function BackupSyncSettings() {
         aria-label={t("settings.backup.sqlite.restore")}
       />
 
-      <Tabs defaultValue="local" className="space-y-4">
-        <TabsList className="grid grid-cols-2 bg-secondary/10 p-1 rounded-lg h-11 border border-border/40 shadow-none">
+      <Tabs
+        defaultValue={useGitHubSyncStore.getState().token ? "github" : "local"}
+        className="space-y-4"
+      >
+        <TabsList className="grid grid-cols-3 bg-secondary/10 p-1 rounded-lg h-11 border border-border/40 shadow-none">
+          <TabsTrigger
+            value="github"
+            onClick={() => trigger("toggle")}
+            className="rounded-md gap-2 text-[13px] font-medium tracking-tight data-[state=active]:bg-brand data-[state=active]:text-brand-foreground data-[state=active]:shadow-none transition-all h-9 border border-transparent data-[state=active]:border-brand/20"
+          >
+            <GitHubIcon className="h-3.5 w-3.5" />
+            {t("settings.backup.tab.github")}
+          </TabsTrigger>
           <TabsTrigger
             value="local"
             onClick={() => trigger("toggle")}
@@ -660,6 +674,10 @@ export function BackupSyncSettings() {
             {t("settings.backup.tab.webdav")}
           </TabsTrigger>
         </TabsList>
+
+        <TabsContent value="github" className="mt-0 outline-none">
+          <GitHubSyncCard />
+        </TabsContent>
 
         <TabsContent value="local" className="mt-0 outline-none">
           <div className="flex flex-col gap-4 md:grid md:grid-cols-2">

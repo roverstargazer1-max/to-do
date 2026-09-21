@@ -191,7 +191,41 @@ export const settings = {
   "settings.backup.exportedAtFormat": (params: TranslationParams) =>
     `${params.date} at ${params.time}`,
   "settings.backup.tab.local": "Local Storage",
+  "settings.backup.tab.github": "GitHub Repo",
   "settings.backup.tab.webdav": "WebDAV",
+  "settings.backup.github.title": "GitHub Private Repo Sync",
+  "settings.backup.github.description":
+    "Use a private GitHub repository for seamless cross-device sync (Mac / Windows) and version history.",
+  "settings.backup.github.token": "Personal Access Token",
+  "settings.backup.github.tokenPlaceholder": "ghp_ or github_pat_...",
+  "settings.backup.github.tokenHelp": "Create a GitHub token with 'repo' scope",
+  "settings.backup.github.repo": "Repository",
+  "settings.backup.github.repoPlaceholder": "username/kagelin-data",
+  "settings.backup.github.branch": "Branch",
+  "settings.backup.github.branchPlaceholder": "main",
+  "settings.backup.github.deviceLabel": "Device Name",
+  "settings.backup.github.deviceLabelPlaceholder":
+    "e.g. MacBook, Dorm Windows PC",
+  "settings.backup.github.test": "Test Connection",
+  "settings.backup.github.syncNow": "Sync Now",
+  "settings.backup.github.push": "Push to GitHub",
+  "settings.backup.github.pull": "Pull from GitHub",
+  "settings.backup.github.forget": "Clear Configuration",
+  "settings.backup.github.autoStart": "Auto-pull on startup",
+  "settings.backup.github.autoStartDesc":
+    "Automatically pulls updates if another device pushed newer changes",
+  "settings.backup.github.autoExit": "Auto-push before closing/blur",
+  "settings.backup.github.autoExitDesc":
+    "Pushes pending changes when window closes or loses focus",
+  "settings.backup.github.autoDebounce": "Auto-push on edits",
+  "settings.backup.github.autoDebounceDesc":
+    "Silently pushes 30s after local edits",
+  "settings.backup.github.lastSync": "Last synced: ",
+  "settings.backup.github.neverSynced": "Never synced",
+  "settings.backup.github.viewRepo": "View repository on GitHub",
+  "settings.backup.github.pullConfirmTitle": "Pull data from GitHub?",
+  "settings.backup.github.pullConfirmDesc":
+    "This will download the latest data from GitHub and restore your local database (an automatic local snapshot will be saved). Continue?",
   "settings.backup.local.title": "Local Backup",
   "settings.backup.local.descriptionGuest":
     "Export your local data to a ZIP file or restore from a backup.",
@@ -263,6 +297,31 @@ export const settings = {
   "settings.backup.toast.downloadFailed": "Download failed",
   "settings.backup.toast.restored": "Data restored from server",
   "settings.backup.toast.restoreFailed": "Restore failed",
+  "settings.github.error.invalidRepoFormat":
+    "Invalid repository format. Please use username/repo format",
+  "settings.github.error.missingToken":
+    "Please provide a valid GitHub Personal Access Token",
+  "settings.github.error.badCredentials":
+    "Invalid or expired token (401 Bad credentials)",
+  "settings.github.error.repoNotFound":
+    "Repository not found or token lacks access (404 Not Found)",
+  "settings.github.error.forbidden":
+    "Access forbidden. Ensure token has 'repo' permission (403 Forbidden)",
+  "settings.github.error.dataNotFoundOnRemote":
+    "No kagelin-data.json found on remote. Click 'Push to GitHub' to initialize",
+  "settings.github.error.conflict":
+    "Remote has newer commits. Please pull before pushing",
+  "settings.github.toast.connected":
+    "Connected to GitHub repository successfully",
+  "settings.github.toast.syncSuccess": "Synced with GitHub successfully",
+  "settings.github.toast.pushSuccess":
+    "Pushed latest data to GitHub successfully",
+  "settings.github.toast.pullSuccess":
+    "Pulled latest data from GitHub successfully",
+  "settings.github.toast.autoPulled": (params: TranslationParams) =>
+    `Auto-synced latest data from ${params.device}`,
+  "settings.github.toast.syncFailed": "GitHub sync failed",
+  "settings.github.toast.configCleared": "GitHub sync configuration cleared",
 
   // --- Import dialog (ImportDialog.tsx) ---
   "settings.import.title": "Import Data",

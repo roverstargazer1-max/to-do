@@ -170,7 +170,39 @@ export const settings = {
   "settings.backup.exportedAtFormat": (params: TranslationParams) =>
     `${params.date} ${params.time}`,
   "settings.backup.tab.local": "本地存储",
+  "settings.backup.tab.github": "GitHub 仓库",
   "settings.backup.tab.webdav": "WebDAV",
+  "settings.backup.github.title": "GitHub 私有仓库同步",
+  "settings.backup.github.description":
+    "使用 GitHub 私有仓库进行多设备（Mac / Windows）跨端自动同步与历史版本回滚。",
+  "settings.backup.github.token": "个人访问令牌 (Token)",
+  "settings.backup.github.tokenPlaceholder": "ghp_ 或 github_pat_...",
+  "settings.backup.github.tokenHelp": "创建具有 repo 权限的 GitHub Token",
+  "settings.backup.github.repo": "仓库路径",
+  "settings.backup.github.repoPlaceholder": "用户名/仓库名 (例如 user/repo)",
+  "settings.backup.github.branch": "分支",
+  "settings.backup.github.branchPlaceholder": "默认 main",
+  "settings.backup.github.deviceLabel": "设备名称",
+  "settings.backup.github.deviceLabelPlaceholder": "例如：MacBook、寝室台式机",
+  "settings.backup.github.test": "测试连接",
+  "settings.backup.github.syncNow": "立即同步",
+  "settings.backup.github.push": "推送到 GitHub",
+  "settings.backup.github.pull": "从 GitHub 拉取",
+  "settings.backup.github.forget": "清除配置",
+  "settings.backup.github.autoStart": "启动时自动拉取最新数据",
+  "settings.backup.github.autoStartDesc":
+    "检测到另一台设备的更新提交时自动同步",
+  "settings.backup.github.autoExit": "退出/失焦前自动推送",
+  "settings.backup.github.autoExitDesc": "关闭或切换窗口前确保最新修改已上云",
+  "settings.backup.github.autoDebounce": "编辑后自动推送",
+  "settings.backup.github.autoDebounceDesc":
+    "日常编辑 30 秒无操作后静默同步至 GitHub",
+  "settings.backup.github.lastSync": "最近同步：",
+  "settings.backup.github.neverSynced": "尚未同步",
+  "settings.backup.github.viewRepo": "在 GitHub 上查看仓库",
+  "settings.backup.github.pullConfirmTitle": "确认从 GitHub 拉取数据？",
+  "settings.backup.github.pullConfirmDesc":
+    "这将从 GitHub 仓库下载最新数据并替换本地数据库（本地当前数据会自动备份一份快照）。确定继续吗？",
   "settings.backup.local.title": "本地备份",
   "settings.backup.local.descriptionGuest":
     "将你的本地数据导出为 ZIP 文件，或从备份中恢复。",
@@ -239,6 +271,28 @@ export const settings = {
   "settings.backup.toast.downloadFailed": "下载失败",
   "settings.backup.toast.restored": "已从服务器恢复数据",
   "settings.backup.toast.restoreFailed": "恢复失败",
+  "settings.github.error.invalidRepoFormat":
+    "仓库格式不正确，请输入 username/repo 格式",
+  "settings.github.error.missingToken":
+    "请输入有效的 GitHub Personal Access Token",
+  "settings.github.error.badCredentials":
+    "Token 无效或已过期，请检查 Token 权限 (401 Bad credentials)",
+  "settings.github.error.repoNotFound":
+    "未找到指定仓库，请确认仓库存在且 Token 拥有访问权限 (404 Not Found)",
+  "settings.github.error.forbidden":
+    "无权访问此仓库，请确认 Token 勾选了 repo 权限 (403 Forbidden)",
+  "settings.github.error.dataNotFoundOnRemote":
+    "云端仓库中暂无 kagelin-data.json 数据文件，请先点击「推送到 GitHub」初始化",
+  "settings.github.error.conflict":
+    "云端存在更新的提交，请先拉取最新数据后再推送",
+  "settings.github.toast.connected": "GitHub 仓库连接成功",
+  "settings.github.toast.syncSuccess": "已成功同步至 GitHub",
+  "settings.github.toast.pushSuccess": "已成功推送最新数据至 GitHub",
+  "settings.github.toast.pullSuccess": "已成功从 GitHub 拉取最新数据",
+  "settings.github.toast.autoPulled": (params: TranslationParams) =>
+    `已自动同步来自 ${params.device} 的最新数据`,
+  "settings.github.toast.syncFailed": "GitHub 同步失败",
+  "settings.github.toast.configCleared": "GitHub 同步配置已清除",
 
   // --- Import dialog ---
   "settings.import.title": "导入数据",

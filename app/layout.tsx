@@ -6,6 +6,7 @@ import { AuthProvider } from "@/components/AuthProvider";
 import QueryProvider from "@/components/QueryProvider";
 import { DbReactivityProvider } from "@/components/providers/DbReactivityProvider";
 import { LegacyMigrationProvider } from "@/components/providers/LegacyMigrationProvider";
+import { GitHubSyncProvider } from "@/components/providers/GitHubSyncProvider";
 import { TimerProvider } from "@/components/TimerProvider";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import AppShell from "@/components/layout/AppShell";
@@ -91,11 +92,13 @@ export default async function RootLayout({
           <QueryProvider>
             <DbReactivityProvider>
               <LegacyMigrationProvider>
-                <AuthProvider initialIsGuest={initialIsGuest}>
-                  <TimerProvider>
-                    <AppShell>{children}</AppShell>
-                  </TimerProvider>
-                </AuthProvider>
+                <GitHubSyncProvider>
+                  <AuthProvider initialIsGuest={initialIsGuest}>
+                    <TimerProvider>
+                      <AppShell>{children}</AppShell>
+                    </TimerProvider>
+                  </AuthProvider>
+                </GitHubSyncProvider>
               </LegacyMigrationProvider>
             </DbReactivityProvider>
           </QueryProvider>

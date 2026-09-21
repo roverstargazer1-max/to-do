@@ -98,6 +98,8 @@ describe("04: External Write Reactivity (WAL Monitoring & Auto-Refresh)", () => 
       const dummyDbPath = path.join(dummyDir, "isolated.db");
       fs.writeFileSync(dummyDbPath, "initial-db-content");
       watcher.start(dummyDbPath);
+      // Allow any filesystem events and debounce timer (200ms) from initial dummyDbPath creation to settle
+      await new Promise((resolve) => setTimeout(resolve, 250));
 
       let changeCount = 0;
       watcher.onChange(() => {
