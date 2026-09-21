@@ -7,6 +7,8 @@ import { TaskRepository } from "../src/lib/db/repositories/task-repository";
 import { ProjectRepository } from "../src/lib/db/repositories/project-repository";
 import { HabitRepository } from "../src/lib/db/repositories/habit-repository";
 import { WorkspaceRepository } from "../src/lib/db/repositories/workspace-repository";
+import { registerLocalDal, getLocalDal } from "../src/lib/api/local-dal";
+import { createNodeLocalDal } from "../src/lib/api/local-dal-node";
 import {
   BlueprintPatchSchema,
   WorkspaceBlueprintSchema,
@@ -790,6 +792,9 @@ export function createKagelinMcpServer(
           );
         }
         process.env.KAGELIN_MCP_USER_ID = configuredIdentity;
+        if (!getLocalDal()) {
+          registerLocalDal(createNodeLocalDal());
+        }
       })();
     }
     await authPromise;

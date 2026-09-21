@@ -3,6 +3,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { registerLocalDal, getLocalDal } from "../src/lib/api/local-dal";
+import { createNodeLocalDal } from "../src/lib/api/local-dal-node";
 import { createKagelinMcpServer } from "./server";
 
 // Load environment variables from .env.local if present
@@ -19,6 +21,10 @@ try {
 }
 
 async function main() {
+  if (!getLocalDal()) {
+    registerLocalDal(createNodeLocalDal());
+  }
+
   const server = createKagelinMcpServer({
     useMockFallback: false,
     identity:
