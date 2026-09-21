@@ -142,7 +142,7 @@
     "depcheck": "^1.4.7",
     "electron": "^44.4.1",
     "electron-builder": "^26.15.3",
-    "eslint": "^9",
+    "eslint": "^10",
     "eslint-config-next": "16.2.10",
     "eslint-plugin-react-compiler": "^19.1.0-rc.2",
     "husky": "^9.1.7",
