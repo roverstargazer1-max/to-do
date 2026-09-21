@@ -1,4 +1,4 @@
-﻿const esbuild = require("esbuild");
+const esbuild = require("esbuild");
 const path = require("path");
 const fs = require("fs");
 
@@ -38,6 +38,15 @@ Promise.all([
     platform: "node",
     target: "node22",
     outfile: path.join(distDir, "server-port.js"),
+    sourcemap: false,
+    minify: true,
+  }),
+  esbuild.build({
+    entryPoints: [path.join(rootDir, "electron", "runtime-flags.ts")],
+    bundle: true,
+    platform: "node",
+    target: "node22",
+    outfile: path.join(distDir, "runtime-flags.js"),
     sourcemap: false,
     minify: true,
   }),

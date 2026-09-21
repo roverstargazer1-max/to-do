@@ -6,12 +6,13 @@ import * as fs from "node:fs";
 import { fork, ChildProcess } from "node:child_process";
 import { initAutoUpdater } from "./updater";
 import { persistServerPort, resolveStableServerPort } from "./server-port";
+import {
+  applyChromiumSwitches,
+  checkRosettaTranslation,
+} from "./runtime-flags";
 
-// Hardware acceleration and performance optimization switches
-app.commandLine.appendSwitch("enable-gpu-rasterization");
-app.commandLine.appendSwitch("enable-zero-copy");
-app.commandLine.appendSwitch("ignore-gpu-blocklist");
-app.commandLine.appendSwitch("disable-features", "CalculateNativeWinOcclusion");
+// Hardware acceleration and performance optimization switches tailored by platform
+applyChromiumSwitches(app.commandLine);
 
 let mainWindow: BrowserWindow | null = null;
 let serverProcess: ChildProcess | null = null;
@@ -361,6 +362,8 @@ if (!gotTheLock) {
 
   app.whenReady().then(async () => {
     try {
+      checkRosettaTranslation(app, log);
+
       let targetUrl = "http://localhost:3000";
 
       if (isDev) {
