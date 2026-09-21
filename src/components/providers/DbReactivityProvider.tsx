@@ -3,6 +3,25 @@
 import React, { useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
+export const REACTIVITY_DEBOUNCE_MS = 150;
+
+export const TARGET_DOMAIN_KEYS = new Set([
+  "tasks",
+  "projects",
+  "habits",
+  "calendar-events",
+  "workspace",
+  "workspaces",
+]);
+
+export function isTargetReactivityQueryKey(
+  queryKey: readonly unknown[],
+): boolean {
+  if (!queryKey || queryKey.length === 0) return false;
+  const firstKey = queryKey[0];
+  return typeof firstKey === "string" && TARGET_DOMAIN_KEYS.has(firstKey);
+}
+
 interface DbReactivityProviderProps {
   children: React.ReactNode;
 }
@@ -17,16 +36,27 @@ export function DbReactivityProvider({ children }: DbReactivityProviderProps) {
 
     let es: EventSource | null = null;
     let reconnectTimeout: NodeJS.Timeout | null = null;
+    let debounceTimer: NodeJS.Timeout | null = null;
+
+    function handleIncomingChange() {
+      if (debounceTimer) {
+        clearTimeout(debounceTimer);
+      }
+      debounceTimer = setTimeout(() => {
+        const isHidden = typeof document !== "undefined" && document.hidden;
+        void queryClient.invalidateQueries({
+          predicate: (query) => isTargetReactivityQueryKey(query.queryKey),
+          refetchType: isHidden ? "none" : "active",
+        });
+        debounceTimer = null;
+      }, REACTIVITY_DEBOUNCE_MS);
+    }
 
     function connect() {
       try {
         es = new EventSource("/api/db/live");
 
-        es.addEventListener("change", () => {
-          // An external writer touched the database. Mark every query stale so
-          // mounted views refetch and inactive ones refresh on their next use.
-          void queryClient.invalidateQueries();
-        });
+        es.addEventListener("change", handleIncomingChange);
 
         es.onerror = () => {
           if (es) {
@@ -44,8 +74,18 @@ export function DbReactivityProvider({ children }: DbReactivityProviderProps) {
     connect();
 
     return () => {
-      if (reconnectTimeout) clearTimeout(reconnectTimeout);
-      if (es) es.close();
+      if (debounceTimer) {
+        clearTimeout(debounceTimer);
+        debounceTimer = null;
+      }
+      if (reconnectTimeout) {
+        clearTimeout(reconnectTimeout);
+        reconnectTimeout = null;
+      }
+      if (es) {
+        es.close();
+        es = null;
+      }
     };
   }, [queryClient]);
 

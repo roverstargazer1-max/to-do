@@ -32,19 +32,16 @@ export class DatabaseWatcher {
 
     const baseDb = path.basename(dbPath);
     const walFile = `${baseDb}-wal`;
-    const shmFile = `${baseDb}-shm`;
 
     try {
       this.watcher = fs.watch(dir, (eventType, filename) => {
         if (!filename) return;
         const name = filename.toString();
-        // Watch specifically for the database file, wal, or shm
-        if (
-          name === baseDb ||
-          name === walFile ||
-          name === shmFile ||
-          name.endsWith(".db-wal")
-        ) {
+        // Ignore read-only shared memory index files (-shm) updated by read operations
+        if (name.endsWith("-shm")) return;
+
+        // Watch specifically for the database file or write-ahead log (-wal)
+        if (name === baseDb || name === walFile) {
           this.triggerDebouncedChange();
         }
       });

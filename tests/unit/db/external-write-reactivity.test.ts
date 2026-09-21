@@ -89,4 +89,86 @@ describe("04: External Write Reactivity (WAL Monitoring & Auto-Refresh)", () => 
     // Debounced to exactly 1 event
     expect(changeCount).toBe(1);
   });
+
+  it("ignores files ending in -shm and does not trigger change notification", async () => {
+    const dummyDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), "kagelin-reactivity-shm-"),
+    );
+    try {
+      const dummyDbPath = path.join(dummyDir, "isolated.db");
+      fs.writeFileSync(dummyDbPath, "initial-db-content");
+      watcher.start(dummyDbPath);
+
+      let changeCount = 0;
+      watcher.onChange(() => {
+        changeCount++;
+      });
+
+      // Touch the -shm file
+      const shmPath = `${dummyDbPath}-shm`;
+      fs.writeFileSync(shmPath, "dummy-shm-index-touch");
+
+      // Wait past debounce window
+      await new Promise((resolve) => setTimeout(resolve, 350));
+
+      // Must NOT have emitted any change notification
+      expect(changeCount).toBe(0);
+    } finally {
+      fs.rmSync(dummyDir, { recursive: true, force: true });
+    }
+  });
+
+  it("does not trigger change notification when read queries are executed against SQLite WAL", async () => {
+    const db = getDatabase(testDbPath);
+    expect(db.open).toBe(true);
+    // Checkpoint any migration transactions to settle WAL before watcher starts
+    db.pragma("wal_checkpoint(TRUNCATE);");
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    watcher.start(testDbPath);
+
+    let changeCount = 0;
+    watcher.onChange(() => {
+      changeCount++;
+    });
+
+    // Execute read query against the database
+    const readerDb = new Database(testDbPath, { readonly: true });
+    const row = readerDb.prepare("SELECT count(*) as count FROM tasks").get();
+    expect(row).toBeDefined();
+    readerDb.close();
+
+    // Wait past debounce window
+    await new Promise((resolve) => setTimeout(resolve, 350));
+
+    expect(changeCount).toBe(0);
+  });
+
+  it("triggers change notification when write-ahead log (-wal) is updated", async () => {
+    const dummyDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), "kagelin-reactivity-wal-"),
+    );
+    try {
+      const dummyDbPath = path.join(dummyDir, "isolated-wal.db");
+      fs.writeFileSync(dummyDbPath, "initial-db-content");
+      watcher.start(dummyDbPath);
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      let changeCount = 0;
+      watcher.onChange(() => {
+        changeCount++;
+      });
+
+      // Update the -wal file
+      const walPath = `${dummyDbPath}-wal`;
+      fs.writeFileSync(walPath, "wal-commit-record");
+
+      // Wait past debounce window
+      await new Promise((resolve) => setTimeout(resolve, 350));
+
+      expect(changeCount).toBe(1);
+    } finally {
+      fs.rmSync(dummyDir, { recursive: true, force: true });
+    }
+  });
 });

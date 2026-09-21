@@ -50,7 +50,7 @@ describe("DbReactivityProvider", () => {
     vi.unstubAllGlobals();
   });
 
-  it("subscribes to the local change stream and refreshes queries on external writes", async () => {
+  it("subscribes to the local change stream, debounces bursts by 150ms, and invalidates target domains", async () => {
     const { client } = renderWithClient(
       <DbReactivityProvider>
         <span data-testid="child" />
@@ -63,10 +63,61 @@ describe("DbReactivityProvider", () => {
 
     act(() => {
       MockEventSource.instances[0].emit("change");
+      MockEventSource.instances[0].emit("change");
+      MockEventSource.instances[0].emit("change");
     });
 
-    expect(invalidate).toHaveBeenCalled();
-    expect(invalidate.mock.calls[0][0]).toBeUndefined();
+    // Debounced: should not fire immediately
+    expect(invalidate).not.toHaveBeenCalled();
+
+    // Wait for 150ms debounce window to complete
+    await waitFor(() => expect(invalidate).toHaveBeenCalledTimes(1));
+
+    const options = invalidate.mock.calls[0][0];
+    expect(options?.refetchType).toBe("active");
+    expect(typeof options?.predicate).toBe("function");
+
+    const predicate = options!.predicate!;
+    expect(predicate({ queryKey: ["tasks", "list"] } as any)).toBe(true);
+    expect(predicate({ queryKey: ["projects"] } as any)).toBe(true);
+    expect(predicate({ queryKey: ["habits", "123"] } as any)).toBe(true);
+    expect(predicate({ queryKey: ["calendar-events"] } as any)).toBe(true);
+    expect(predicate({ queryKey: ["workspace", "board"] } as any)).toBe(true);
+    expect(predicate({ queryKey: ["workspaces"] } as any)).toBe(true);
+    expect(predicate({ queryKey: ["unrelated-cache-entry"] } as any)).toBe(
+      false,
+    );
+  });
+
+  it("suppresses immediate active refetches when document is hidden", async () => {
+    const originalHidden = document.hidden;
+    Object.defineProperty(document, "hidden", {
+      configurable: true,
+      get: () => true,
+    });
+
+    try {
+      const { client } = renderWithClient(
+        <DbReactivityProvider>
+          <span />
+        </DbReactivityProvider>,
+      );
+      const invalidate = vi.spyOn(client, "invalidateQueries");
+
+      await waitFor(() => expect(MockEventSource.instances).toHaveLength(1));
+
+      act(() => {
+        MockEventSource.instances[0].emit("change");
+      });
+
+      await waitFor(() => expect(invalidate).toHaveBeenCalledTimes(1));
+      expect(invalidate.mock.calls[0][0]?.refetchType).toBe("none");
+    } finally {
+      Object.defineProperty(document, "hidden", {
+        configurable: true,
+        get: () => originalHidden,
+      });
+    }
   });
 
   it("closes the stream when unmounted", async () => {
