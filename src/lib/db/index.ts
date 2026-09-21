@@ -55,4 +55,17 @@ export function closeDatabase(): void {
   }
 }
 
+/**
+ * Compact database memory cache by instructing SQLite to release unused page cache pages
+ * back to the operating system via PRAGMA shrink_memory.
+ */
+export function compactDatabaseMemory(customPath?: string): void {
+  try {
+    const db = getDatabase(customPath);
+    if (db.open) {
+      db.pragma("shrink_memory;");
+    }
+  } catch {}
+}
+
 export type { Database };

@@ -11,12 +11,14 @@ import {
   checkRosettaTranslation,
   waitForServer,
 } from "./runtime-flags";
+import { MemoryGovernor } from "./memory-governor";
 
 // Hardware acceleration and performance optimization switches tailored by platform
 applyChromiumSwitches(app.commandLine);
 
 let mainWindow: BrowserWindow | null = null;
 let serverProcess: ChildProcess | null = null;
+const memoryGovernor = new MemoryGovernor({ logger: log });
 
 const isDev = !app.isPackaged && process.env.ELECTRON_DEV === "1";
 
@@ -154,6 +156,7 @@ function startStandaloneServer(port: number): Promise<void> {
     );
 
     serverProcess = fork(config.serverPath, [], config.options);
+    memoryGovernor.setServerProcess(serverProcess);
 
     serverProcess.stdout?.on("data", (data) => {
       logServer(data, false);
@@ -167,6 +170,16 @@ function startStandaloneServer(port: number): Promise<void> {
       log(`[Next.js Server] Process error: ${String(err)}`, true);
     });
 
+    serverProcess.on("message", (msg: unknown) => {
+      if (
+        msg &&
+        typeof msg === "object" &&
+        (msg as { type?: string }).type === "compact-memory-complete"
+      ) {
+        log("[Memory] Standalone server memory compaction completed.");
+      }
+    });
+
     serverProcess.on("exit", (code, signal) => {
       log(`[Next.js Server] Exited with code ${code}, signal ${signal}`);
       serverProcess = null;
@@ -177,6 +190,10 @@ function startStandaloneServer(port: number): Promise<void> {
     waitForServer(targetUrl)
       .then(() => {
         log(`[Next.js Server] Server is ready at ${targetUrl}`);
+        if (serverProcess && typeof serverProcess.send === "function") {
+          log("[Next.js Server] Dispatching post-boot garbage collection...");
+          serverProcess.send({ type: "gc" });
+        }
         resolve();
       })
       .catch((err) => {
@@ -284,10 +301,14 @@ async function createWindow(targetUrl: string) {
 
   await mainWindow.loadURL(targetUrl);
 
+  // Initialize memory governance lifecycle (blur debounce, minimize/hide immediate compaction)
+  memoryGovernor.attach(mainWindow, serverProcess);
+
   // Initialize auto-updater
   initAutoUpdater(mainWindow);
 
   mainWindow.on("closed", () => {
+    memoryGovernor.detach();
     mainWindow = null;
   });
 }
@@ -338,6 +359,7 @@ if (!gotTheLock) {
   });
 
   function stopServer() {
+    memoryGovernor.setServerProcess(null);
     if (serverProcess && !serverProcess.killed) {
       log("[Electron] Terminating Next.js server child process...");
       try {
@@ -350,6 +372,13 @@ if (!gotTheLock) {
       }
     }
   }
+
+  // Immediate compaction on macOS application hide (Cmd+H)
+  (app as unknown as NodeJS.EventEmitter).on("hide", () => {
+    memoryGovernor.triggerCompaction("app-hide").catch((err: unknown) => {
+      log(`[Memory] Compaction error on hide: ${String(err)}`, true);
+    });
+  });
 
   app.on("before-quit", () => {
     stopServer();
