@@ -1,5 +1,95 @@
 [
   {
+    "version": "1.3.0",
+    "date": "2026-09-21",
+    "channel": "stable",
+    "sections": {
+      "Added": [
+        "Local sqlite snapshot export and restore in settings",
+        "Connect MCP server directly to the local SQLite database",
+        "Add SQLite storage foundation, DAL layer and local API routes",
+        "Allow custom installation directory in NSIS installer",
+        "Add electron packaging, auto-update and release workflow",
+        "Wire canvas controls and shortcuts",
+        "Support multiline decision and step content",
+        "Add deletion history and restoration commands",
+        "Bridge guest assets to local MCP",
+        "Expose visual inspection and write contract",
+        "Preserve visual assets",
+        "Add image nodes and visual relations",
+        "Add asset domain and persistence",
+        "Separate MCP capabilities from Skill workflows",
+        "Add tiered card sizes, expanded gaps, and two-track layout",
+        "Constrain doc node body overflow and sandbox markdown preview scrolling",
+        "Support Step, Decision nodes and edge attributes in blueprint decompiler and MCP server",
+        "Introduce StepNode, DecisionNode, MermaidDiagram, and unified NodeCard",
+        "Render labeled edges with directional handle projections on canvas",
+        "Add edge label and port handle persistence to schema, commands, and store",
+        "Enrich tool descriptions for workspace building and patching",
+        "Add Kagelin MCP server for workspace canvas inspection, building, and patching",
+        "Implement semantic blueprint layout, executor, decompiler, and patcher",
+        "Add project and habit domain commands and expand workspace mutations",
+        "Introduce ProjectNode kind and AddProjectNodeDialog to canvas",
+        "Support local single-user standalone mode and auto-login",
+        "Add color picker to create and rename workspace dialogs",
+        "Integrate workspace icon and color indicator in navigation and lists",
+        "Add custom WorkspaceIcon component",
+        "Add color attribute to workspaces schema, store, and commands",
+        "Integrate doc node creation into canvas menus",
+        "Implement DocNode component and register doc node kind",
+        "Add doc node type, mutations, commands, and i18n",
+        "Display indented subtasks with checkboxes on task node",
+        "Support double-clicking task node to edit details in side sheet",
+        "Add showClose prop to SheetContent",
+        "Integrate canvas grouping gestures, quick-add menu, and mindmap connections",
+        "Implement Feishu-style custom edge with mid-point disconnect button",
+        "Introduce GroupNode and CardResizer with 8-direction handles",
+        "Add schema, domain events, commands, and storage for node groups and sizing",
+        "Floating node cards and a visual edge layer (ADR 0021)",
+        "Wire workspaces into the shell, hotkeys and backup",
+        "Add the infinite canvas and node renderers",
+        "Add workspace query hooks and guest-store actions",
+        "Add the command layer and in-memory event bus",
+        "Route date, time and number formatting through Intl",
+        "Add the i18n runtime, detection and en/zh-CN dictionaries",
+        "Add workspace node and viewport tables"
+      ],
+      "Improved": [
+        "Implement multi-tier background memory purging and sqlite shrink",
+        "Prune react query idle cache and bypass indexeddb persistence",
+        "Eliminate standalone server cache and configure chromium memory saver",
+        "Prune static will-change from dialog and sheet overlays",
+        "Ignore -shm in watcher and debounce client query invalidation",
+        "Constrain standalone subprocess heap and enable v8 size optimization",
+        "Platform-tune electron runtime flags and detect rosetta",
+        "Eliminate canvas stuttering with memoized nodes",
+        "Optimize electron bundle and packaging",
+        "Extract HomeLoadingFallback from the root Suspense boundary"
+      ],
+      "Fixed": [
+        "Resolve macOS startup timeout, crash, and high energy usage",
+        "Handle offline database gracefully without triggering dev error overlay",
+        "Ensure mock fallback and local identity take precedence when configured",
+        "Resolve server readiness on root URL and prevent startup hang",
+        "Exclude debug files from release uploads",
+        "Publish desktop assets after parallel builds",
+        "Handle optional macOS signing credentials",
+        "Avoid universal macOS packaging conflict",
+        "Run release script on Windows",
+        "Persist guest calendar imports",
+        "Stabilize desktop persistence and workspace data flows",
+        "Resolve white screen by bundling static assets and adding runtime logging",
+        "Move electron-updater to dependencies for runtime packaging",
+        "Convert CLAUDE.md symlink to regular file for windows actions runner",
+        "Persist groups with current user id",
+        "Report Supabase connectivity failures",
+        "Make captcha token optional and handle offline errors in single-user mode",
+        "Remove unused import in guest-store",
+        "Prevent false empty state when dragging last daytime task to evening section"
+      ]
+    }
+  },
+  {
     "version": "1.2.0",
     "date": "2026-09-21",
     "channel": "stable",
@@ -983,19 +1073,6 @@
       "Fixed": [
         "Drop y-transform from page transition to stop PiP button flash on /focus",
         "Make /login scrollable so content isn't cut off on short mobile viewports"
-      ]
-    }
-  },
-  {
-    "version": "1.26.2",
-    "date": "2026-07-24",
-    "channel": "stable",
-    "sections": {
-      "Fixed": [
-        "Only show dialog close button focus ring on keyboard focus",
-        "Always render habits page header, even when the list is empty",
-        "Reset timer settings to live saved values",
-        "Add haptic feedback to toggle group items on mobile"
       ]
     }
   }
