@@ -31,7 +31,18 @@ const IntersectionObserverMock = vi.fn(() => ({
   unobserve: vi.fn(),
 }));
 
-vi.stubGlobal("IntersectionObserver", IntersectionObserverMock);
+Object.defineProperty(globalThis, "IntersectionObserver", {
+  value: IntersectionObserverMock,
+  configurable: true,
+  writable: true,
+});
+if (typeof window !== "undefined") {
+  Object.defineProperty(window, "IntersectionObserver", {
+    value: IntersectionObserverMock,
+    configurable: true,
+    writable: true,
+  });
+}
 
 // Mock ResizeObserver
 class ResizeObserverMock {
@@ -40,7 +51,18 @@ class ResizeObserverMock {
   unobserve = vi.fn();
 }
 
-vi.stubGlobal("ResizeObserver", ResizeObserverMock);
+Object.defineProperty(globalThis, "ResizeObserver", {
+  value: ResizeObserverMock,
+  configurable: true,
+  writable: true,
+});
+if (typeof window !== "undefined") {
+  Object.defineProperty(window, "ResizeObserver", {
+    value: ResizeObserverMock,
+    configurable: true,
+    writable: true,
+  });
+}
 
 // Mock CSS.supports
 Object.defineProperty(global, "CSS", {
@@ -76,7 +98,18 @@ const localStorageMock = (() => {
   };
 })();
 
-vi.stubGlobal("localStorage", localStorageMock);
+Object.defineProperty(globalThis, "localStorage", {
+  value: localStorageMock,
+  configurable: true,
+  writable: true,
+});
+if (typeof window !== "undefined") {
+  Object.defineProperty(window, "localStorage", {
+    value: localStorageMock,
+    configurable: true,
+    writable: true,
+  });
+}
 
 // Isolate SQLite database per Vitest worker process to prevent concurrent test collision
 import * as os from "node:os";
