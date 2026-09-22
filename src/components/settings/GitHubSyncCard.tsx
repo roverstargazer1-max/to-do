@@ -37,17 +37,13 @@ import { useTranslation } from "@/lib/i18n/useTranslation";
 import { useHaptic } from "@/lib/hooks/useHaptic";
 import { useDateFormatter } from "@/lib/i18n/useDateFormatter";
 import { useGitHubSyncStore } from "@/lib/store/githubSyncStore";
+import { useSmartSync } from "@/lib/hooks/useSmartSync";
 import {
   testGitHubConnection,
   downloadDataFromGitHub,
-  uploadDataToGitHub,
-  getRemoteSyncMeta,
   normalizeRepo,
 } from "@/lib/sync/github-sync";
-import {
-  collectLocalBackupData,
-  restoreLocalBackupData,
-} from "@/lib/backup/local-backup";
+import { restoreLocalBackupData } from "@/lib/backup/local-backup";
 
 export function GitHubSyncCard() {
   const { t } = useTranslation();
@@ -79,11 +75,18 @@ export function GitHubSyncCard() {
   const [testResult, setTestResult] = useState<"idle" | "success" | "error">(
     "idle",
   );
-  const [isOperating, setIsOperating] = useState(false);
-  const [operationType, setOperationType] = useState<
-    "sync" | "push" | "pull" | null
-  >(null);
   const [showPullConfirm, setShowPullConfirm] = useState(false);
+  const [isPulling, setIsPulling] = useState(false);
+
+  const {
+    isOperating,
+    operationType,
+    dlp: dlpContext,
+    run: handleSmartSync,
+    runPush: handlePush,
+    confirmDlp: handleDlpConfirm,
+    cancelDlp: handleDlpCancel,
+  } = useSmartSync();
 
   const invalidateDataQueries = async () => {
     await Promise.all([
@@ -146,59 +149,12 @@ export function GitHubSyncCard() {
     }
   };
 
-  const handlePush = async () => {
-    if (!token.trim() || !repo.trim()) {
-      notify.error(t("settings.github.error.missingToken"));
-      return;
-    }
-    trigger("toggle");
-    setIsOperating(true);
-    setOperationType("push");
-
-    try {
-      const localData = await collectLocalBackupData();
-      const res = await uploadDataToGitHub(
-        {
-          token,
-          repo,
-          branch: branch || "main",
-          deviceLabel: deviceLabel || "Personal Device",
-          deviceId: useGitHubSyncStore.getState().getEffectiveDeviceId(),
-        },
-        localData,
-      );
-
-      if (res.success) {
-        recordSyncSuccess(
-          res.meta,
-          `chore(sync): update data from ${deviceLabel}`,
-        );
-        notify.success(t("settings.github.toast.pushSuccess"));
-        trigger("success");
-      } else {
-        notify.error(
-          res.error
-            ? t(res.error as never)
-            : t("settings.github.toast.syncFailed"),
-        );
-        trigger("thud");
-      }
-    } catch (err) {
-      notify.error(err instanceof Error ? err.message : String(err));
-      trigger("thud");
-    } finally {
-      setIsOperating(false);
-      setOperationType(null);
-    }
-  };
-
   const handlePullConfirm = async () => {
     setShowPullConfirm(false);
     if (!token.trim() || !repo.trim()) return;
 
     trigger("toggle");
-    setIsOperating(true);
-    setOperationType("pull");
+    setIsPulling(true);
 
     try {
       const res = await downloadDataFromGitHub({
@@ -225,85 +181,7 @@ export function GitHubSyncCard() {
       notify.error(err instanceof Error ? err.message : String(err));
       trigger("thud");
     } finally {
-      setIsOperating(false);
-      setOperationType(null);
-    }
-  };
-
-  const handleSmartSync = async () => {
-    if (!token.trim() || !repo.trim()) {
-      notify.error(t("settings.github.error.missingToken"));
-      return;
-    }
-    trigger("toggle");
-    setIsOperating(true);
-    setOperationType("sync");
-
-    try {
-      const syncConfig = {
-        token,
-        repo,
-        branch: branch || "main",
-        deviceLabel: deviceLabel || "Personal Device",
-        deviceId: useGitHubSyncStore.getState().getEffectiveDeviceId(),
-      };
-
-      const remoteMeta = await getRemoteSyncMeta(syncConfig);
-
-      // If remote has a newer timestamp than our last sync time and was from another device -> Pull
-      const hasRemoteUpdate =
-        remoteMeta &&
-        remoteMeta.updatedAt &&
-        (!lastSyncTime ||
-          new Date(remoteMeta.updatedAt) > new Date(lastSyncTime)) &&
-        remoteMeta.deviceId !== syncConfig.deviceId;
-
-      if (hasRemoteUpdate) {
-        const pullRes = await downloadDataFromGitHub(syncConfig);
-        if (pullRes.success && pullRes.data) {
-          await restoreLocalBackupData(pullRes.data);
-          await invalidateDataQueries();
-          recordSyncSuccess(pullRes.meta);
-          notify.success(
-            t("settings.github.toast.autoPulled", {
-              device: remoteMeta.deviceLabel || "Remote Device",
-            }),
-          );
-          trigger("success");
-        } else {
-          notify.error(
-            pullRes.error
-              ? t(pullRes.error as never)
-              : t("settings.github.toast.syncFailed"),
-          );
-          trigger("thud");
-        }
-      } else {
-        // Otherwise, push local state to remote
-        const localData = await collectLocalBackupData();
-        const pushRes = await uploadDataToGitHub(syncConfig, localData);
-        if (pushRes.success) {
-          recordSyncSuccess(
-            pushRes.meta,
-            `chore(sync): update data from ${deviceLabel}`,
-          );
-          notify.success(t("settings.github.toast.syncSuccess"));
-          trigger("success");
-        } else {
-          notify.error(
-            pushRes.error
-              ? t(pushRes.error as never)
-              : t("settings.github.toast.syncFailed"),
-          );
-          trigger("thud");
-        }
-      }
-    } catch (err) {
-      notify.error(err instanceof Error ? err.message : String(err));
-      trigger("thud");
-    } finally {
-      setIsOperating(false);
-      setOperationType(null);
+      setIsPulling(false);
     }
   };
 
@@ -513,10 +391,10 @@ export function GitHubSyncCard() {
             <Button
               variant="outline"
               onClick={() => setShowPullConfirm(true)}
-              disabled={isOperating || !token || !repo}
+              disabled={isOperating || isPulling || !token || !repo}
               className="flex-1 gap-2 h-10 border-border/60 hover:bg-secondary/40 transition-all font-medium"
             >
-              {isOperating && operationType === "pull" ? (
+              {isPulling ? (
                 <Loader2 className="h-4 w-4 animate-spin" strokeWidth={2.25} />
               ) : (
                 <Download className="h-4 w-4" strokeWidth={2.25} />
@@ -609,6 +487,23 @@ export function GitHubSyncCard() {
         title={t("settings.backup.github.pullConfirmTitle")}
         description={t("settings.backup.github.pullConfirmDesc")}
         confirmLabel={t("settings.backup.github.pull")}
+      />
+
+      {/* High-risk confirmation for DLP-blocked pushes (empty / cliff-dropped local) */}
+      <DeleteConfirmationDialog
+        isOpen={!!dlpContext}
+        onClose={handleDlpCancel}
+        onConfirm={handleDlpConfirm}
+        title={t("settings.github.dlp.title")}
+        description={
+          dlpContext?.reason === "remote-unreadable"
+            ? t("settings.github.dlp.unreadableDesc")
+            : t("settings.github.dlp.dangerDesc", {
+                local: dlpContext?.counts.local ?? 0,
+                remote: dlpContext?.counts.remote ?? 0,
+              })
+        }
+        confirmLabel={t("settings.github.dlp.confirm")}
       />
     </>
   );
