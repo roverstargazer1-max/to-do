@@ -1,4 +1,4 @@
-import { app, BrowserWindow, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
 import * as path from "node:path";
 import * as net from "node:net";
 import * as fs from "node:fs";
@@ -394,13 +394,111 @@ if (!gotTheLock) {
     });
   });
 
-  app.on("before-quit", () => {
+  let isQuittingPrepared = false;
+  let exitSyncTimeout: NodeJS.Timeout | null = null;
+
+  const performFinalQuit = () => {
+    if (exitSyncTimeout) {
+      clearTimeout(exitSyncTimeout);
+      exitSyncTimeout = null;
+    }
+    isQuittingPrepared = true;
     handleBeforeQuit(
       (val) => {
         isQuitting = val;
       },
       () => stopServer(),
     );
+    app.quit();
+  };
+
+  const promptSyncFailureAndQuit = async (reason = "网络离线或同步失败") => {
+    if (exitSyncTimeout) {
+      clearTimeout(exitSyncTimeout);
+      exitSyncTimeout = null;
+    }
+
+    if (!mainWindow || mainWindow.isDestroyed()) {
+      performFinalQuit();
+      return;
+    }
+
+    try {
+      if (
+        typeof mainWindow.isVisible === "function" &&
+        !mainWindow.isVisible()
+      ) {
+        mainWindow.show();
+      }
+      mainWindow.focus();
+    } catch {}
+
+    const choice = await dialog.showMessageBox(mainWindow, {
+      type: "warning",
+      buttons: ["仍然退出 (Exit Anyway)", "取消退出 (Cancel)"],
+      defaultId: 0,
+      cancelId: 1,
+      title: "云端同步未完成",
+      message: "检测到当前处于未联网状态（或推送至 GitHub 失败）",
+      detail: `原因：${reason}\n\n本地 SQLite 数据库及备份中已安全保留您的所有修改。您可以选择现在退出（下次联网启动时会自动同步），也可以取消退出留在应用中检查。`,
+    });
+
+    if (choice.response === 0) {
+      log("[Electron] User chose to exit despite unsynced changes.");
+      performFinalQuit();
+    } else {
+      log("[Electron] User canceled quit to remain in application.");
+      isQuitting = false;
+      isQuittingPrepared = false;
+      if (!mainWindow.isDestroyed()) {
+        mainWindow.focus();
+      }
+    }
+  };
+
+  ipcMain.on(
+    "exit-sync-complete",
+    async (
+      _event,
+      result?: { success: boolean; hasUnsynced?: boolean; reason?: string },
+    ) => {
+      log(
+        `[Electron] Exit sync signal received from renderer: success=${result?.success}, hasUnsynced=${result?.hasUnsynced}`,
+      );
+      if (result?.hasUnsynced && !result?.success) {
+        await promptSyncFailureAndQuit(
+          result.reason || "网络连接中断或 GitHub 响应异常",
+        );
+      } else {
+        performFinalQuit();
+      }
+    },
+  );
+
+  app.on("before-quit", (event) => {
+    if (isQuittingPrepared) {
+      return;
+    }
+
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      event.preventDefault();
+      log(
+        "[Electron] Intercepted before-quit; notifying renderer for graceful exit sync.",
+      );
+
+      // 5-second safety fallback to avoid blocking quit indefinitely on network stalls
+      exitSyncTimeout = setTimeout(async () => {
+        log(
+          "[Electron] Exit sync timeout reached (5s); prompting user or forcing shutdown.",
+          true,
+        );
+        await promptSyncFailureAndQuit("网络请求超时（超过 5 秒未响应）");
+      }, 5000);
+
+      mainWindow.webContents.send("request-exit-sync");
+    } else {
+      performFinalQuit();
+    }
   });
 
   app.on("window-all-closed", () => {

@@ -9,4 +9,31 @@ contextBridge.exposeInMainWorld("electron", {
   onUpdateDownloaded: (callback: (info: unknown) => void) => {
     ipcRenderer.on("update-downloaded", (_event, value) => callback(value));
   },
+  onPrepareQuit: (
+    callback: () => Promise<{
+      success: boolean;
+      hasUnsynced?: boolean;
+      reason?: string;
+    } | void> | void,
+  ) => {
+    ipcRenderer.on("request-exit-sync", async () => {
+      try {
+        const res = await callback();
+        ipcRenderer.send("exit-sync-complete", res || { success: true });
+      } catch (err) {
+        ipcRenderer.send("exit-sync-complete", {
+          success: false,
+          hasUnsynced: true,
+          reason: err instanceof Error ? err.message : String(err),
+        });
+      }
+    });
+  },
+  readyToQuit: (result?: {
+    success: boolean;
+    hasUnsynced?: boolean;
+    reason?: string;
+  }) => {
+    ipcRenderer.send("exit-sync-complete", result || { success: true });
+  },
 });
