@@ -320,6 +320,14 @@ export const settings = {
     "Pulled latest data from GitHub successfully",
   "settings.github.toast.autoPulled": (params: TranslationParams) =>
     `Auto-synced latest data from ${params.device}`,
+  "settings.github.toast.remoteUpdateConflict": (params: TranslationParams) =>
+    `Remote update from ${params.device} detected, but local has unpushed changes. Please resolve in settings.`,
+  "settings.github.toast.offlinePushSaved":
+    "Currently offline. Changes are saved locally and will auto-sync once reconnected to GitHub",
+  "settings.github.toast.offlinePullNotice":
+    "Currently offline. Unable to reach GitHub, using local data",
+  "settings.github.toast.reconnectSynced":
+    "Network reconnected. Offline changes auto-synced to GitHub",
   "settings.github.toast.syncFailed": "GitHub sync failed",
   "settings.github.toast.configCleared": "GitHub sync configuration cleared",
 

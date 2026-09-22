@@ -291,6 +291,14 @@ export const settings = {
   "settings.github.toast.pullSuccess": "已成功从 GitHub 拉取最新数据",
   "settings.github.toast.autoPulled": (params: TranslationParams) =>
     `已自动同步来自 ${params.device} 的最新数据`,
+  "settings.github.toast.remoteUpdateConflict": (params: TranslationParams) =>
+    `检测到来自 ${params.device} 的远程更新，但本地有未推送的修改，请在设置中处理同步`,
+  "settings.github.toast.offlinePushSaved":
+    "当前处于离线状态，修改已保存在本地，将在恢复网络后自动同步至 GitHub",
+  "settings.github.toast.offlinePullNotice":
+    "当前处于离线状态，无法连接 GitHub，当前使用本地数据",
+  "settings.github.toast.reconnectSynced":
+    "网络已恢复，离线修改已自动同步至 GitHub",
   "settings.github.toast.syncFailed": "GitHub 同步失败",
   "settings.github.toast.configCleared": "GitHub 同步配置已清除",
 
