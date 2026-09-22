@@ -301,6 +301,18 @@ export const settings = {
     "网络已恢复，离线修改已自动同步至 GitHub",
   "settings.github.toast.syncFailed": "GitHub 同步失败",
   "settings.github.toast.configCleared": "GitHub 同步配置已清除",
+  "settings.github.toast.alreadyInSync": "本地与云端已保持一致",
+  "settings.github.toast.dlpBlockedBackground":
+    "已阻止有数据丢失风险的推送：本地数据为空或大幅缩减，云端数据未被覆盖",
+  "settings.github.toast.metaFallback":
+    "云端元数据缺失，已改用数据文件判断同步状态",
+  "settings.github.dlp.title": "高危操作：推送将覆盖云端数据",
+  "settings.github.dlp.dangerDesc": (params: TranslationParams) =>
+    `云端现有 ${params.remote} 条记录，而本地仅 ${params.local} 条。继续推送将用本地数据覆盖云端，可能导致云端数据被清空或大量缩减，此操作无法撤销。确定继续吗？`,
+  "settings.github.dlp.unreadableDesc":
+    "暂时无法读取云端现有数据，无法确认推送的安全性。继续推送可能覆盖云端已有数据，此操作无法撤销。确定继续吗？",
+  "settings.github.dlp.confirm": "仍要推送",
+  "settings.github.deviceFallback": "远程设备",
 
   // --- Import dialog ---
   "settings.import.title": "导入数据",

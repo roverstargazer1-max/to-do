@@ -330,6 +330,20 @@ export const settings = {
     "Network reconnected. Offline changes auto-synced to GitHub",
   "settings.github.toast.syncFailed": "GitHub sync failed",
   "settings.github.toast.configCleared": "GitHub sync configuration cleared",
+  "settings.github.toast.alreadyInSync":
+    "Local data is already in sync with the cloud",
+  "settings.github.toast.dlpBlockedBackground":
+    "Blocked a data-loss-risk push: local data is empty or sharply reduced; cloud data was not overwritten",
+  "settings.github.toast.metaFallback":
+    "Cloud metadata missing; deriving sync state from the data file instead",
+  "settings.github.dlp.title":
+    "High-risk action: push will overwrite cloud data",
+  "settings.github.dlp.dangerDesc": (params: TranslationParams) =>
+    `The cloud holds ${params.remote} entries, but the local copy only has ${params.local}. Continuing will overwrite the cloud with local data, which may wipe or sharply reduce it. This cannot be undone. Continue anyway?`,
+  "settings.github.dlp.unreadableDesc":
+    "The cloud data could not be read, so push safety cannot be verified. Continuing may overwrite existing cloud data. This cannot be undone. Continue anyway?",
+  "settings.github.dlp.confirm": "Push anyway",
+  "settings.github.deviceFallback": "Remote Device",
 
   // --- Import dialog (ImportDialog.tsx) ---
   "settings.import.title": "Import Data",
