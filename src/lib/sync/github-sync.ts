@@ -344,3 +344,49 @@ export async function uploadDataToGitHub(
     };
   }
 }
+
+export interface RemoteCommitCheckOptions {
+  remoteMeta: GitHubSyncMeta | null;
+  localDeviceId: string;
+  lastRemoteCommitSha: string | null;
+  lastSyncTime: string | null;
+}
+
+export function shouldPullRemoteCommit(opts: RemoteCommitCheckOptions): {
+  shouldPull: boolean;
+  reason?: "new-commit" | "timestamp-newer";
+} {
+  const { remoteMeta, localDeviceId, lastRemoteCommitSha, lastSyncTime } = opts;
+  if (!remoteMeta || !remoteMeta.updatedAt) {
+    return { shouldPull: false };
+  }
+
+  // Same device pushed this -> skip pulling own echo
+  if (remoteMeta.deviceId && remoteMeta.deviceId === localDeviceId) {
+    return { shouldPull: false };
+  }
+
+  // 1. When commit SHA is present on remote and we already recorded a last remote commit:
+  if (remoteMeta.commitSha && lastRemoteCommitSha) {
+    if (remoteMeta.commitSha !== lastRemoteCommitSha) {
+      return { shouldPull: true, reason: "new-commit" };
+    }
+    // Commit SHA is identical -> exact same commit, skip
+    return { shouldPull: false };
+  }
+
+  // 2. If commit SHA is present on remote but local has no recorded commit SHA:
+  if (remoteMeta.commitSha && !lastRemoteCommitSha) {
+    return { shouldPull: true, reason: "new-commit" };
+  }
+
+  // 3. Fallback to timestamp comparison if remote has no commit SHA
+  if (
+    !lastSyncTime ||
+    new Date(remoteMeta.updatedAt) > new Date(lastSyncTime)
+  ) {
+    return { shouldPull: true, reason: "timestamp-newer" };
+  }
+
+  return { shouldPull: false };
+}

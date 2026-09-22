@@ -27,6 +27,7 @@ export interface GitHubSyncState {
   lastRemoteCommitMessage: string | null;
   lastSyncDevice: string | null;
   lastError: string | null;
+  hasUnsyncedChanges: boolean;
 
   // Actions
   setConfig: (
@@ -42,13 +43,13 @@ export interface GitHubSyncState {
   ) => void;
   clearConfig: () => void;
   setStatus: (status: SyncStatus, error?: string | null) => void;
+  setHasUnsyncedChanges: (hasChanges: boolean) => void;
   recordSyncSuccess: (meta?: GitHubSyncMeta, commitMessage?: string) => void;
   getEffectiveDeviceId: () => string;
 }
 
 function getDefaultDeviceLabel(): string {
   if (typeof window === "undefined") return "Desktop";
-  // @ts-expect-error - electron bridge injected on window
   const electronPlatform = window.electron?.platform;
   const platform =
     electronPlatform ||
@@ -81,6 +82,7 @@ export const useGitHubSyncStore = create<GitHubSyncState>()(
       lastRemoteCommitMessage: null,
       lastSyncDevice: null,
       lastError: null,
+      hasUnsyncedChanges: false,
 
       setConfig: (partial) =>
         set((state) => ({
@@ -99,6 +101,7 @@ export const useGitHubSyncStore = create<GitHubSyncState>()(
           lastRemoteCommitMessage: null,
           lastSyncDevice: null,
           lastError: null,
+          hasUnsyncedChanges: false,
         }),
 
       setStatus: (status, error = null) =>
@@ -107,10 +110,16 @@ export const useGitHubSyncStore = create<GitHubSyncState>()(
           lastError: error,
         }),
 
+      setHasUnsyncedChanges: (hasChanges) =>
+        set({
+          hasUnsyncedChanges: hasChanges,
+        }),
+
       recordSyncSuccess: (meta, commitMessage) =>
         set((state) => ({
           status: "success",
           lastError: null,
+          hasUnsyncedChanges: false,
           lastSyncTime: meta?.updatedAt || new Date().toISOString(),
           lastRemoteCommitSha: meta?.commitSha || state.lastRemoteCommitSha,
           lastRemoteCommitMessage:
@@ -130,6 +139,7 @@ export const useGitHubSyncStore = create<GitHubSyncState>()(
         autoSyncOnStart: state.autoSyncOnStart,
         autoSyncOnExit: state.autoSyncOnExit,
         autoSyncDebounced: state.autoSyncDebounced,
+        hasUnsyncedChanges: state.hasUnsyncedChanges,
         lastSyncTime: state.lastSyncTime,
         lastRemoteCommitSha: state.lastRemoteCommitSha,
         lastRemoteCommitMessage: state.lastRemoteCommitMessage,
