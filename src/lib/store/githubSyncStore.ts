@@ -24,6 +24,7 @@ export interface GitHubSyncState {
   status: SyncStatus;
   lastSyncTime: string | null;
   lastRemoteCommitSha: string | null;
+  lastRemoteDataSha: string | null;
   lastRemoteCommitMessage: string | null;
   lastSyncDevice: string | null;
   lastError: string | null;
@@ -79,6 +80,7 @@ export const useGitHubSyncStore = create<GitHubSyncState>()(
       status: "idle",
       lastSyncTime: null,
       lastRemoteCommitSha: null,
+      lastRemoteDataSha: null,
       lastRemoteCommitMessage: null,
       lastSyncDevice: null,
       lastError: null,
@@ -98,6 +100,7 @@ export const useGitHubSyncStore = create<GitHubSyncState>()(
           status: "idle",
           lastSyncTime: null,
           lastRemoteCommitSha: null,
+          lastRemoteDataSha: null,
           lastRemoteCommitMessage: null,
           lastSyncDevice: null,
           lastError: null,
@@ -122,6 +125,7 @@ export const useGitHubSyncStore = create<GitHubSyncState>()(
           hasUnsyncedChanges: false,
           lastSyncTime: meta?.updatedAt || new Date().toISOString(),
           lastRemoteCommitSha: meta?.commitSha || state.lastRemoteCommitSha,
+          lastRemoteDataSha: meta?.dataSha || state.lastRemoteDataSha,
           lastRemoteCommitMessage:
             commitMessage || state.lastRemoteCommitMessage,
           lastSyncDevice: meta?.deviceLabel || state.deviceLabel,
@@ -142,6 +146,7 @@ export const useGitHubSyncStore = create<GitHubSyncState>()(
         hasUnsyncedChanges: state.hasUnsyncedChanges,
         lastSyncTime: state.lastSyncTime,
         lastRemoteCommitSha: state.lastRemoteCommitSha,
+        lastRemoteDataSha: state.lastRemoteDataSha,
         lastRemoteCommitMessage: state.lastRemoteCommitMessage,
         lastSyncDevice: state.lastSyncDevice,
       }),

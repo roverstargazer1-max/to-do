@@ -8,6 +8,32 @@ export interface GitHubSyncConfig {
   deviceId?: string;
 }
 
+/** Defaults applied by `buildSyncConfig` so every entry shares one shape. */
+const DEFAULT_BRANCH = "main";
+const DEFAULT_DEVICE_LABEL = "Personal Device";
+const DEFAULT_DEVICE_ID = "unknown-device";
+
+/**
+ * Unified constructor for the GitHub sync config. Every sync entry point
+ * (manual sync, manual push, background push/check) builds its config through
+ * this factory so the token/repo/branch/device shape stays in one place.
+ */
+export function buildSyncConfig(input: {
+  token: string;
+  repo: string;
+  branch?: string;
+  deviceLabel?: string;
+  deviceId?: string;
+}): GitHubSyncConfig {
+  return {
+    token: input.token,
+    repo: input.repo,
+    branch: input.branch || DEFAULT_BRANCH,
+    deviceLabel: input.deviceLabel || DEFAULT_DEVICE_LABEL,
+    deviceId: input.deviceId || DEFAULT_DEVICE_ID,
+  };
+}
+
 export interface GitHubSyncMeta {
   version: number;
   deviceId: string;
@@ -349,6 +375,7 @@ export interface RemoteCommitCheckOptions {
   remoteMeta: GitHubSyncMeta | null;
   localDeviceId: string;
   lastRemoteCommitSha: string | null;
+  lastRemoteDataSha?: string | null;
   lastSyncTime: string | null;
 }
 
@@ -356,13 +383,31 @@ export function shouldPullRemoteCommit(opts: RemoteCommitCheckOptions): {
   shouldPull: boolean;
   reason?: "new-commit" | "timestamp-newer";
 } {
-  const { remoteMeta, localDeviceId, lastRemoteCommitSha, lastSyncTime } = opts;
+  const {
+    remoteMeta,
+    localDeviceId,
+    lastRemoteCommitSha,
+    lastRemoteDataSha,
+    lastSyncTime,
+  } = opts;
   if (!remoteMeta || !remoteMeta.updatedAt) {
     return { shouldPull: false };
   }
 
   // Same device pushed this -> skip pulling own echo
   if (remoteMeta.deviceId && remoteMeta.deviceId === localDeviceId) {
+    return { shouldPull: false };
+  }
+
+  // 0. Content fingerprint (data file blob SHA) comparison. Works uniformly for
+  //    both the normal sync-meta.json and the fallback meta derived from
+  //    kagelin-data.json (see resolveRemoteSyncMeta), keeping SHA-granularity
+  //    detection even when the metadata file is missing.
+  if (remoteMeta.dataSha && lastRemoteDataSha) {
+    if (remoteMeta.dataSha !== lastRemoteDataSha) {
+      return { shouldPull: true, reason: "new-commit" };
+    }
+    // Data blob identical -> exact same snapshot, skip
     return { shouldPull: false };
   }
 
@@ -389,4 +434,182 @@ export function shouldPullRemoteCommit(opts: RemoteCommitCheckOptions): {
   }
 
   return { shouldPull: false };
+}
+
+// ---------------------------------------------------------------------------
+// Push safety & data-loss prevention (DLP) guard
+// ---------------------------------------------------------------------------
+
+/** Error code returned when a push violates the DLP guard. */
+export const DLP_BLOCKED_ERROR_CODE = "settings.github.error.dlpBlocked";
+
+/** Entries are considered a "cliff drop" when local < remote × (1 - threshold). */
+export const PUSH_CLIFF_DROP_THRESHOLD = 0.5;
+
+export type PushSafetyReason =
+  "local-empty" | "cliff-drop" | "remote-unreadable";
+
+export interface PushSafetyResult {
+  safe: boolean;
+  reason?: PushSafetyReason;
+  counts?: { local: number; remote: number };
+  /** True when the remote has no data file yet (first push). */
+  remoteMissing?: boolean;
+}
+
+export type SyncAction =
+  | { kind: "pull"; device?: string }
+  | { kind: "push" }
+  | { kind: "aligned" }
+  | {
+      kind: "push-blocked-dlp";
+      reason: PushSafetyReason;
+      counts: { local: number; remote: number };
+    }
+  | { kind: "conflict"; device?: string };
+
+export interface DecideSyncFlowOptions {
+  shouldPull: boolean;
+  pullDevice?: string;
+  hasUnsyncedChanges: boolean;
+  safety: PushSafetyResult;
+}
+
+/**
+ * Total number of user-owned entries across every data section. Optional
+ * sections (workspaces, visual assets, …) count as 0 when absent.
+ */
+export function countBackupEntries(data: BackupData): number {
+  return (
+    (data.tasks?.length ?? 0) +
+    (data.projects?.length ?? 0) +
+    (data.habits?.length ?? 0) +
+    (data.habit_entries?.length ?? 0) +
+    (data.focus_logs?.length ?? 0) +
+    (data.events?.length ?? 0) +
+    (data.workspaces?.length ?? 0) +
+    (data.workspace_nodes?.length ?? 0) +
+    (data.visual_assets?.length ?? 0) +
+    (data.visual_asset_versions?.length ?? 0) +
+    (data.visual_annotations?.length ?? 0) +
+    (data.visual_derived?.length ?? 0) +
+    (data.visual_relations?.length ?? 0) +
+    (data.visual_flow_drafts?.length ?? 0)
+  );
+}
+
+/**
+ * Dual-tier DLP assessment: blocks when the local snapshot is empty while the
+ * remote holds data ("local-empty"), or when local entries drop by more than
+ * `PUSH_CLIFF_DROP_THRESHOLD` relative to the remote ("cliff-drop"). A missing
+ * or unparseable remote is treated as unreadable and blocked too, since we
+ * cannot verify we are not wiping existing data.
+ */
+export function assessPushSafety(
+  local: BackupData,
+  remote: BackupData | null,
+): PushSafetyResult {
+  if (!remote) {
+    return { safe: true, remoteMissing: true };
+  }
+  const counts = {
+    local: countBackupEntries(local),
+    remote: countBackupEntries(remote),
+  };
+
+  if (counts.remote > 0 && counts.local === 0) {
+    return { safe: false, reason: "local-empty", counts };
+  }
+  if (
+    counts.remote > 0 &&
+    counts.local < counts.remote * (1 - PUSH_CLIFF_DROP_THRESHOLD)
+  ) {
+    return { safe: false, reason: "cliff-drop", counts };
+  }
+  return { safe: true, counts };
+}
+
+/**
+ * Pure decision function for the "sync now" flow. Encodes the
+ * No-Dirty-No-Push principle: without a remote update, we refuse to push when
+ * there are no local unsynced changes ("aligned"), and the DLP guard merges
+ * into a "push-blocked-dlp" action instead of silently overwriting.
+ *
+ * Branch order (single source of truth for every sync entry point):
+ *   conflict (remote updated + local dirty) → pull → aligned → DLP-blocked
+ *   → push. The device label is returned as raw data; the UI layer owns the
+ *   localized fallback when it is absent.
+ */
+export function decideSyncFlow(opts: DecideSyncFlowOptions): SyncAction {
+  if (opts.shouldPull && opts.hasUnsyncedChanges) {
+    // Remote updated but local holds unpushed changes: never pull over them,
+    // never push. Refuse and surface the conflict.
+    return { kind: "conflict", device: opts.pullDevice };
+  }
+  if (opts.shouldPull) {
+    return { kind: "pull", device: opts.pullDevice };
+  }
+  if (!opts.hasUnsyncedChanges) {
+    return { kind: "aligned" };
+  }
+  if (!opts.safety.safe) {
+    return {
+      kind: "push-blocked-dlp",
+      reason: opts.safety.reason ?? "local-empty",
+      counts: opts.safety.counts ?? { local: 0, remote: 0 },
+    };
+  }
+  return { kind: "push" };
+}
+
+/**
+ * Fetch the remote sync state with a fallback: when sync-meta.json is missing
+ * or unreadable, derive an equivalent meta from kagelin-data.json's
+ * metadata.exportedAt plus the data file's blob SHA. `fallbackUsed` lets the
+ * caller surface a compatibility notice.
+ */
+export async function resolveRemoteSyncMeta(
+  config: GitHubSyncConfig,
+): Promise<{ meta: GitHubSyncMeta | null; fallbackUsed: boolean }> {
+  const meta = await getRemoteSyncMeta(config);
+  if (meta && meta.updatedAt) {
+    return { meta, fallbackUsed: false };
+  }
+
+  const dataRes = await downloadDataFromGitHub(config);
+  if (!dataRes.success || !dataRes.data?.metadata?.exportedAt) {
+    return { meta: null, fallbackUsed: true };
+  }
+  const dataSha = await getRemoteFileSha(config, DATA_FILE_PATH);
+  return {
+    meta: {
+      version: 1,
+      deviceId: "",
+      deviceLabel: "",
+      updatedAt: dataRes.data.metadata.exportedAt,
+      dataSha: dataSha ?? undefined,
+      appVersion: dataRes.data.metadata.appVersion || "1.0.0",
+    },
+    fallbackUsed: true,
+  };
+}
+
+/**
+ * Pre-flight DLP check before a push: reads the remote snapshot (best effort
+ * reuse of the download contract) and runs the pure assessment. A remote that
+ * is missing (404) is a safe first push; any other read failure blocks the
+ * push as "remote-unreadable".
+ */
+export async function checkPushSafety(
+  config: GitHubSyncConfig,
+  localData: BackupData,
+): Promise<PushSafetyResult> {
+  const remoteRes = await downloadDataFromGitHub(config);
+  if (!remoteRes.success) {
+    if (remoteRes.error === "settings.github.error.dataNotFoundOnRemote") {
+      return { safe: true, remoteMissing: true };
+    }
+    return { safe: false, reason: "remote-unreadable" };
+  }
+  return assessPushSafety(localData, remoteRes.data ?? null);
 }
