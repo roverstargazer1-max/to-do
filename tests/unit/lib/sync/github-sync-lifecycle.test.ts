@@ -136,12 +136,14 @@ describe("GitHub Sync Lifecycle Logic", () => {
         deviceLabel: "MacBook",
         updatedAt: "2026-09-22T10:00:00.000Z",
         commitSha: "commit-abc",
+        dataSha: "blob-xyz",
         appVersion: "1.4.1",
       });
 
       const updatedState = useGitHubSyncStore.getState();
       expect(updatedState.hasUnsyncedChanges).toBe(false);
       expect(updatedState.lastRemoteCommitSha).toBe("commit-abc");
+      expect(updatedState.lastRemoteDataSha).toBe("blob-xyz");
       expect(updatedState.status).toBe("success");
     });
   });
