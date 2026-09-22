@@ -4,10 +4,13 @@ import { useEffect, useRef, useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useGitHubSyncStore } from "@/lib/store/githubSyncStore";
 import {
-  getRemoteSyncMeta,
   downloadDataFromGitHub,
   uploadDataToGitHub,
   shouldPullRemoteCommit,
+  resolveRemoteSyncMeta,
+  checkPushSafety,
+  decideSyncFlow,
+  buildSyncConfig,
 } from "@/lib/sync/github-sync";
 import {
   collectLocalBackupData,
@@ -67,18 +70,17 @@ export function useGitHubSyncLifecycle() {
 
       isSyncingRef.current = true;
       try {
-        const deviceId = useGitHubSyncStore.getState().getEffectiveDeviceId();
-        const currentBranch = useGitHubSyncStore.getState().branch || "main";
-        const currentDeviceLabel =
-          useGitHubSyncStore.getState().deviceLabel || "Personal Device";
+        const state = useGitHubSyncStore.getState();
+        const deviceId = state.getEffectiveDeviceId();
+        const currentDeviceLabel = state.deviceLabel || "Personal Device";
 
-        const config = {
-          token: currentToken,
-          repo: currentRepo,
-          branch: currentBranch,
-          deviceLabel: currentDeviceLabel,
+        const config = buildSyncConfig({
+          token: state.token,
+          repo: state.repo,
+          branch: state.branch,
+          deviceLabel: state.deviceLabel,
           deviceId,
-        };
+        });
 
         const localData = await collectLocalBackupData();
 
@@ -90,6 +92,14 @@ export function useGitHubSyncLifecycle() {
           if (reason !== "debounce" && reason !== "blur" && reason !== "exit") {
             notify.warning(tr("settings.github.toast.offlinePushSaved"));
           }
+          return false;
+        }
+
+        // DLP guard: never let a background push silently wipe a populated
+        // remote with an empty or cliff-dropped local snapshot.
+        const safety = await checkPushSafety(config, localData);
+        if (!safety.safe) {
+          notify.warning(tr("settings.github.toast.dlpBlockedBackground"));
           return false;
         }
 
@@ -154,15 +164,19 @@ export function useGitHubSyncLifecycle() {
 
       try {
         const deviceId = currentState.getEffectiveDeviceId();
-        const config = {
+        const config = buildSyncConfig({
           token: currentState.token,
           repo: currentState.repo,
-          branch: currentState.branch || "main",
-          deviceLabel: currentState.deviceLabel || "Personal Device",
+          branch: currentState.branch,
+          deviceLabel: currentState.deviceLabel,
           deviceId,
-        };
+        });
 
-        const remoteMeta = await getRemoteSyncMeta(config);
+        const remoteMetaRes = await resolveRemoteSyncMeta(config);
+        if (remoteMetaRes.fallbackUsed && remoteMetaRes.meta) {
+          notify.warning(tr("settings.github.toast.metaFallback"));
+        }
+        const remoteMeta = remoteMetaRes.meta;
         if (!remoteMeta || !remoteMeta.updatedAt) {
           return;
         }
@@ -171,27 +185,34 @@ export function useGitHubSyncLifecycle() {
           remoteMeta,
           localDeviceId: deviceId,
           lastRemoteCommitSha: currentState.lastRemoteCommitSha,
+          lastRemoteDataSha: currentState.lastRemoteDataSha,
           lastSyncTime: currentState.lastSyncTime,
         });
 
-        if (shouldPull) {
-          // Conflict guard: local has unsynced changes, don't overwrite blindly
-          const localHasChanges =
-            currentState.hasUnsyncedChanges || hasLocalChangesRef.current;
+        // Single source of truth: the same pure decision function the manual
+        // "sync now" path uses. Conflict (remote updated + local dirty) refuses
+        // to pull or push; aligned/push branches are intentionally ignored here
+        // because this check is pull-only by design.
+        const action = decideSyncFlow({
+          shouldPull,
+          pullDevice: remoteMeta.deviceLabel,
+          hasUnsyncedChanges:
+            currentState.hasUnsyncedChanges || hasLocalChangesRef.current,
+          safety: { safe: true },
+        });
 
-          if (localHasChanges) {
-            currentState.setStatus(
-              "conflict",
-              "settings.github.error.conflict",
-            );
-            notify.warning(
-              tr("settings.github.toast.remoteUpdateConflict", {
-                device: remoteMeta.deviceLabel || "Remote Device",
-              }),
-            );
-            return;
-          }
+        if (action.kind === "conflict") {
+          // Refuse: never download, never upload, never overwrite.
+          currentState.setStatus("conflict", "settings.github.error.conflict");
+          notify.warning(
+            tr("settings.github.toast.remoteUpdateConflict", {
+              device: action.device || tr("settings.github.deviceFallback"),
+            }),
+          );
+          return;
+        }
 
+        if (action.kind === "pull") {
           // Safe to pull: download and replace local data
           isSyncingRef.current = true;
           const pullRes = await downloadDataFromGitHub(config);
@@ -202,7 +223,7 @@ export function useGitHubSyncLifecycle() {
             recordSyncSuccess(pullRes.meta);
             notify.success(
               tr("settings.github.toast.autoPulled", {
-                device: remoteMeta.deviceLabel || "Remote Device",
+                device: action.device || tr("settings.github.deviceFallback"),
               }),
             );
           }
