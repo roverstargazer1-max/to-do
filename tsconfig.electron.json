@@ -4,7 +4,14 @@
     "module": "commonjs",
     "moduleResolution": "node",
     "outDir": "./dist-electron",
-    "rootDir": "./electron",
+    // Broadened from `./electron` so the main process can type-check the shared
+    // MCP access store it injects into the embedded server (esbuild, not tsc,
+    // produces the shipped bundles).
+    "rootDir": ".",
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*", "./*"]
+    },
     "ignoreDeprecations": "6.0",
     "strict": true,
     "esModuleInterop": true,
@@ -12,5 +19,5 @@
     "forceConsistentCasingInFileNames": true,
     "noEmit": false
   },
-  "include": ["electron/**/*"]
+  "include": ["electron/**/*", "src/lib/mcp/**/*"]
 }

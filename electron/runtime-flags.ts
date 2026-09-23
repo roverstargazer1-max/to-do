@@ -73,6 +73,7 @@ export function buildStandaloneServerSpawnConfig(
   port: number,
   userDataPath: string,
   baseEnv: NodeJS.ProcessEnv | Record<string, string | undefined> = process.env,
+  mcpToken?: string,
 ): { serverPath: string; options: StandaloneServerSpawnOptions } {
   const env: NodeJS.ProcessEnv = {
     ...baseEnv,
@@ -85,8 +86,16 @@ export function buildStandaloneServerSpawnConfig(
       baseEnv.KAGELIN_DB_PATH || path.join(userDataPath, "data.db"),
     KAGELIN_ASSETS_PATH:
       baseEnv.KAGELIN_ASSETS_PATH || path.join(userDataPath, "assets"),
+    // The MCP endpoint authorizes against the token file in `KAGELIN_MCP_DIR`
+    // (read per request so a rotation applies without a restart); the token
+    // itself is passed along for parity with the other injected data paths.
+    KAGELIN_MCP_DIR: baseEnv.KAGELIN_MCP_DIR || userDataPath,
     NEXT_PUBLIC_APP_URL: `http://127.0.0.1:${port}`,
   };
+
+  if (mcpToken) {
+    env.KAGELIN_MCP_TOKEN = mcpToken;
+  }
 
   return {
     serverPath,

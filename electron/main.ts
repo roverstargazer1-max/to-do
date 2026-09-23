@@ -5,6 +5,7 @@ import * as fs from "node:fs";
 import { fork, ChildProcess } from "node:child_process";
 import { initAutoUpdater } from "./updater";
 import { persistServerPort, resolveStableServerPort } from "./server-port";
+import { createMcpAccessStore } from "../src/lib/mcp/token";
 import {
   applyChromiumSwitches,
   buildStandaloneServerSpawnConfig,
@@ -142,7 +143,7 @@ function resolveServerPath(): string {
   return path.join(__dirname, "..", ".next", "standalone", "server.js");
 }
 
-function startStandaloneServer(port: number): Promise<void> {
+function startStandaloneServer(port: number, mcpToken: string): Promise<void> {
   return new Promise((resolve, reject) => {
     const serverPath = resolveServerPath();
     log(
@@ -162,6 +163,7 @@ function startStandaloneServer(port: number): Promise<void> {
       port,
       app.getPath("userData"),
       process.env,
+      mcpToken,
     );
 
     serverProcess = fork(config.serverPath, [], config.options);
@@ -340,14 +342,19 @@ if (!gotTheLock) {
     try {
       checkRosettaTranslation(app, log);
 
+      const userDataPath = app.getPath("userData");
+      const mcpAccessStore = createMcpAccessStore(userDataPath);
+
       if (isDev) {
         log(
           "[Electron] Running in dev mode, connecting to http://localhost:3000",
         );
       } else {
-        const userDataPath = app.getPath("userData");
         const port = await resolveStableServerPort(userDataPath, getFreePort);
-        await startStandaloneServer(port);
+        // The embedded server process authorizes against this file
+        // (`KAGELIN_MCP_DIR`); the token is never written to the logs.
+        const mcpToken = mcpAccessStore.ensureToken();
+        await startStandaloneServer(port, mcpToken);
         persistServerPort(userDataPath, port);
         currentTargetUrl = `http://127.0.0.1:${port}`;
       }

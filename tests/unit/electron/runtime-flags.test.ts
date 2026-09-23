@@ -152,6 +152,31 @@ describe("Next.js standalone subprocess heap governance", () => {
     expect(config.options.stdio).toEqual(["ignore", "pipe", "pipe", "ipc"]);
   });
 
+  it("injects the MCP access directory and token into the standalone server", () => {
+    const config = buildStandaloneServerSpawnConfig(
+      "/path/to/.next/standalone/server.js",
+      4321,
+      "/mock/userData",
+      { CUSTOM_ENV: "test" },
+      "loopback-token",
+    );
+
+    expect(config.options.env.KAGELIN_MCP_DIR).toBe("/mock/userData");
+    expect(config.options.env.KAGELIN_MCP_TOKEN).toBe("loopback-token");
+  });
+
+  it("omits the MCP token when the caller has none to inject", () => {
+    const config = buildStandaloneServerSpawnConfig(
+      "/path/to/.next/standalone/server.js",
+      4321,
+      "/mock/userData",
+      {},
+    );
+
+    expect(config.options.env.KAGELIN_MCP_DIR).toBe("/mock/userData");
+    expect(config.options.env.KAGELIN_MCP_TOKEN).toBeUndefined();
+  });
+
   it("successfully passes health check on local port binding", async () => {
     const server = http.createServer((_req, res) => {
       res.writeHead(200, { "Content-Type": "text/plain" });
