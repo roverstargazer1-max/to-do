@@ -3,6 +3,12 @@ import { contextBridge, ipcRenderer } from "electron";
 contextBridge.exposeInMainWorld("electron", {
   platform: process.platform,
   isElectron: true,
+  mcp: {
+    getStatus: () => ipcRenderer.invoke("mcp:status"),
+    setEnabled: (enabled: boolean) =>
+      ipcRenderer.invoke("mcp:set-enabled", enabled),
+    resetToken: () => ipcRenderer.invoke("mcp:reset-token"),
+  },
   onUpdateAvailable: (callback: (info: unknown) => void) => {
     ipcRenderer.on("update-available", (_event, value) => callback(value));
   },

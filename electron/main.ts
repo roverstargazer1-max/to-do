@@ -5,6 +5,7 @@ import * as fs from "node:fs";
 import { fork, ChildProcess } from "node:child_process";
 import { initAutoUpdater } from "./updater";
 import { persistServerPort, resolveStableServerPort } from "./server-port";
+import { registerMcpBridge } from "./mcp-bridge";
 import { createMcpAccessStore } from "../src/lib/mcp/token";
 import {
   applyChromiumSwitches,
@@ -344,6 +345,14 @@ if (!gotTheLock) {
 
       const userDataPath = app.getPath("userData");
       const mcpAccessStore = createMcpAccessStore(userDataPath);
+      registerMcpBridge(ipcMain, {
+        store: mcpAccessStore,
+        resolveUrl: () => `${currentTargetUrl}/api/mcp`,
+        // A source-tree dev run serves the UI from the standalone `next dev`
+        // process, which the app never injects MCP credentials into.
+        isAvailable: () => !isDev,
+        isRunning: () => serverProcess !== null,
+      });
 
       if (isDev) {
         log(
