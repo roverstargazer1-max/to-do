@@ -11,6 +11,7 @@ import {
   decideSyncFlow,
   uploadDataToGitHub,
   downloadDataFromGitHub,
+  fingerprintBackupData,
   type GitHubSyncConfig,
   type PushSafetyReason,
   type PushSafetyResult,
@@ -68,6 +69,16 @@ export function useSmartSync(): UseSmartSyncResult {
     data: BackupData;
   } | null>(null);
 
+  /**
+   * Fingerprint of the last content confirmed identical on local and remote
+   * (right after a successful upload or pull). A later push whose exported
+   * content matches it is a no-op (only metadata.exportedAt would change) and
+   * is skipped instead of creating a timestamp-only commit. Kept per hook
+   * instance: a full settings-page remount loses it, which at worst produces
+   * one redundant commit, but never skips a real change.
+   */
+  const fingerprintRef = useRef<string | null>(null);
+
   const executePush = useCallback(
     async (
       config: GitHubSyncConfig,
@@ -76,6 +87,7 @@ export function useSmartSync(): UseSmartSyncResult {
     ): Promise<boolean> => {
       const res = await uploadDataToGitHub(config, localData);
       if (res.success) {
+        fingerprintRef.current = fingerprintBackupData(localData);
         useGitHubSyncStore
           .getState()
           .recordSyncSuccess(
@@ -105,6 +117,7 @@ export function useSmartSync(): UseSmartSyncResult {
       if (pullRes.success && pullRes.data) {
         await restoreLocalBackupData(pullRes.data);
         await queryClient.invalidateQueries();
+        fingerprintRef.current = fingerprintBackupData(pullRes.data);
         useGitHubSyncStore.getState().recordSyncSuccess(pullRes.meta);
         return true;
       }
@@ -160,6 +173,15 @@ export function useSmartSync(): UseSmartSyncResult {
       let safety: PushSafetyResult = { safe: true };
       if (!shouldPull && hasUnsynced) {
         localData = await collectLocalBackupData();
+        // No-op push dedup: content identical to the last confirmed sync
+        // (ignoring the regenerated exportedAt timestamp) needs no commit.
+        if (
+          fingerprintRef.current !== null &&
+          fingerprintBackupData(localData) === fingerprintRef.current
+        ) {
+          notify.success(tr("settings.github.toast.alreadyInSync"));
+          return;
+        }
         safety = await checkPushSafety(config, localData);
       }
 
@@ -243,6 +265,15 @@ export function useSmartSync(): UseSmartSyncResult {
         deviceId: state.getEffectiveDeviceId(),
       });
       const localData = await collectLocalBackupData();
+
+      // No-op push dedup: skip when content matches the last confirmed sync.
+      if (
+        fingerprintRef.current !== null &&
+        fingerprintBackupData(localData) === fingerprintRef.current
+      ) {
+        notify.success(tr("settings.github.toast.alreadyInSync"));
+        return;
+      }
 
       // DLP pre-flight: refuse to silently overwrite a populated remote with an
       // empty or cliff-dropped local snapshot, unless the user confirms.

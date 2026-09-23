@@ -428,4 +428,126 @@ describe("useSmartSync orchestration", () => {
       "settings.github.toast.pushSuccess",
     );
   });
+
+  it("skips a second run() whose content matches the last successful push", async () => {
+    useGitHubSyncStore.setState({
+      hasUnsyncedChanges: true,
+      lastRemoteDataSha: "blob-remote",
+    });
+    const local = backupWith({ tasks: 2 });
+    collectLocalBackupDataMock.mockResolvedValue(local);
+    const { putUrls } = stubGitHubFetch({
+      meta: { status: 200, body: remoteMetaFixture() },
+      data: { status: 200, body: backupWith({ tasks: 3 }) },
+    });
+
+    const { result } = renderHook(() => useSmartSync());
+    await act(async () => {
+      await result.current.run();
+    });
+    expect(putUrls.length).toBeGreaterThan(0);
+    const uploadsAfterFirst = putUrls.length;
+
+    // First push refreshed the store; simulate a fresh change with the remote
+    // back at the same state so the second run re-enters the push path.
+    useGitHubSyncStore.setState({
+      hasUnsyncedChanges: true,
+      lastRemoteDataSha: "blob-remote",
+    });
+    await act(async () => {
+      await result.current.run();
+    });
+
+    expect(putUrls).toHaveLength(uploadsAfterFirst);
+    expect(notifyMocks.success).toHaveBeenCalledWith(
+      "settings.github.toast.alreadyInSync",
+    );
+  });
+
+  it("runPush skips when content matches the last successful push", async () => {
+    const local = backupWith({ tasks: 2 });
+    collectLocalBackupDataMock.mockResolvedValue(local);
+    const { putUrls } = stubGitHubFetch({
+      meta: { status: 200, body: remoteMetaFixture() },
+      data: { status: 200, body: backupWith({ tasks: 3 }) },
+    });
+
+    const { result } = renderHook(() => useSmartSync());
+    await act(async () => {
+      await result.current.runPush();
+    });
+    expect(putUrls.length).toBeGreaterThan(0);
+    const uploadsAfterFirst = putUrls.length;
+
+    await act(async () => {
+      await result.current.runPush();
+    });
+
+    expect(putUrls).toHaveLength(uploadsAfterFirst);
+    expect(notifyMocks.success).toHaveBeenCalledWith(
+      "settings.github.toast.alreadyInSync",
+    );
+  });
+
+  it("runPush skips right after a pull restored identical content", async () => {
+    useGitHubSyncStore.setState({
+      hasUnsyncedChanges: false,
+      lastRemoteDataSha: "blob-old",
+    });
+    const remoteData = backupWith({ tasks: 2 });
+    collectLocalBackupDataMock.mockResolvedValue(remoteData);
+    const { putUrls } = stubGitHubFetch({
+      meta: { status: 200, body: remoteMetaFixture() },
+      data: { status: 200, body: remoteData },
+    });
+
+    const { result } = renderHook(() => useSmartSync());
+    await act(async () => {
+      await result.current.run();
+    });
+    expect(restoreLocalBackupDataMock).toHaveBeenCalledWith(remoteData);
+
+    await act(async () => {
+      await result.current.runPush();
+    });
+
+    expect(putUrls).toHaveLength(0);
+    expect(notifyMocks.success).toHaveBeenCalledWith(
+      "settings.github.toast.alreadyInSync",
+    );
+  });
+
+  it("pushes again when content genuinely changed after a sync", async () => {
+    useGitHubSyncStore.setState({
+      hasUnsyncedChanges: true,
+      lastRemoteDataSha: "blob-remote",
+    });
+    const { putUrls } = stubGitHubFetch({
+      meta: { status: 200, body: remoteMetaFixture() },
+      data: { status: 200, body: backupWith({ tasks: 3 }) },
+    });
+    collectLocalBackupDataMock
+      .mockResolvedValueOnce(backupWith({ tasks: 2 }))
+      .mockResolvedValueOnce(backupWith({ tasks: 5 }));
+
+    const { result } = renderHook(() => useSmartSync());
+    await act(async () => {
+      await result.current.run();
+    });
+    const uploadsAfterFirst = putUrls.length;
+    expect(uploadsAfterFirst).toBeGreaterThan(0);
+
+    useGitHubSyncStore.setState({
+      hasUnsyncedChanges: true,
+      lastRemoteDataSha: "blob-remote",
+    });
+    await act(async () => {
+      await result.current.run();
+    });
+
+    expect(putUrls.length).toBeGreaterThan(uploadsAfterFirst);
+    expect(notifyMocks.success).not.toHaveBeenCalledWith(
+      "settings.github.toast.alreadyInSync",
+    );
+  });
 });

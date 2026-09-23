@@ -7,6 +7,7 @@ import {
   resolveRemoteSyncMeta,
   checkPushSafety,
   shouldPullRemoteCommit,
+  fingerprintBackupData,
   DATA_FILE_PATH,
   META_FILE_PATH,
 } from "@/lib/sync/github-sync";
@@ -363,6 +364,37 @@ describe("push-safety", () => {
       const res = await checkPushSafety(mockConfig, emptyBackup);
       expect(res.safe).toBe(false);
       expect(res.reason).toBe("remote-unreadable");
+    });
+  });
+
+  describe("fingerprintBackupData (no-op push dedup)", () => {
+    it("ignores exportedAt so timestamp-only exports compare equal", () => {
+      const base = backupWith({ tasks: 2 });
+      const retimed = {
+        ...base,
+        metadata: {
+          ...base.metadata,
+          exportedAt: "2026-01-01T00:00:00.000Z",
+        },
+      };
+      expect(fingerprintBackupData(base)).toBe(fingerprintBackupData(retimed));
+    });
+
+    it("preserves content differences in the fingerprint", () => {
+      expect(fingerprintBackupData(backupWith({ tasks: 2 }))).not.toBe(
+        fingerprintBackupData(backupWith({ tasks: 3 })),
+      );
+    });
+
+    it("keeps appVersion significant (only exportedAt is excluded)", () => {
+      const base = backupWith({ tasks: 2 });
+      const bumped = {
+        ...base,
+        metadata: { ...base.metadata, appVersion: "1.6.0" },
+      };
+      expect(fingerprintBackupData(base)).not.toBe(
+        fingerprintBackupData(bumped),
+      );
     });
   });
 });

@@ -499,6 +499,21 @@ export function countBackupEntries(data: BackupData): number {
 }
 
 /**
+ * Content fingerprint used to skip no-op pushes. `metadata.exportedAt` is
+ * regenerated on every local export, so it is excluded: two collects of the
+ * same data must compare equal even though the timestamps differ.
+ *
+ * Deliberately a plain string comparison instead of a hash: a hash collision
+ * here would silently skip a legitimate push (a data-loss vector), while an
+ * extra JSON string in memory is negligible.
+ */
+export function fingerprintBackupData(data: BackupData): string {
+  const { metadata: rawMeta, ...rest } = data;
+  const { exportedAt: _omit, ...metadata } = rawMeta;
+  return JSON.stringify({ metadata, ...rest });
+}
+
+/**
  * Dual-tier DLP assessment: blocks when the local snapshot is empty while the
  * remote holds data ("local-empty"), or when local entries drop by more than
  * `PUSH_CLIFF_DROP_THRESHOLD` relative to the remote ("cliff-drop"). A missing
