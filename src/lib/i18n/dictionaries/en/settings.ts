@@ -408,4 +408,39 @@ export const settings = {
   "settings.about.terms": "Terms of Service",
   "settings.about.oss": "Open-source software",
   "settings.about.ossDetail": "Full list of dependencies",
+
+  // --- MCP channel card (McpChannelCard.tsx) ---
+  "settings.mcp.title": "AI MCP Architect Channel",
+  "settings.mcp.description":
+    "Serve this app's local data to Claude Desktop, Cursor, or Claude Code through the built-in MCP endpoint.",
+  "settings.mcp.desktopOnly":
+    "The MCP endpoint is served by the desktop app's embedded server. Install and run the Kagelin desktop build to connect a client.",
+  "settings.mcp.statusEnabled": "Listening",
+  "settings.mcp.statusDisabled": "Disabled",
+  "settings.mcp.enableLabel": "Enable MCP endpoint",
+  "settings.mcp.urlLabel": "URL",
+  "settings.mcp.tokenLabel": "Access token",
+  "settings.mcp.showToken": "Show token",
+  "settings.mcp.hideToken": "Hide token",
+  "settings.mcp.copyUrl": "Copy URL",
+  "settings.mcp.copyToken": "Copy token",
+  "settings.mcp.copied": "Copied to clipboard",
+  "settings.mcp.copyFailed": "Could not copy to the clipboard",
+  "settings.mcp.resetToken": "Reset token",
+  "settings.mcp.resetTokenTitle": "Reset the MCP access token?",
+  "settings.mcp.resetTokenDescription":
+    "Connected clients stop working until you paste the new token into their configuration.",
+  "settings.mcp.tokenReset": "MCP token reset",
+  "settings.mcp.updateFailed": "Could not update the MCP endpoint",
+  "settings.mcp.snippetsTitle": "Client configurations",
+  "settings.mcp.snippetsHint":
+    "Copy a configuration into the matching client, then restart it.",
+  "settings.mcp.snippetClaudeDesktop": "Claude Desktop",
+  "settings.mcp.snippetClaudeDesktopHint":
+    "Paste into claude_desktop_config.json",
+  "settings.mcp.snippetCursor": "Cursor",
+  "settings.mcp.snippetCursorHint": "Paste into ~/.cursor/mcp.json",
+  "settings.mcp.snippetClaudeCode": "Claude Code CLI",
+  "settings.mcp.snippetClaudeCodeHint": "Run once in your terminal",
+  "settings.mcp.copySnippet": "Copy configuration",
 } satisfies Record<string, DictionaryValue>;

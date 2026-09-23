@@ -164,6 +164,10 @@ describe("zh-CN rendering smoke tests", () => {
       "calendar.event.location.googleMeet", // third-party product name
       "settings.deleteData.typeWord", // typed token must stay Latin
       "auth.email.placeholder", // locale-neutral example address
+      "settings.mcp.urlLabel", // protocol-ish technical label, kept as "URL"
+      "settings.mcp.snippetClaudeDesktop", // third-party product name
+      "settings.mcp.snippetCursor", // third-party product name
+      "settings.mcp.snippetClaudeCode", // third-party product name
     ]);
 
     const identical = (Object.keys(en) as (keyof typeof en)[]).filter(

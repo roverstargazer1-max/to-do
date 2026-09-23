@@ -372,4 +372,37 @@ export const settings = {
   "settings.about.terms": "服务条款",
   "settings.about.oss": "开源软件",
   "settings.about.ossDetail": "完整依赖列表",
+
+  // --- MCP 通道卡片（McpChannelCard.tsx） ---
+  "settings.mcp.title": "AI MCP 架构师通道",
+  "settings.mcp.description":
+    "通过应用内建的 MCP 端点，让 Claude Desktop、Cursor 或 Claude Code 直接读写本地数据。",
+  "settings.mcp.desktopOnly":
+    "MCP 端点由桌面版应用内嵌服务器提供。请安装并运行 Kagelin 桌面版后再连接客户端。",
+  "settings.mcp.statusEnabled": "监听中",
+  "settings.mcp.statusDisabled": "已停用",
+  "settings.mcp.enableLabel": "启用 MCP 端点",
+  "settings.mcp.urlLabel": "URL",
+  "settings.mcp.tokenLabel": "访问令牌",
+  "settings.mcp.showToken": "显示令牌",
+  "settings.mcp.hideToken": "隐藏令牌",
+  "settings.mcp.copyUrl": "复制 URL",
+  "settings.mcp.copyToken": "复制令牌",
+  "settings.mcp.copied": "已复制到剪贴板",
+  "settings.mcp.copyFailed": "复制到剪贴板失败",
+  "settings.mcp.resetToken": "重置令牌",
+  "settings.mcp.resetTokenTitle": "重置 MCP 访问令牌？",
+  "settings.mcp.resetTokenDescription":
+    "已连接的客户端会立即失效，需要在各自的配置中换成新令牌。",
+  "settings.mcp.tokenReset": "MCP 令牌已重置",
+  "settings.mcp.updateFailed": "无法更新 MCP 端点",
+  "settings.mcp.snippetsTitle": "客户端配置",
+  "settings.mcp.snippetsHint": "复制对应客户端的配置并粘贴，然后重启该客户端。",
+  "settings.mcp.snippetClaudeDesktop": "Claude Desktop",
+  "settings.mcp.snippetClaudeDesktopHint": "粘贴到 claude_desktop_config.json",
+  "settings.mcp.snippetCursor": "Cursor",
+  "settings.mcp.snippetCursorHint": "粘贴到 ~/.cursor/mcp.json",
+  "settings.mcp.snippetClaudeCode": "Claude Code CLI",
+  "settings.mcp.snippetClaudeCodeHint": "在终端中执行一次",
+  "settings.mcp.copySnippet": "复制配置",
 } satisfies Record<string, DictionaryValue>;

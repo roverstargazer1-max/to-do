@@ -39,6 +39,7 @@ import { PwaInstallRow } from "@/components/settings/PwaInstallRow";
 import { DeleteUserDataDialog } from "@/components/settings/DeleteUserDataDialog";
 import { BackupSyncSettings } from "@/components/settings/BackupSyncSettings";
 import { AccountSection } from "@/components/settings/AccountSection";
+import { McpChannelCard } from "@/components/settings/McpChannelCard";
 import { PrivacySection } from "@/components/settings/PrivacySection";
 import { useProfile } from "@/lib/hooks/useProfile";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -478,6 +479,7 @@ export function SettingsClient({ version }: SettingsClientProps) {
                   />
 
                   <AccountSection />
+                  <McpChannelCard />
                 </div>
 
                 <BackupSyncSettings />
