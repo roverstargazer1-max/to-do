@@ -26,6 +26,21 @@ Engine or write database rows directly.
 The Skill version may change when orchestration changes without changing the
 tool contract. A contract-major change requires a new compatibility statement.
 
+### Transport
+
+The contract version describes the tool surface, not how messages travel, so it
+stays `1.2.0` while the transport changed (ADR-0024):
+
+- The desktop app serves the endpoint over **Streamable HTTP**
+  (`http://127.0.0.1:<port>/api/mcp`) with a per-install bearer token; POST
+  requests may receive plain JSON or SSE streams, GET opens the server-to-client
+  SSE channel, DELETE ends a session, and `Mcp-Session-Id` carries session
+  identity.
+- `npm run mcp:start` keeps the **stdio** transport for source-tree development.
+- Both transports share one server factory, so receipts, `requestId`
+  idempotency, legacy aliases, and destructive-operation confirmation behave
+  identically. No tool, schema, error code, or compatibility statement changed.
+
 ## Canonical forms and compatibility
 
 - `build_workspace({ blueprint: WorkspaceBlueprint })` is the canonical
