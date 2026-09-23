@@ -120,10 +120,16 @@ export function createHttpHandler(
       });
     }
 
+    const streaming = acceptsEventStream(request.headers.get("accept"));
+    const forwardedRequest =
+      request.method === "POST" && !streaming
+        ? withJsonClientAccept(request)
+        : request;
+
     const sessionId = request.headers.get(MCP_SESSION_HEADER);
     const session = sessionId ? sessions.get(sessionId) : undefined;
     if (session) {
-      return session.transport.handleRequest(request);
+      return session.transport.handleRequest(forwardedRequest);
     }
 
     // A client naming a session we do not hold is out of sync. Answering here
@@ -142,10 +148,7 @@ export function createHttpHandler(
       );
     }
 
-    const streaming = acceptsEventStream(request.headers.get("accept"));
     const opened = await openSession(!streaming);
-    return opened.transport.handleRequest(
-      streaming ? request : withJsonClientAccept(request),
-    );
+    return opened.transport.handleRequest(forwardedRequest);
   };
 }

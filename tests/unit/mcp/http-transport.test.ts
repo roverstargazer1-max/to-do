@@ -259,9 +259,22 @@ describe("MCP Streamable HTTP transport", () => {
 
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toContain("application/json");
-    expect(response.headers.get(MCP_SESSION_HEADER)).toBeTruthy();
+    const sessionId = response.headers.get(MCP_SESSION_HEADER);
+    expect(sessionId).toBeTruthy();
     const message = await response.json();
     expect(message.result.serverInfo.name).toBe("kagelin-workspace-ai-builder");
+
+    const listResponse = await mcpPost(
+      endpoint.url,
+      { jsonrpc: "2.0", id: 2, method: "tools/list" },
+      { sessionId, accept: "application/json" },
+    );
+    expect(listResponse.status).toBe(200);
+    expect(listResponse.headers.get("content-type")).toContain(
+      "application/json",
+    );
+    const listMessage = await listResponse.json();
+    expect(listMessage.result.tools.length).toBeGreaterThan(0);
   });
 
   it("rejects missing, wrong, and accepts valid tokens", async () => {
