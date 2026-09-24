@@ -203,6 +203,21 @@ export const settings = {
   "settings.backup.github.pullConfirmTitle": "确认从 GitHub 拉取数据？",
   "settings.backup.github.pullConfirmDesc":
     "这将从 GitHub 仓库下载最新数据并替换本地数据库（本地当前数据会自动备份一份快照）。确定继续吗？",
+  "settings.backup.github.backupBranch": "备份分支",
+  "settings.backup.github.backupDialogTitle": "创建备份分支",
+  "settings.backup.github.backupDialogDesc":
+    "将当前本地全部数据以不可变快照形式归档到新分支。不影响日常同步分支与未推送修改。",
+  "settings.backup.github.backupRemarkLabel": "备份备注（可选）",
+  "settings.backup.github.backupRemarkPlaceholder":
+    "例如：清理旧数据前、大版本升级",
+  "settings.backup.github.backupBranchPreview": "分支预览",
+  "settings.backup.github.backupCommitPreview": "提交信息预览",
+  "settings.backup.github.backupCancel": "取消",
+  "settings.backup.github.backupConfirm": "创建备份",
+  "settings.backup.github.backupCreating": "正在创建…",
+  "settings.backup.github.backupSuccess": "备份分支创建成功",
+  "settings.backup.github.backupFailed": "创建备份分支失败",
+  "settings.backup.github.viewBranch": "查看分支",
   "settings.backup.local.title": "本地备份",
   "settings.backup.local.descriptionGuest":
     "将你的本地数据导出为 ZIP 文件，或从备份中恢复。",
@@ -285,6 +300,8 @@ export const settings = {
     "云端仓库中暂无 kagelin-data.json 数据文件，请先点击「推送到 GitHub」初始化",
   "settings.github.error.conflict":
     "云端存在更新的提交，请先拉取最新数据后再推送",
+  "settings.github.error.baseBranchNotFound":
+    "未找到基准分支或远程仓库为空，请先推送初始数据",
   "settings.github.toast.connected": "GitHub 仓库连接成功",
   "settings.github.toast.syncSuccess": "已成功同步至 GitHub",
   "settings.github.toast.pushSuccess": "已成功推送最新数据至 GitHub",

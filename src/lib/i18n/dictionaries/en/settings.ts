@@ -226,6 +226,21 @@ export const settings = {
   "settings.backup.github.pullConfirmTitle": "Pull data from GitHub?",
   "settings.backup.github.pullConfirmDesc":
     "This will download the latest data from GitHub and restore your local database (an automatic local snapshot will be saved). Continue?",
+  "settings.backup.github.backupBranch": "Backup Branch",
+  "settings.backup.github.backupDialogTitle": "Create Backup Branch",
+  "settings.backup.github.backupDialogDesc":
+    "Archive all current local data as an immutable snapshot to a new branch without affecting your working branch or unsynced changes.",
+  "settings.backup.github.backupRemarkLabel": "Backup Remark (Optional)",
+  "settings.backup.github.backupRemarkPlaceholder":
+    "e.g., before-db-cleanup, v2-upgrade",
+  "settings.backup.github.backupBranchPreview": "Branch Preview",
+  "settings.backup.github.backupCommitPreview": "Commit Title Preview",
+  "settings.backup.github.backupCancel": "Cancel",
+  "settings.backup.github.backupConfirm": "Create Backup",
+  "settings.backup.github.backupCreating": "Creating...",
+  "settings.backup.github.backupSuccess": "Backup branch created successfully",
+  "settings.backup.github.backupFailed": "Failed to create backup branch",
+  "settings.backup.github.viewBranch": "View Branch",
   "settings.backup.local.title": "Local Backup",
   "settings.backup.local.descriptionGuest":
     "Export your local data to a ZIP file or restore from a backup.",
@@ -311,6 +326,8 @@ export const settings = {
     "No kagelin-data.json found on remote. Click 'Push to GitHub' to initialize",
   "settings.github.error.conflict":
     "Remote has newer commits. Please pull before pushing",
+  "settings.github.error.baseBranchNotFound":
+    "Base branch not found or repository is empty. Please push initial data first",
   "settings.github.toast.connected":
     "Connected to GitHub repository successfully",
   "settings.github.toast.syncSuccess": "Synced with GitHub successfully",

@@ -123,4 +123,19 @@ describe("GitHubSyncCard", () => {
 
     expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
   });
+
+  it("opens the create backup branch dialog when the backup branch button is clicked", () => {
+    render(<GitHubSyncCard />);
+
+    const backupBtn = screen.getByRole("button", {
+      name: "settings.backup.github.backupBranch",
+    });
+    expect(backupBtn).toBeInTheDocument();
+
+    fireEvent.click(backupBtn);
+
+    expect(
+      screen.getByText("settings.backup.github.backupDialogTitle"),
+    ).toBeInTheDocument();
+  });
 });

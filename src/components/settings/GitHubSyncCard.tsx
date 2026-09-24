@@ -45,6 +45,7 @@ import {
 } from "@/lib/sync/github-sync";
 import { restoreLocalBackupData } from "@/lib/backup/local-backup";
 import { ConflictResolutionDialog } from "@/components/settings/ConflictResolutionDialog";
+import { CreateBackupBranchDialog } from "@/components/settings/CreateBackupBranchDialog";
 
 export function GitHubSyncCard() {
   const { t } = useTranslation();
@@ -81,6 +82,7 @@ export function GitHubSyncCard() {
   const [showPullConfirm, setShowPullConfirm] = useState(false);
   const [isPulling, setIsPulling] = useState(false);
   const [showConflictDialog, setShowConflictDialog] = useState(false);
+  const [showBackupBranchDialog, setShowBackupBranchDialog] = useState(false);
 
   const {
     isOperating,
@@ -386,12 +388,12 @@ export function GitHubSyncCard() {
           )}
 
           {/* Manual sync action buttons */}
-          <div className="flex flex-col sm:flex-row gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
             <Button
               variant="default"
               onClick={handleSmartSync}
               disabled={isOperating || !token || !repo}
-              className="flex-1 gap-2 h-10 bg-brand hover:bg-brand/90 text-white transition-all active:scale-[0.98] font-semibold"
+              className="gap-2 h-10 bg-brand hover:bg-brand/90 text-white transition-all active:scale-[0.98] font-semibold"
             >
               {isOperating && operationType === "sync" ? (
                 <Loader2 className="h-4 w-4 animate-spin" strokeWidth={2.25} />
@@ -405,7 +407,7 @@ export function GitHubSyncCard() {
               variant="outline"
               onClick={handlePush}
               disabled={isOperating || !token || !repo}
-              className="flex-1 gap-2 h-10 border-border/60 hover:bg-secondary/40 transition-all font-medium"
+              className="gap-2 h-10 border-border/60 hover:bg-secondary/40 transition-all font-medium"
             >
               {isOperating && operationType === "push" ? (
                 <Loader2 className="h-4 w-4 animate-spin" strokeWidth={2.25} />
@@ -419,7 +421,7 @@ export function GitHubSyncCard() {
               variant="outline"
               onClick={() => setShowPullConfirm(true)}
               disabled={isOperating || isPulling || !token || !repo}
-              className="flex-1 gap-2 h-10 border-border/60 hover:bg-secondary/40 transition-all font-medium"
+              className="gap-2 h-10 border-border/60 hover:bg-secondary/40 transition-all font-medium"
             >
               {isPulling ? (
                 <Loader2 className="h-4 w-4 animate-spin" strokeWidth={2.25} />
@@ -427,6 +429,16 @@ export function GitHubSyncCard() {
                 <Download className="h-4 w-4" strokeWidth={2.25} />
               )}
               {t("settings.backup.github.pull")}
+            </Button>
+
+            <Button
+              variant="outline"
+              onClick={() => setShowBackupBranchDialog(true)}
+              disabled={isOperating || isPulling || !token || !repo}
+              className="gap-2 h-10 border-border/60 hover:bg-secondary/40 transition-all font-medium"
+            >
+              <GitBranch className="h-4 w-4" strokeWidth={2.25} />
+              {t("settings.backup.github.backupBranch")}
             </Button>
           </div>
 
@@ -537,6 +549,12 @@ export function GitHubSyncCard() {
       <ConflictResolutionDialog
         isOpen={showConflictDialog}
         onClose={() => setShowConflictDialog(false)}
+      />
+
+      {/* Create Backup Branch Dialog */}
+      <CreateBackupBranchDialog
+        isOpen={showBackupBranchDialog}
+        onClose={() => setShowBackupBranchDialog(false)}
       />
     </>
   );
