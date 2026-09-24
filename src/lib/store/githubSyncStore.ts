@@ -4,6 +4,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { getDeviceId } from "./deviceId";
 import type { GitHubSyncMeta } from "@/lib/sync/github-sync";
+import { clearBaseSnapshot } from "@/lib/sync/base-snapshot";
 
 export type SyncStatus =
   "idle" | "testing" | "syncing" | "success" | "error" | "conflict";
@@ -92,7 +93,8 @@ export const useGitHubSyncStore = create<GitHubSyncState>()(
           ...partial,
         })),
 
-      clearConfig: () =>
+      clearConfig: () => {
+        void clearBaseSnapshot();
         set({
           token: "",
           repo: "",
@@ -105,7 +107,8 @@ export const useGitHubSyncStore = create<GitHubSyncState>()(
           lastSyncDevice: null,
           lastError: null,
           hasUnsyncedChanges: false,
-        }),
+        });
+      },
 
       setStatus: (status, error = null) =>
         set({

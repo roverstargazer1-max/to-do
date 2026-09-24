@@ -17,6 +17,7 @@ import {
   restoreLocalBackupData,
 } from "@/lib/backup/local-backup";
 import { stageBackup, promoteBackup } from "@/lib/backup/dual-slot";
+import { saveBaseSnapshot } from "@/lib/sync/base-snapshot";
 import { notify } from "@/lib/notify";
 import { tr } from "@/lib/i18n/tr";
 
@@ -108,6 +109,7 @@ export function useGitHubSyncLifecycle() {
         if (pushRes.success) {
           // 2. Promote Slot B to Slot A baseline upon confirmed 200 OK
           await promoteBackup();
+          await saveBaseSnapshot(localData, pushRes.commitSha);
 
           hasLocalChangesRef.current = false;
           setHasUnsyncedChanges(false);
@@ -220,6 +222,7 @@ export function useGitHubSyncLifecycle() {
           if (pullRes.success && pullRes.data) {
             await restoreLocalBackupData(pullRes.data);
             await queryClient.invalidateQueries();
+            await saveBaseSnapshot(pullRes.data, pullRes.meta?.commitSha);
             recordSyncSuccess(pullRes.meta);
             notify.success(
               tr("settings.github.toast.autoPulled", {

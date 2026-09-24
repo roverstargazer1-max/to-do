@@ -23,6 +23,7 @@ import {
 import { notify } from "@/lib/notify";
 import { tr } from "@/lib/i18n/tr";
 import type { BackupData } from "@/lib/backup/types";
+import { saveBaseSnapshot } from "@/lib/sync/base-snapshot";
 
 /** What the "sync now"/"push" flow is currently doing (drives button spinners). */
 export type SmartSyncOperation = "sync" | "push" | "pull" | null;
@@ -88,6 +89,7 @@ export function useSmartSync(): UseSmartSyncResult {
       const res = await uploadDataToGitHub(config, localData);
       if (res.success) {
         fingerprintRef.current = fingerprintBackupData(localData);
+        await saveBaseSnapshot(localData, res.commitSha);
         useGitHubSyncStore
           .getState()
           .recordSyncSuccess(
@@ -118,6 +120,7 @@ export function useSmartSync(): UseSmartSyncResult {
         await restoreLocalBackupData(pullRes.data);
         await queryClient.invalidateQueries();
         fingerprintRef.current = fingerprintBackupData(pullRes.data);
+        await saveBaseSnapshot(pullRes.data, pullRes.meta?.commitSha);
         useGitHubSyncStore.getState().recordSyncSuccess(pullRes.meta);
         return true;
       }
