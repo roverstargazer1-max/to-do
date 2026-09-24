@@ -76,7 +76,16 @@ const finalCache: RuntimeCaching[] = [
     return !isCatchAll;
   }),
   {
-    matcher: /.*/i,
+    matcher: ({ url }) => {
+      // Exclude GitHub API and internal API routes from Service Worker runtime caching
+      if (
+        url.hostname === "api.github.com" ||
+        url.pathname.startsWith("/api/")
+      ) {
+        return false;
+      }
+      return true;
+    },
     method: "GET",
     handler: new NetworkFirst({
       cacheName: "others",

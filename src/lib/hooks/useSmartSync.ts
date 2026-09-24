@@ -87,7 +87,10 @@ export function useSmartSync(): UseSmartSyncResult {
       localData: BackupData,
       successMessage: string,
     ): Promise<boolean> => {
-      const res = await uploadDataToGitHub(config, localData);
+      const fallbackDataSha = useGitHubSyncStore.getState().lastRemoteDataSha;
+      const res = await uploadDataToGitHub(config, localData, {
+        fallbackDataSha,
+      });
       if (res.success) {
         fingerprintRef.current = fingerprintBackupData(localData);
         await saveBaseSnapshot(localData, res.commitSha);
@@ -235,10 +238,15 @@ export function useSmartSync(): UseSmartSyncResult {
             await queryClient.invalidateQueries();
 
             const commitMsg = `chore(sync): auto-merged updates from ${remoteDevice}`;
+            const fallbackDataSha =
+              useGitHubSyncStore.getState().lastRemoteDataSha;
             let pushRes = await uploadDataToGitHub(
               config,
               mergeResult.mergedData,
-              commitMsg,
+              {
+                customCommitMessage: commitMsg,
+                fallbackDataSha,
+              },
             );
 
             // 409 HTTP Conflict retry self-heal (max 1 retry)
@@ -260,7 +268,11 @@ export function useSmartSync(): UseSmartSyncResult {
                   pushRes = await uploadDataToGitHub(
                     config,
                     mergeResult.mergedData,
-                    `chore(sync): auto-merged updates from ${remoteDevice} [retry]`,
+                    {
+                      customCommitMessage: `chore(sync): auto-merged updates from ${remoteDevice} [retry]`,
+                      fallbackDataSha:
+                        retryRemote.meta?.dataSha || fallbackDataSha,
+                    },
                   );
                 }
               }

@@ -153,7 +153,10 @@ export function ConflictResolutionDialog({
       });
 
       const commitMsg = `chore(sync): resolved ${conflicts.length} conflict(s) from ${deviceLabel}`;
-      const pushRes = await uploadDataToGitHub(config, resolvedData, commitMsg);
+      const pushRes = await uploadDataToGitHub(config, resolvedData, {
+        customCommitMessage: commitMsg,
+        fallbackDataSha: useGitHubSyncStore.getState().lastRemoteDataSha,
+      });
 
       if (pushRes.success) {
         await saveBaseSnapshot(resolvedData, pushRes.commitSha);

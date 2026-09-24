@@ -105,7 +105,10 @@ export function useGitHubSyncLifecycle() {
           return false;
         }
 
-        const pushRes = await uploadDataToGitHub(config, localData);
+        const pushRes = await uploadDataToGitHub(config, localData, {
+          customCommitMessage: `chore(sync): update data from ${currentDeviceLabel} [${reason}]`,
+          fallbackDataSha: useGitHubSyncStore.getState().lastRemoteDataSha,
+        });
 
         if (pushRes.success) {
           // 2. Promote Slot B to Slot A baseline upon confirmed 200 OK
@@ -141,7 +144,12 @@ export function useGitHubSyncLifecycle() {
               const retryPush = await uploadDataToGitHub(
                 config,
                 mergeRes.mergedData,
-                `chore(sync): auto-merged updates from ${currentDeviceLabel} [409 retry]`,
+                {
+                  customCommitMessage: `chore(sync): auto-merged updates from ${currentDeviceLabel} [409 retry]`,
+                  fallbackDataSha:
+                    pullRes.meta?.dataSha ||
+                    useGitHubSyncStore.getState().lastRemoteDataSha,
+                },
               );
               if (retryPush.success) {
                 await promoteBackup();
@@ -278,10 +286,16 @@ export function useGitHubSyncLifecycle() {
               await queryClient.invalidateQueries();
 
               const commitMsg = `chore(sync): auto-merged updates from ${remoteDevice}`;
+              const fallbackDataSha =
+                remoteMeta.dataSha ||
+                useGitHubSyncStore.getState().lastRemoteDataSha;
               let pushRes = await uploadDataToGitHub(
                 config,
                 mergeResult.mergedData,
-                commitMsg,
+                {
+                  customCommitMessage: commitMsg,
+                  fallbackDataSha,
+                },
               );
 
               // 409 retry
@@ -303,7 +317,11 @@ export function useGitHubSyncLifecycle() {
                     pushRes = await uploadDataToGitHub(
                       config,
                       retryMerge.mergedData,
-                      `chore(sync): auto-merged updates from ${remoteDevice} [retry]`,
+                      {
+                        customCommitMessage: `chore(sync): auto-merged updates from ${remoteDevice} [retry]`,
+                        fallbackDataSha:
+                          retryRemote.meta?.dataSha || fallbackDataSha,
+                      },
                     );
                     if (pushRes.success) {
                       await saveBaseSnapshot(

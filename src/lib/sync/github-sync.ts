@@ -50,6 +50,7 @@ export interface GitHubSyncResult {
   meta?: GitHubSyncMeta;
   data?: BackupData;
   commitSha?: string;
+  dataSha?: string;
 }
 
 export const DATA_FILE_PATH = "kagelin-data.json";
@@ -96,6 +97,12 @@ function getHeaders(token: string): Record<string, string> {
   };
 }
 
+export function extractShaFromETag(etagHeader: string | null): string | null {
+  if (!etagHeader) return null;
+  const clean = etagHeader.replace(/^W\//, "").replace(/"/g, "").trim();
+  return /^[0-9a-f]{40}$/i.test(clean) ? clean : null;
+}
+
 export async function testGitHubConnection(config: GitHubSyncConfig): Promise<{
   success: boolean;
   error?: string;
@@ -119,6 +126,7 @@ export async function testGitHubConnection(config: GitHubSyncConfig): Promise<{
   try {
     const res = await fetch(`https://api.github.com/repos/${repo}`, {
       headers: getHeaders(config.token),
+      cache: "no-store",
     });
 
     if (res.status === 401) {
@@ -155,21 +163,39 @@ interface GitHubFileContentResponse {
 export async function getRemoteFileSha(
   config: GitHubSyncConfig,
   path: string,
+  forceFresh = false,
 ): Promise<string | null> {
   const repo = normalizeRepo(config.repo);
   const branch = config.branch || "main";
   try {
+    const sep = path.includes("?") ? "&" : "?";
+    const freshParam = forceFresh ? `&_t=${Date.now()}` : "";
     const res = await fetch(
-      `https://api.github.com/repos/${repo}/contents/${path}?ref=${encodeURIComponent(branch)}`,
+      `https://api.github.com/repos/${repo}/contents/${path}${sep}ref=${encodeURIComponent(branch)}${freshParam}`,
       {
         headers: getHeaders(config.token),
+        cache: "no-store",
       },
     );
-    if (!res.ok) {
+
+    if (res.status === 404) {
       return null;
     }
+
+    const etagHeader =
+      typeof res.headers?.get === "function" ? res.headers.get("etag") : null;
+    const etagSha = extractShaFromETag(etagHeader);
+
+    if (res.status === 304) {
+      return etagSha;
+    }
+
+    if (!res.ok) {
+      return etagSha;
+    }
+
     const json = (await res.json()) as GitHubFileContentResponse;
-    return json.sha || null;
+    return json.sha || etagSha || null;
   } catch {
     return null;
   }
@@ -189,6 +215,7 @@ export async function getRemoteSyncMeta(
           ...getHeaders(config.token),
           Accept: "application/vnd.github.raw+json",
         },
+        cache: "no-store",
       },
     );
 
@@ -219,6 +246,7 @@ export async function downloadDataFromGitHub(
             ...getHeaders(config.token),
             Accept: "application/vnd.github.raw+json",
           },
+          cache: "no-store",
         },
       ),
       fetch(
@@ -228,6 +256,7 @@ export async function downloadDataFromGitHub(
             ...getHeaders(config.token),
             Accept: "application/vnd.github.raw+json",
           },
+          cache: "no-store",
         },
       ),
     ]);
@@ -248,6 +277,11 @@ export async function downloadDataFromGitHub(
 
     const dataText = await dataRes.text();
     const backupData = JSON.parse(dataText) as BackupData;
+    const dataEtagHeader =
+      typeof dataRes.headers?.get === "function"
+        ? dataRes.headers.get("etag")
+        : null;
+    const extractedDataSha = extractShaFromETag(dataEtagHeader);
 
     let meta: GitHubSyncMeta | undefined;
     if (metaRes.ok) {
@@ -256,10 +290,27 @@ export async function downloadDataFromGitHub(
       } catch {}
     }
 
+    if (extractedDataSha) {
+      if (meta) {
+        if (!meta.dataSha) meta.dataSha = extractedDataSha;
+      } else {
+        meta = {
+          version: 1,
+          deviceId: "",
+          deviceLabel: "",
+          updatedAt:
+            backupData.metadata?.exportedAt || new Date().toISOString(),
+          dataSha: extractedDataSha,
+          appVersion: backupData.metadata?.appVersion || "1.0.0",
+        };
+      }
+    }
+
     return {
       success: true,
       data: backupData,
       meta,
+      dataSha: extractedDataSha ?? undefined,
     };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -270,10 +321,16 @@ export async function downloadDataFromGitHub(
   }
 }
 
+export interface UploadDataOptions {
+  customCommitMessage?: string;
+  fallbackDataSha?: string | null;
+  fallbackMetaSha?: string | null;
+}
+
 export async function uploadDataToGitHub(
   config: GitHubSyncConfig,
   data: BackupData,
-  customCommitMessage?: string,
+  optionsOrCommitMessage?: string | UploadDataOptions,
 ): Promise<GitHubSyncResult> {
   const repo = normalizeRepo(config.repo);
   const branch = config.branch || "main";
@@ -281,23 +338,36 @@ export async function uploadDataToGitHub(
   const deviceId = config.deviceId || "unknown-device";
   const now = new Date().toISOString();
 
+  const options: UploadDataOptions =
+    typeof optionsOrCommitMessage === "string"
+      ? { customCommitMessage: optionsOrCommitMessage }
+      : optionsOrCommitMessage || {};
+
   try {
     // 1. Get existing file SHAs if present
-    const [existingDataSha, existingMetaSha] = await Promise.all([
+    let [existingDataSha, existingMetaSha] = await Promise.all([
       getRemoteFileSha(config, DATA_FILE_PATH),
       getRemoteFileSha(config, META_FILE_PATH),
     ]);
+
+    // Fallback to caller-provided fallbackSha (e.g. from local sync store) if live query returned null
+    if (!existingDataSha && options.fallbackDataSha) {
+      existingDataSha = options.fallbackDataSha;
+    }
+    if (!existingMetaSha && options.fallbackMetaSha) {
+      existingMetaSha = options.fallbackMetaSha;
+    }
 
     // 2. Prepare payload
     const jsonString = JSON.stringify(data, null, 2);
     const base64Data = utf8ToBase64(jsonString);
 
     const commitMessage =
-      customCommitMessage ||
+      options.customCommitMessage ||
       `chore(sync): update data from ${deviceLabel} [${now.split("T")[0]}]`;
 
     // 3. Upload data file
-    const uploadDataRes = await fetch(
+    let uploadDataRes = await fetch(
       `https://api.github.com/repos/${repo}/contents/${DATA_FILE_PATH}`,
       {
         method: "PUT",
@@ -305,6 +375,7 @@ export async function uploadDataToGitHub(
           ...getHeaders(config.token),
           "Content-Type": "application/json",
         },
+        cache: "no-store",
         body: JSON.stringify({
           message: commitMessage,
           content: base64Data,
@@ -316,14 +387,51 @@ export async function uploadDataToGitHub(
 
     if (!uploadDataRes.ok) {
       const errBody = await uploadDataRes.json().catch(() => ({}));
-      return {
-        success: false,
-        error:
-          uploadDataRes.status === 409
-            ? "settings.github.error.conflict"
-            : errBody.message ||
-              `Upload data error: HTTP ${uploadDataRes.status}`,
-      };
+      const errMsg = String(errBody.message || "");
+
+      // Self-heal: If 422 because SHA wasn't supplied, but file exists on remote,
+      // force fetch fresh SHA with cache-busting and retry PUT once.
+      if (
+        uploadDataRes.status === 422 &&
+        errMsg.toLowerCase().includes("sha")
+      ) {
+        const freshSha =
+          options.fallbackDataSha ||
+          (await getRemoteFileSha(config, DATA_FILE_PATH, true));
+        if (freshSha && freshSha !== existingDataSha) {
+          existingDataSha = freshSha;
+          uploadDataRes = await fetch(
+            `https://api.github.com/repos/${repo}/contents/${DATA_FILE_PATH}`,
+            {
+              method: "PUT",
+              headers: {
+                ...getHeaders(config.token),
+                "Content-Type": "application/json",
+              },
+              cache: "no-store",
+              body: JSON.stringify({
+                message: commitMessage,
+                content: base64Data,
+                branch,
+                sha: freshSha,
+              }),
+            },
+          );
+        }
+      }
+
+      if (!uploadDataRes.ok) {
+        const retryErrBody = await uploadDataRes.json().catch(() => ({}));
+        return {
+          success: false,
+          error:
+            uploadDataRes.status === 409
+              ? "settings.github.error.conflict"
+              : retryErrBody.message ||
+                errBody.message ||
+                `Upload data error: HTTP ${uploadDataRes.status}`,
+        };
+      }
     }
 
     const uploadDataJson = await uploadDataRes.json();
@@ -343,7 +451,7 @@ export async function uploadDataToGitHub(
 
     const base64Meta = utf8ToBase64(JSON.stringify(meta, null, 2));
 
-    await fetch(
+    const metaPutRes = await fetch(
       `https://api.github.com/repos/${repo}/contents/${META_FILE_PATH}`,
       {
         method: "PUT",
@@ -351,6 +459,7 @@ export async function uploadDataToGitHub(
           ...getHeaders(config.token),
           "Content-Type": "application/json",
         },
+        cache: "no-store",
         body: JSON.stringify({
           message: `chore(sync): update meta from ${deviceLabel} [${now.split("T")[0]}]`,
           content: base64Meta,
@@ -358,7 +467,31 @@ export async function uploadDataToGitHub(
           ...(existingMetaSha ? { sha: existingMetaSha } : {}),
         }),
       },
-    ).catch(() => {});
+    ).catch(() => null);
+
+    // Self-heal meta upload on 422 sha missing
+    if (metaPutRes && metaPutRes.status === 422 && !existingMetaSha) {
+      const freshMetaSha = await getRemoteFileSha(config, META_FILE_PATH, true);
+      if (freshMetaSha) {
+        await fetch(
+          `https://api.github.com/repos/${repo}/contents/${META_FILE_PATH}`,
+          {
+            method: "PUT",
+            headers: {
+              ...getHeaders(config.token),
+              "Content-Type": "application/json",
+            },
+            cache: "no-store",
+            body: JSON.stringify({
+              message: `chore(sync): update meta from ${deviceLabel} [${now.split("T")[0]}]`,
+              content: base64Meta,
+              branch,
+              sha: freshMetaSha,
+            }),
+          },
+        ).catch(() => {});
+      }
+    }
 
     return {
       success: true,

@@ -6,6 +6,8 @@ import {
   testGitHubConnection,
   downloadDataFromGitHub,
   uploadDataToGitHub,
+  extractShaFromETag,
+  getRemoteFileSha,
   DATA_FILE_PATH,
   META_FILE_PATH,
 } from "@/lib/sync/github-sync";
@@ -248,6 +250,170 @@ describe("github-sync", () => {
       const res = await uploadDataToGitHub(mockConfig, sampleBackupData);
       expect(res.success).toBe(false);
       expect(res.error).toBe("settings.github.error.conflict");
+    });
+
+    it("uses fallbackDataSha when remote sha query returns null", async () => {
+      let putBody: { sha?: string } = {};
+      (global.fetch as Mock).mockImplementation(
+        async (url: string, options?: RequestInit) => {
+          if (options?.method === "PUT") {
+            if (url.includes(DATA_FILE_PATH)) {
+              putBody = JSON.parse(String(options.body));
+            }
+            return {
+              ok: true,
+              status: 200,
+              json: async () => ({
+                commit: { sha: "new-commit" },
+                content: { sha: "new-content" },
+              }),
+            };
+          }
+          // Querying existing SHAs returns null
+          return {
+            ok: false,
+            status: 404,
+          };
+        },
+      );
+
+      const res = await uploadDataToGitHub(mockConfig, sampleBackupData, {
+        fallbackDataSha: "fallback-blob-sha-12345",
+      });
+
+      expect(res.success).toBe(true);
+      expect(putBody.sha).toBe("fallback-blob-sha-12345");
+    });
+
+    it("self-heals when initial PUT fails with 422 sha missing by fetching fresh sha and retrying", async () => {
+      let putCallCount = 0;
+      let finalPutBody: { sha?: string } = {};
+
+      (global.fetch as Mock).mockImplementation(
+        async (url: string, options?: RequestInit) => {
+          if (options?.method === "PUT") {
+            putCallCount++;
+            if (url.includes(DATA_FILE_PATH)) {
+              finalPutBody = JSON.parse(String(options.body));
+              if (putCallCount === 1) {
+                // First PUT fails because SHA wasn't supplied
+                return {
+                  ok: false,
+                  status: 422,
+                  json: async () => ({
+                    message: 'Invalid request.\n\n"sha" wasn\'t supplied.',
+                  }),
+                };
+              }
+              // Second PUT succeeds with fresh SHA
+              return {
+                ok: true,
+                status: 200,
+                json: async () => ({
+                  commit: { sha: "healed-commit-sha" },
+                  content: { sha: "healed-content-sha" },
+                }),
+              };
+            }
+            return {
+              ok: true,
+              status: 200,
+              json: async () => ({}),
+            };
+          }
+
+          // Initial GET returns null (simulating stale cache / failed lookup)
+          if (putCallCount === 0) {
+            return {
+              ok: false,
+              status: 404,
+            };
+          }
+
+          // Retry GET after 422 returns the actual remote SHA
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({ sha: "freshly-discovered-sha-789" }),
+          };
+        },
+      );
+
+      const res = await uploadDataToGitHub(mockConfig, sampleBackupData);
+      expect(res.success).toBe(true);
+      expect(putCallCount).toBeGreaterThanOrEqual(2);
+      expect(finalPutBody.sha).toBe("freshly-discovered-sha-789");
+    });
+  });
+
+  describe("extractShaFromETag", () => {
+    it("extracts 40-character hex sha from standard and weak etags", () => {
+      expect(
+        extractShaFromETag('"b530722c753833b0284df85796fd7ec6b0da602d"'),
+      ).toBe("b530722c753833b0284df85796fd7ec6b0da602d");
+      expect(
+        extractShaFromETag('W/"b530722c753833b0284df85796fd7ec6b0da602d"'),
+      ).toBe("b530722c753833b0284df85796fd7ec6b0da602d");
+    });
+
+    it("returns null for non-40-hex or missing etags", () => {
+      expect(extractShaFromETag(null)).toBeNull();
+      expect(extractShaFromETag("")).toBeNull();
+      expect(extractShaFromETag('"short-tag"')).toBeNull();
+      expect(
+        extractShaFromETag('"not-a-valid-hex-string-of-length-40-chars-!!"'),
+      ).toBeNull();
+    });
+  });
+
+  describe("getRemoteFileSha", () => {
+    it("extracts sha from JSON response", async () => {
+      (global.fetch as Mock).mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        headers: new Headers({ etag: '"blob-etag"' }),
+        json: async () => ({ sha: "sha-from-json" }),
+      });
+
+      const sha = await getRemoteFileSha(mockConfig, DATA_FILE_PATH);
+      expect(sha).toBe("sha-from-json");
+    });
+
+    it("falls back to ETag header if JSON body has no sha (e.g. raw JSON cache hit)", async () => {
+      (global.fetch as Mock).mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        headers: new Headers({
+          etag: '"b530722c753833b0284df85796fd7ec6b0da602d"',
+        }),
+        json: async () => ({ metadata: {}, tasks: [] }), // raw content without sha
+      });
+
+      const sha = await getRemoteFileSha(mockConfig, DATA_FILE_PATH);
+      expect(sha).toBe("b530722c753833b0284df85796fd7ec6b0da602d");
+    });
+
+    it("handles 304 Not Modified by extracting sha from ETag", async () => {
+      (global.fetch as Mock).mockResolvedValueOnce({
+        ok: false,
+        status: 304,
+        headers: new Headers({
+          etag: 'W/"b530722c753833b0284df85796fd7ec6b0da602d"',
+        }),
+      });
+
+      const sha = await getRemoteFileSha(mockConfig, DATA_FILE_PATH);
+      expect(sha).toBe("b530722c753833b0284df85796fd7ec6b0da602d");
+    });
+
+    it("returns null on 404 Not Found", async () => {
+      (global.fetch as Mock).mockResolvedValueOnce({
+        ok: false,
+        status: 404,
+      });
+
+      const sha = await getRemoteFileSha(mockConfig, DATA_FILE_PATH);
+      expect(sha).toBeNull();
     });
   });
 });
