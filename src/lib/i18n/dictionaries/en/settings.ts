@@ -361,11 +361,16 @@ export const settings = {
   "settings.conflict.dialog.title": "Sync Conflicts Detected",
   "settings.conflict.dialog.description": (params: TranslationParams) =>
     `There are ${params.count} conflicts between this device and ${params.device} that cannot be merged automatically. Please choose which version to keep.`,
+  "settings.conflict.dialog.pendingCount": (params: TranslationParams) =>
+    `${params.count} conflict(s) to resolve`,
   "settings.conflict.dialog.applyAndPush": "Apply & Sync",
   "settings.conflict.dialog.rawJsonDiff": "View Raw JSON Diff",
   "settings.conflict.dialog.localVersion": "Current Device",
   "settings.conflict.dialog.remoteVersion": "Cloud Version",
   "settings.conflict.dialog.differingFields": "Differing Fields",
+  "settings.conflict.dialog.deleteModifyDiff": "Delete/Modify conflict",
+  "settings.conflict.dialog.deletedLocally": "Deleted locally",
+  "settings.conflict.dialog.deletedRemotely": "Deleted on cloud",
   "settings.conflict.badge.tooltip": "Pending sync conflicts",
   "settings.conflict.badge.handle": "Resolve Conflicts",
 

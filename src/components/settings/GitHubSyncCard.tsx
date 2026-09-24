@@ -44,6 +44,7 @@ import {
   normalizeRepo,
 } from "@/lib/sync/github-sync";
 import { restoreLocalBackupData } from "@/lib/backup/local-backup";
+import { ConflictResolutionDialog } from "@/components/settings/ConflictResolutionDialog";
 
 export function GitHubSyncCard() {
   const { t } = useTranslation();
@@ -66,6 +67,8 @@ export function GitHubSyncCard() {
     (s) => s.lastRemoteCommitMessage,
   );
 
+  const status = useGitHubSyncStore((s) => s.status);
+  const pendingConflict = useGitHubSyncStore((s) => s.pendingConflict);
   const setConfig = useGitHubSyncStore((s) => s.setConfig);
   const clearConfig = useGitHubSyncStore((s) => s.clearConfig);
   const recordSyncSuccess = useGitHubSyncStore((s) => s.recordSyncSuccess);
@@ -77,6 +80,7 @@ export function GitHubSyncCard() {
   );
   const [showPullConfirm, setShowPullConfirm] = useState(false);
   const [isPulling, setIsPulling] = useState(false);
+  const [showConflictDialog, setShowConflictDialog] = useState(false);
 
   const {
     isOperating,
@@ -358,6 +362,29 @@ export function GitHubSyncCard() {
 
           <Separator className="bg-border/30" />
 
+          {status === "conflict" && pendingConflict && (
+            <div className="p-3 rounded-lg border border-amber-500/40 bg-amber-500/10 flex items-center justify-between text-xs transition-all">
+              <div className="flex items-center gap-2 text-amber-700 dark:text-amber-400 font-medium">
+                <span className="relative flex h-2.5 w-2.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500"></span>
+                </span>
+                <span>{t("settings.conflict.badge.tooltip")}</span>
+                <span className="text-[11px] text-muted-foreground">
+                  ({pendingConflict.mergeResult.conflicts.length})
+                </span>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 text-xs border-amber-500/40 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10 font-medium"
+                onClick={() => setShowConflictDialog(true)}
+              >
+                {t("settings.conflict.badge.handle")}
+              </Button>
+            </div>
+          )}
+
           {/* Manual sync action buttons */}
           <div className="flex flex-col sm:flex-row gap-3">
             <Button
@@ -504,6 +531,12 @@ export function GitHubSyncCard() {
               })
         }
         confirmLabel={t("settings.github.dlp.confirm")}
+      />
+
+      {/* Conflict Resolution Dialog */}
+      <ConflictResolutionDialog
+        isOpen={showConflictDialog}
+        onClose={() => setShowConflictDialog(false)}
       />
     </>
   );

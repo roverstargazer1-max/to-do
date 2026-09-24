@@ -200,13 +200,22 @@ export function useSmartSync(): UseSmartSyncResult {
 
       switch (action.kind) {
         case "conflict": {
+          const remoteDevice =
+            action.device ||
+            meta?.deviceLabel ||
+            tr("settings.github.deviceFallback");
+
           const pullRes = await downloadDataFromGitHub(config);
           if (!pullRes.success || !pullRes.data) {
             state.setStatus(
               "conflict",
               pullRes.error || "settings.github.error.conflict",
             );
-            notify.error(tr("settings.github.toast.syncFailed"));
+            notify.warning(
+              tr("settings.github.toast.remoteUpdateConflict", {
+                device: remoteDevice,
+              }),
+            );
             break;
           }
 
@@ -219,11 +228,6 @@ export function useSmartSync(): UseSmartSyncResult {
             local: currentLocalData,
             remote: pullRes.data,
           });
-
-          const remoteDevice =
-            action.device ||
-            meta?.deviceLabel ||
-            tr("settings.github.deviceFallback");
 
           if (mergeResult.clean) {
             // Auto-merge fast forward
@@ -355,7 +359,7 @@ export function useSmartSync(): UseSmartSyncResult {
       setIsOperating(false);
       setOperationType(null);
     }
-  }, [executePush, downloadDataAndRestore]);
+  }, [downloadDataAndRestore, executePush, queryClient]);
 
   const runPush = useCallback(async () => {
     const state = useGitHubSyncStore.getState();

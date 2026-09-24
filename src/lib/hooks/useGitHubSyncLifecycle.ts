@@ -194,7 +194,7 @@ export function useGitHubSyncLifecycle() {
         isSyncingRef.current = false;
       }
     },
-    [recordSyncSuccess, setHasUnsyncedChanges, setStatus],
+    [queryClient, recordSyncSuccess, setHasUnsyncedChanges, setStatus],
   );
 
   // Unified Remote Check and Pull Executor
@@ -393,7 +393,7 @@ export function useGitHubSyncLifecycle() {
         isSyncingRef.current = false;
       }
     },
-    [queryClient, recordSyncSuccess],
+    [queryClient, recordSyncSuccess, setHasUnsyncedChanges],
   );
 
   // Mark changes and schedule debounced push

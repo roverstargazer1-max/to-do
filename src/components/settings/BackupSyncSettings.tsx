@@ -334,6 +334,7 @@ export function BackupSyncSettings() {
   const [isExporting, setIsExporting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [showExternalImport, setShowExternalImport] = useState(false);
+  const githubSyncStatus = useGitHubSyncStore((s) => s.status);
 
   // Kept in memory only to avoid persisting credentials locally.
   const [webdavCredentials, setWebdavCredentials] = useState<WebDAVCredentials>(
@@ -652,10 +653,16 @@ export function BackupSyncSettings() {
           <TabsTrigger
             value="github"
             onClick={() => trigger("toggle")}
-            className="rounded-md gap-2 text-[13px] font-medium tracking-tight data-[state=active]:bg-brand data-[state=active]:text-brand-foreground data-[state=active]:shadow-none transition-all h-9 border border-transparent data-[state=active]:border-brand/20"
+            className="rounded-md gap-2 text-[13px] font-medium tracking-tight data-[state=active]:bg-brand data-[state=active]:text-brand-foreground data-[state=active]:shadow-none transition-all h-9 border border-transparent data-[state=active]:border-brand/20 relative"
           >
             <GitHubIcon className="h-3.5 w-3.5" />
-            {t("settings.backup.tab.github")}
+            <span>{t("settings.backup.tab.github")}</span>
+            {githubSyncStatus === "conflict" && (
+              <span className="relative flex h-2 w-2 ml-0.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+              </span>
+            )}
           </TabsTrigger>
           <TabsTrigger
             value="local"

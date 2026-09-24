@@ -330,11 +330,16 @@ export const settings = {
   "settings.conflict.dialog.title": "检测到数据分歧（冲突解决）",
   "settings.conflict.dialog.description": (params: TranslationParams) =>
     `在当前设备与 ${params.device} 之间存在 ${params.count} 处无法自动合并的分歧，请选择保留哪一端。`,
+  "settings.conflict.dialog.pendingCount": (params: TranslationParams) =>
+    `${params.count} 处分歧需裁决`,
   "settings.conflict.dialog.applyAndPush": "完成合并并同步",
   "settings.conflict.dialog.rawJsonDiff": "查看底层差异 (Raw JSON Diff)",
   "settings.conflict.dialog.localVersion": "当前设备版本",
   "settings.conflict.dialog.remoteVersion": "云端设备版本",
   "settings.conflict.dialog.differingFields": "分歧字段",
+  "settings.conflict.dialog.deleteModifyDiff": "删改分歧",
+  "settings.conflict.dialog.deletedLocally": "本地已删除",
+  "settings.conflict.dialog.deletedRemotely": "云端已删除",
   "settings.conflict.badge.tooltip": "存在待处理的同步冲突",
   "settings.conflict.badge.handle": "处理冲突",
 
