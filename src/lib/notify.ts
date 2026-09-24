@@ -19,7 +19,7 @@ function base(message: string, opts?: NotifyBaseOptions) {
   return toast(message, opts);
 }
 
-function success(message: string, opts?: NotifyIdOption) {
+function success(message: string, opts?: NotifyIdOption & NotifyBaseOptions) {
   return toast.success(message, opts);
 }
 
