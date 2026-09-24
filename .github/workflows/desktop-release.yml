@@ -190,13 +190,13 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Download Windows Release Assets
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: desktop-assets-windows
           path: release-assets/windows
 
       - name: Download macOS Release Assets
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: desktop-assets-macos
           path: release-assets/macos
