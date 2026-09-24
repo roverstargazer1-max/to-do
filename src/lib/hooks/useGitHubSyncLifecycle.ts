@@ -17,7 +17,8 @@ import {
   restoreLocalBackupData,
 } from "@/lib/backup/local-backup";
 import { stageBackup, promoteBackup } from "@/lib/backup/dual-slot";
-import { saveBaseSnapshot } from "@/lib/sync/base-snapshot";
+import { saveBaseSnapshot, getBaseSnapshot } from "@/lib/sync/base-snapshot";
+import { mergeBackupData } from "@/lib/sync/merge-engine";
 import { notify } from "@/lib/notify";
 import { tr } from "@/lib/i18n/tr";
 
@@ -123,6 +124,58 @@ export function useGitHubSyncLifecycle() {
           }
           return true;
         } else if (pushRes.error === "settings.github.error.conflict") {
+          // Concurrency detected: try background auto-merge self-heal
+          const pullRes = await downloadDataFromGitHub(config);
+          if (pullRes.success && pullRes.data) {
+            const baseData = await getBaseSnapshot();
+            const freshLocal = await collectLocalBackupData();
+            const mergeRes = mergeBackupData({
+              base: baseData,
+              local: freshLocal,
+              remote: pullRes.data,
+            });
+
+            if (mergeRes.clean) {
+              await restoreLocalBackupData(mergeRes.mergedData);
+              await queryClient.invalidateQueries();
+              const retryPush = await uploadDataToGitHub(
+                config,
+                mergeRes.mergedData,
+                `chore(sync): auto-merged updates from ${currentDeviceLabel} [409 retry]`,
+              );
+              if (retryPush.success) {
+                await promoteBackup();
+                await saveBaseSnapshot(
+                  mergeRes.mergedData,
+                  retryPush.commitSha,
+                );
+                hasLocalChangesRef.current = false;
+                setHasUnsyncedChanges(false);
+                recordSyncSuccess(
+                  retryPush.meta,
+                  `chore(sync): auto-merged updates from ${currentDeviceLabel} [409 retry]`,
+                );
+                notify.success(
+                  tr("settings.github.toast.autoMerged", {
+                    device:
+                      pullRes.meta?.deviceLabel ||
+                      tr("settings.github.deviceFallback"),
+                  }),
+                );
+                return true;
+              }
+            } else {
+              state.setPendingConflict({
+                deviceLabel:
+                  pullRes.meta?.deviceLabel ||
+                  tr("settings.github.deviceFallback"),
+                mergeResult: mergeRes,
+                localData: freshLocal,
+                remoteData: pullRes.data,
+                remoteMeta: pullRes.meta ?? null,
+              });
+            }
+          }
           setStatus("conflict", pushRes.error);
           notify.error(tr("settings.github.error.conflict"));
           return false;
@@ -204,7 +257,110 @@ export function useGitHubSyncLifecycle() {
         });
 
         if (action.kind === "conflict") {
-          // Refuse: never download, never upload, never overwrite.
+          isSyncingRef.current = true;
+          const pullRes = await downloadDataFromGitHub(config);
+          if (pullRes.success && pullRes.data) {
+            const baseData = await getBaseSnapshot();
+            const localData = await collectLocalBackupData();
+            const mergeResult = mergeBackupData({
+              base: baseData,
+              local: localData,
+              remote: pullRes.data,
+            });
+
+            const remoteDevice =
+              action.device ||
+              remoteMeta.deviceLabel ||
+              tr("settings.github.deviceFallback");
+
+            if (mergeResult.clean) {
+              await restoreLocalBackupData(mergeResult.mergedData);
+              await queryClient.invalidateQueries();
+
+              const commitMsg = `chore(sync): auto-merged updates from ${remoteDevice}`;
+              let pushRes = await uploadDataToGitHub(
+                config,
+                mergeResult.mergedData,
+                commitMsg,
+              );
+
+              // 409 retry
+              if (
+                !pushRes.success &&
+                pushRes.error === "settings.github.error.conflict"
+              ) {
+                const retryRemote = await downloadDataFromGitHub(config);
+                if (retryRemote.success && retryRemote.data) {
+                  const freshLocal = await collectLocalBackupData();
+                  const retryMerge = mergeBackupData({
+                    base: baseData,
+                    local: freshLocal,
+                    remote: retryRemote.data,
+                  });
+                  if (retryMerge.clean) {
+                    await restoreLocalBackupData(retryMerge.mergedData);
+                    await queryClient.invalidateQueries();
+                    pushRes = await uploadDataToGitHub(
+                      config,
+                      retryMerge.mergedData,
+                      `chore(sync): auto-merged updates from ${remoteDevice} [retry]`,
+                    );
+                    if (pushRes.success) {
+                      await saveBaseSnapshot(
+                        retryMerge.mergedData,
+                        pushRes.commitSha,
+                      );
+                      hasLocalChangesRef.current = false;
+                      setHasUnsyncedChanges(false);
+                      recordSyncSuccess(pushRes.meta, commitMsg);
+                      notify.success(
+                        tr("settings.github.toast.autoMerged", {
+                          device: remoteDevice,
+                        }),
+                      );
+                      return;
+                    }
+                  }
+                }
+              }
+
+              if (pushRes.success) {
+                await saveBaseSnapshot(
+                  mergeResult.mergedData,
+                  pushRes.commitSha,
+                );
+                hasLocalChangesRef.current = false;
+                setHasUnsyncedChanges(false);
+                recordSyncSuccess(pushRes.meta, commitMsg);
+                notify.success(
+                  tr("settings.github.toast.autoMerged", {
+                    device: remoteDevice,
+                  }),
+                );
+                return;
+              }
+            }
+
+            // Real conflict blocked
+            currentState.setPendingConflict({
+              deviceLabel: remoteDevice,
+              mergeResult,
+              localData,
+              remoteData: pullRes.data,
+              remoteMeta: pullRes.meta ?? null,
+            });
+            currentState.setStatus(
+              "conflict",
+              "settings.github.error.conflict",
+            );
+            notify.warning(
+              tr("settings.github.toast.remoteUpdateConflict", {
+                device: remoteDevice,
+              }),
+            );
+            return;
+          }
+
           currentState.setStatus("conflict", "settings.github.error.conflict");
           notify.warning(
             tr("settings.github.toast.remoteUpdateConflict", {

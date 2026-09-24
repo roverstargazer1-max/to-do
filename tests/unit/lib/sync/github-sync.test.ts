@@ -191,6 +191,42 @@ describe("github-sync", () => {
       expect(res.meta?.deviceLabel).toBe("MacBook Test");
     });
 
+    it("supports custom commit message when provided", async () => {
+      let dataPutBody: { message?: string } = {};
+      (global.fetch as Mock).mockImplementation(
+        async (url: string, options?: RequestInit) => {
+          if (options?.method === "PUT") {
+            if (url.includes(DATA_FILE_PATH)) {
+              dataPutBody = JSON.parse(String(options.body));
+            }
+            return {
+              ok: true,
+              status: 200,
+              json: async () => ({
+                commit: { sha: "custom-commit-sha" },
+                content: { sha: "custom-content-sha" },
+              }),
+            };
+          }
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({ sha: "sha" }),
+          };
+        },
+      );
+
+      const res = await uploadDataToGitHub(
+        mockConfig,
+        sampleBackupData,
+        "chore(sync): auto-merged updates from Windows PC",
+      );
+      expect(res.success).toBe(true);
+      expect(dataPutBody.message).toBe(
+        "chore(sync): auto-merged updates from Windows PC",
+      );
+    });
+
     it("returns conflict error when 409 is received", async () => {
       (global.fetch as Mock).mockImplementation(
         async (url: string, options?: RequestInit) => {

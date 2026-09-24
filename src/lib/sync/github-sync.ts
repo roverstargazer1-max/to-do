@@ -273,6 +273,7 @@ export async function downloadDataFromGitHub(
 export async function uploadDataToGitHub(
   config: GitHubSyncConfig,
   data: BackupData,
+  customCommitMessage?: string,
 ): Promise<GitHubSyncResult> {
   const repo = normalizeRepo(config.repo);
   const branch = config.branch || "main";
@@ -291,7 +292,9 @@ export async function uploadDataToGitHub(
     const jsonString = JSON.stringify(data, null, 2);
     const base64Data = utf8ToBase64(jsonString);
 
-    const commitMessage = `chore(sync): update data from ${deviceLabel} [${now.split("T")[0]}]`;
+    const commitMessage =
+      customCommitMessage ||
+      `chore(sync): update data from ${deviceLabel} [${now.split("T")[0]}]`;
 
     // 3. Upload data file
     const uploadDataRes = await fetch(

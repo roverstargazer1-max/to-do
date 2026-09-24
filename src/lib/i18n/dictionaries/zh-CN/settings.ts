@@ -291,6 +291,8 @@ export const settings = {
   "settings.github.toast.pullSuccess": "已成功从 GitHub 拉取最新数据",
   "settings.github.toast.autoPulled": (params: TranslationParams) =>
     `已自动同步来自 ${params.device} 的最新数据`,
+  "settings.github.toast.autoMerged": (params: TranslationParams) =>
+    `已自动合并来自 ${params.device} 的更新并同步至云端`,
   "settings.github.toast.remoteUpdateConflict": (params: TranslationParams) =>
     `检测到来自 ${params.device} 的远程更新，但本地有未推送的修改，请在设置中处理同步`,
   "settings.github.toast.offlinePushSaved":
@@ -313,6 +315,28 @@ export const settings = {
     "暂时无法读取云端现有数据，无法确认推送的安全性。继续推送可能覆盖云端已有数据，此操作无法撤销。确定继续吗？",
   "settings.github.dlp.confirm": "仍要推送",
   "settings.github.deviceFallback": "远程设备",
+
+  // --- Conflict resolver dialog ---
+  "settings.conflict.category.tasks": "待办事项",
+  "settings.conflict.category.habits": "习惯与打卡",
+  "settings.conflict.category.events": "课程与日程",
+  "settings.conflict.category.projects": "项目清单",
+  "settings.conflict.category.workspaces": "工作区画布",
+  "settings.conflict.action.keepLocal": "保留本地",
+  "settings.conflict.action.keepRemote": "保留云端",
+  "settings.conflict.action.duplicate": "同时保留为两条",
+  "settings.conflict.batch.allLocal": "全部采用本地",
+  "settings.conflict.batch.allRemote": "全部采用云端",
+  "settings.conflict.dialog.title": "检测到数据分歧（冲突解决）",
+  "settings.conflict.dialog.description": (params: TranslationParams) =>
+    `在当前设备与 ${params.device} 之间存在 ${params.count} 处无法自动合并的分歧，请选择保留哪一端。`,
+  "settings.conflict.dialog.applyAndPush": "完成合并并同步",
+  "settings.conflict.dialog.rawJsonDiff": "查看底层差异 (Raw JSON Diff)",
+  "settings.conflict.dialog.localVersion": "当前设备版本",
+  "settings.conflict.dialog.remoteVersion": "云端设备版本",
+  "settings.conflict.dialog.differingFields": "分歧字段",
+  "settings.conflict.badge.tooltip": "存在待处理的同步冲突",
+  "settings.conflict.badge.handle": "处理冲突",
 
   // --- Import dialog ---
   "settings.import.title": "导入数据",

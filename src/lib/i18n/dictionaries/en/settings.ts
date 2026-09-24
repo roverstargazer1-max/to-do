@@ -320,6 +320,8 @@ export const settings = {
     "Pulled latest data from GitHub successfully",
   "settings.github.toast.autoPulled": (params: TranslationParams) =>
     `Auto-synced latest data from ${params.device}`,
+  "settings.github.toast.autoMerged": (params: TranslationParams) =>
+    `Automatically merged updates from ${params.device} and synced to GitHub`,
   "settings.github.toast.remoteUpdateConflict": (params: TranslationParams) =>
     `Remote update from ${params.device} detected, but local has unpushed changes. Please resolve in settings.`,
   "settings.github.toast.offlinePushSaved":
@@ -344,6 +346,28 @@ export const settings = {
     "The cloud data could not be read, so push safety cannot be verified. Continuing may overwrite existing cloud data. This cannot be undone. Continue anyway?",
   "settings.github.dlp.confirm": "Push anyway",
   "settings.github.deviceFallback": "Remote Device",
+
+  // --- Conflict resolver dialog ---
+  "settings.conflict.category.tasks": "Tasks",
+  "settings.conflict.category.habits": "Habits & Entries",
+  "settings.conflict.category.events": "Calendar & Schedule",
+  "settings.conflict.category.projects": "Projects",
+  "settings.conflict.category.workspaces": "Workspaces",
+  "settings.conflict.action.keepLocal": "Keep Local",
+  "settings.conflict.action.keepRemote": "Keep Remote",
+  "settings.conflict.action.duplicate": "Keep Both as Two",
+  "settings.conflict.batch.allLocal": "Use All Local",
+  "settings.conflict.batch.allRemote": "Use All Remote",
+  "settings.conflict.dialog.title": "Sync Conflicts Detected",
+  "settings.conflict.dialog.description": (params: TranslationParams) =>
+    `There are ${params.count} conflicts between this device and ${params.device} that cannot be merged automatically. Please choose which version to keep.`,
+  "settings.conflict.dialog.applyAndPush": "Apply & Sync",
+  "settings.conflict.dialog.rawJsonDiff": "View Raw JSON Diff",
+  "settings.conflict.dialog.localVersion": "Current Device",
+  "settings.conflict.dialog.remoteVersion": "Cloud Version",
+  "settings.conflict.dialog.differingFields": "Differing Fields",
+  "settings.conflict.badge.tooltip": "Pending sync conflicts",
+  "settings.conflict.badge.handle": "Resolve Conflicts",
 
   // --- Import dialog (ImportDialog.tsx) ---
   "settings.import.title": "Import Data",

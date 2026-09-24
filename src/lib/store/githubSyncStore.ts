@@ -5,9 +5,19 @@ import { persist } from "zustand/middleware";
 import { getDeviceId } from "./deviceId";
 import type { GitHubSyncMeta } from "@/lib/sync/github-sync";
 import { clearBaseSnapshot } from "@/lib/sync/base-snapshot";
+import type { BackupData } from "@/lib/backup/types";
+import type { MergeResult } from "@/lib/sync/merge-engine";
 
 export type SyncStatus =
   "idle" | "testing" | "syncing" | "success" | "error" | "conflict";
+
+export interface PendingConflictContext {
+  deviceLabel: string;
+  mergeResult: MergeResult;
+  localData: BackupData;
+  remoteData: BackupData;
+  remoteMeta: GitHubSyncMeta | null;
+}
 
 export interface GitHubSyncState {
   // Credentials & Repository
@@ -30,6 +40,7 @@ export interface GitHubSyncState {
   lastSyncDevice: string | null;
   lastError: string | null;
   hasUnsyncedChanges: boolean;
+  pendingConflict: PendingConflictContext | null;
 
   // Actions
   setConfig: (
@@ -46,6 +57,8 @@ export interface GitHubSyncState {
   clearConfig: () => void;
   setStatus: (status: SyncStatus, error?: string | null) => void;
   setHasUnsyncedChanges: (hasChanges: boolean) => void;
+  setPendingConflict: (conflict: PendingConflictContext | null) => void;
+  clearPendingConflict: () => void;
   recordSyncSuccess: (meta?: GitHubSyncMeta, commitMessage?: string) => void;
   getEffectiveDeviceId: () => string;
 }
@@ -86,6 +99,7 @@ export const useGitHubSyncStore = create<GitHubSyncState>()(
       lastSyncDevice: null,
       lastError: null,
       hasUnsyncedChanges: false,
+      pendingConflict: null,
 
       setConfig: (partial) =>
         set((state) => ({
@@ -107,6 +121,7 @@ export const useGitHubSyncStore = create<GitHubSyncState>()(
           lastSyncDevice: null,
           lastError: null,
           hasUnsyncedChanges: false,
+          pendingConflict: null,
         });
       },
 
@@ -121,11 +136,22 @@ export const useGitHubSyncStore = create<GitHubSyncState>()(
           hasUnsyncedChanges: hasChanges,
         }),
 
+      setPendingConflict: (conflict) =>
+        set({
+          pendingConflict: conflict,
+        }),
+
+      clearPendingConflict: () =>
+        set({
+          pendingConflict: null,
+        }),
+
       recordSyncSuccess: (meta, commitMessage) =>
         set((state) => ({
           status: "success",
           lastError: null,
           hasUnsyncedChanges: false,
+          pendingConflict: null,
           lastSyncTime: meta?.updatedAt || new Date().toISOString(),
           lastRemoteCommitSha: meta?.commitSha || state.lastRemoteCommitSha,
           lastRemoteDataSha: meta?.dataSha || state.lastRemoteDataSha,

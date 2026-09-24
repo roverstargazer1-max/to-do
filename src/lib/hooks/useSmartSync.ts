@@ -23,7 +23,8 @@ import {
 import { notify } from "@/lib/notify";
 import { tr } from "@/lib/i18n/tr";
 import type { BackupData } from "@/lib/backup/types";
-import { saveBaseSnapshot } from "@/lib/sync/base-snapshot";
+import { saveBaseSnapshot, getBaseSnapshot } from "@/lib/sync/base-snapshot";
+import { mergeBackupData } from "@/lib/sync/merge-engine";
 
 /** What the "sync now"/"push" flow is currently doing (drives button spinners). */
 export type SmartSyncOperation = "sync" | "push" | "pull" | null;
@@ -199,13 +200,119 @@ export function useSmartSync(): UseSmartSyncResult {
 
       switch (action.kind) {
         case "conflict": {
-          // Remote updated + local dirty: never pull over it, never push.
-          state.setStatus("conflict", "settings.github.error.conflict");
-          notify.warning(
-            tr("settings.github.toast.remoteUpdateConflict", {
-              device: action.device || tr("settings.github.deviceFallback"),
-            }),
-          );
+          const pullRes = await downloadDataFromGitHub(config);
+          if (!pullRes.success || !pullRes.data) {
+            state.setStatus(
+              "conflict",
+              pullRes.error || "settings.github.error.conflict",
+            );
+            notify.error(tr("settings.github.toast.syncFailed"));
+            break;
+          }
+
+          const baseData = await getBaseSnapshot();
+          const currentLocalData =
+            localData || (await collectLocalBackupData());
+
+          let mergeResult = mergeBackupData({
+            base: baseData,
+            local: currentLocalData,
+            remote: pullRes.data,
+          });
+
+          const remoteDevice =
+            action.device ||
+            meta?.deviceLabel ||
+            tr("settings.github.deviceFallback");
+
+          if (mergeResult.clean) {
+            // Auto-merge fast forward
+            await restoreLocalBackupData(mergeResult.mergedData);
+            await queryClient.invalidateQueries();
+
+            const commitMsg = `chore(sync): auto-merged updates from ${remoteDevice}`;
+            let pushRes = await uploadDataToGitHub(
+              config,
+              mergeResult.mergedData,
+              commitMsg,
+            );
+
+            // 409 HTTP Conflict retry self-heal (max 1 retry)
+            if (
+              !pushRes.success &&
+              pushRes.error === "settings.github.error.conflict"
+            ) {
+              const retryRemote = await downloadDataFromGitHub(config);
+              if (retryRemote.success && retryRemote.data) {
+                const freshLocal = await collectLocalBackupData();
+                mergeResult = mergeBackupData({
+                  base: baseData,
+                  local: freshLocal,
+                  remote: retryRemote.data,
+                });
+                if (mergeResult.clean) {
+                  await restoreLocalBackupData(mergeResult.mergedData);
+                  await queryClient.invalidateQueries();
+                  pushRes = await uploadDataToGitHub(
+                    config,
+                    mergeResult.mergedData,
+                    `chore(sync): auto-merged updates from ${remoteDevice} [retry]`,
+                  );
+                }
+              }
+            }
+
+            if (pushRes.success) {
+              fingerprintRef.current = fingerprintBackupData(
+                mergeResult.mergedData,
+              );
+              await saveBaseSnapshot(mergeResult.mergedData, pushRes.commitSha);
+              state.recordSyncSuccess(pushRes.meta, commitMsg);
+              notify.success(
+                tr("settings.github.toast.autoMerged", {
+                  device: remoteDevice,
+                }),
+              );
+            } else if (
+              pushRes.error === "settings.github.error.conflict" ||
+              !mergeResult.clean
+            ) {
+              state.setPendingConflict({
+                deviceLabel: remoteDevice,
+                mergeResult,
+                localData: currentLocalData,
+                remoteData: pullRes.data,
+                remoteMeta: pullRes.meta ?? null,
+              });
+              state.setStatus("conflict", "settings.github.error.conflict");
+              notify.warning(
+                tr("settings.github.toast.remoteUpdateConflict", {
+                  device: remoteDevice,
+                }),
+              );
+            } else {
+              notify.error(
+                pushRes.error
+                  ? tr(pushRes.error as never)
+                  : tr("settings.github.toast.syncFailed"),
+              );
+            }
+          } else {
+            // Real conflict blocked
+            state.setPendingConflict({
+              deviceLabel: remoteDevice,
+              mergeResult,
+              localData: currentLocalData,
+              remoteData: pullRes.data,
+              remoteMeta: pullRes.meta ?? null,
+            });
+            state.setStatus("conflict", "settings.github.error.conflict");
+            notify.warning(
+              tr("settings.github.toast.remoteUpdateConflict", {
+                device: remoteDevice,
+              }),
+            );
+          }
           break;
         }
         case "pull": {
