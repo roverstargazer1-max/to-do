@@ -764,3 +764,292 @@ export async function checkPushSafety(
   }
   return assessPushSafety(localData, remoteRes.data ?? null);
 }
+
+// ---------------------------------------------------------------------------
+// Backup Branch & Snapshot Archive
+// ---------------------------------------------------------------------------
+
+/**
+ * Format user remark into a safe Git branch slug (max default 15 chars).
+ * Strips illegal characters, collapses whitespace/hyphens, and avoids trailing hyphens.
+ */
+export function formatBackupBranchSlug(remark: string, maxLen = 15): string {
+  if (!remark) return "";
+  const trimmed = remark.trim().toLowerCase();
+  if (!trimmed) return "";
+
+  const slug = trimmed.replace(/[^\p{L}\p{N}]+/gu, "-").replace(/^-+|-+$/g, "");
+
+  if (!slug) return "";
+
+  return slug.slice(0, maxLen).replace(/-+$/g, "");
+}
+
+/**
+ * Build default backup branch name in the format backup/YYYY-MM-DD-HH or
+ * backup/YYYY-MM-DD-HH-<slug>.
+ */
+export function buildDefaultBackupBranchName(
+  date: Date = new Date(),
+  slug?: string,
+): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const hours = String(date.getHours()).padStart(2, "0");
+  const base = `backup/${year}-${month}-${day}-${hours}`;
+
+  const cleanSlug = slug ? formatBackupBranchSlug(slug) : "";
+  return cleanSlug ? `${base}-${cleanSlug}` : base;
+}
+
+/**
+ * Format commit message for snapshot backup branch.
+ * With remark: `backup: <remark>`
+ * Without remark: `backup: <YYYY-MM-DD HH>h`
+ */
+export function formatBackupCommitMessage(
+  remark?: string,
+  date: Date = new Date(),
+): string {
+  const trimmed = remark?.trim();
+  if (trimmed) {
+    return `backup: ${trimmed}`;
+  }
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const hours = String(date.getHours()).padStart(2, "0");
+  return `backup: ${year}-${month}-${day} ${hours}h`;
+}
+
+/**
+ * Query the latest commit SHA of a given branch.
+ */
+export async function getBranchCommitSha(
+  config: GitHubSyncConfig,
+  branchName?: string,
+): Promise<string | null> {
+  const repo = normalizeRepo(config.repo);
+  const branch = branchName || config.branch || "main";
+  try {
+    const res = await fetch(
+      `https://api.github.com/repos/${repo}/commits/${encodeURIComponent(branch)}`,
+      {
+        headers: getHeaders(config.token),
+        cache: "no-store",
+      },
+    );
+    if (!res.ok) {
+      return null;
+    }
+    const data = await res.json();
+    return data.sha || data.commit?.sha || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Probe whether a remote branch exists on GitHub.
+ */
+export async function checkBranchExists(
+  config: GitHubSyncConfig,
+  branchName: string,
+): Promise<boolean> {
+  const repo = normalizeRepo(config.repo);
+  const cleanBranch = branchName.replace(/^refs\/heads\//, "");
+  try {
+    const res = await fetch(
+      `https://api.github.com/repos/${repo}/branches/${encodeURIComponent(cleanBranch)}`,
+      {
+        headers: getHeaders(config.token),
+        cache: "no-store",
+      },
+    );
+    return res.status === 200;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Create a new branch reference via GitHub Git Database API.
+ */
+export async function createBranchRef(
+  config: GitHubSyncConfig,
+  newBranchName: string,
+  baseCommitSha: string,
+): Promise<{
+  success: boolean;
+  error?: string;
+  ref?: string;
+  sha?: string;
+  status?: number;
+}> {
+  const repo = normalizeRepo(config.repo);
+  const cleanBranch = newBranchName.replace(/^refs\/heads\//, "");
+  const ref = `refs/heads/${cleanBranch}`;
+
+  try {
+    const res = await fetch(`https://api.github.com/repos/${repo}/git/refs`, {
+      method: "POST",
+      headers: {
+        ...getHeaders(config.token),
+        "Content-Type": "application/json",
+      },
+      cache: "no-store",
+      body: JSON.stringify({
+        ref,
+        sha: baseCommitSha,
+      }),
+    });
+
+    if (!res.ok) {
+      const errJson = await res.json().catch(() => ({}));
+      return {
+        success: false,
+        status: res.status,
+        error: errJson.message || `Failed to create branch: HTTP ${res.status}`,
+      };
+    }
+
+    const data = await res.json();
+    return {
+      success: true,
+      status: res.status,
+      ref: data.ref,
+      sha: data.object?.sha,
+    };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return { success: false, error: msg };
+  }
+}
+
+/**
+ * Detect branch conflicts and append incrementing suffixes (-1, -2) until safe.
+ */
+export async function resolveSafeBackupBranchName(
+  config: GitHubSyncConfig,
+  targetBranchName: string,
+): Promise<string> {
+  const exists = await checkBranchExists(config, targetBranchName);
+  if (!exists) {
+    return targetBranchName;
+  }
+
+  let counter = 1;
+  while (counter <= 100) {
+    const candidate = `${targetBranchName}-${counter}`;
+    const candidateExists = await checkBranchExists(config, candidate);
+    if (!candidateExists) {
+      return candidate;
+    }
+    counter++;
+  }
+  return `${targetBranchName}-${Date.now()}`;
+}
+
+export interface CreateBackupBranchOptions {
+  remark?: string;
+  data: BackupData;
+  now?: Date;
+}
+
+export interface CreateBackupBranchResult {
+  success: boolean;
+  error?: string;
+  branchName?: string;
+  commitSha?: string;
+  viewUrl?: string;
+}
+
+/**
+ * End-to-end orchestration: creates an isolated backup branch and commits full
+ * local snapshot data without touching the active working branch or unsynced changes.
+ */
+export async function createBackupBranchSnapshot(
+  config: GitHubSyncConfig,
+  options: CreateBackupBranchOptions,
+): Promise<CreateBackupBranchResult> {
+  if (!config.token?.trim()) {
+    return { success: false, error: "settings.github.error.missingToken" };
+  }
+  const cleanRepo = normalizeRepo(config.repo);
+  if (!cleanRepo || !cleanRepo.includes("/")) {
+    return { success: false, error: "settings.github.error.invalidRepoFormat" };
+  }
+
+  const baseBranch = config.branch || "main";
+
+  // 1. Query base branch commit SHA
+  const baseCommitSha = await getBranchCommitSha(config, baseBranch);
+  if (!baseCommitSha) {
+    return {
+      success: false,
+      error: "settings.github.error.baseBranchNotFound",
+    };
+  }
+
+  // 2. Resolve safe, non-colliding backup branch name
+  const date = options.now || new Date();
+  const slug = options.remark
+    ? formatBackupBranchSlug(options.remark)
+    : undefined;
+  const initialBranchName = buildDefaultBackupBranchName(date, slug);
+
+  let safeBranchName = await resolveSafeBackupBranchName(
+    config,
+    initialBranchName,
+  );
+
+  // 3. Create branch ref (handling race conditions / 422 if conflict occurs)
+  let refRes = await createBranchRef(config, safeBranchName, baseCommitSha);
+  let retryCount = 1;
+  while (
+    !refRes.success &&
+    (refRes.status === 422 ||
+      refRes.error?.toLowerCase().includes("already exists")) &&
+    retryCount <= 50
+  ) {
+    safeBranchName = `${initialBranchName}-${retryCount}`;
+    refRes = await createBranchRef(config, safeBranchName, baseCommitSha);
+    retryCount++;
+  }
+
+  if (!refRes.success) {
+    return {
+      success: false,
+      error: refRes.error || "Failed to create branch reference",
+    };
+  }
+
+  // 4. Upload kagelin-data.json and sync-meta.json to the new branch
+  const commitTitle = formatBackupCommitMessage(options.remark, date);
+  const uploadRes = await uploadDataToGitHub(
+    {
+      ...config,
+      branch: safeBranchName,
+    },
+    options.data,
+    {
+      customCommitMessage: commitTitle,
+    },
+  );
+
+  if (!uploadRes.success) {
+    return {
+      success: false,
+      error: uploadRes.error || "Failed to upload data to backup branch",
+    };
+  }
+
+  const viewUrl = `https://github.com/${cleanRepo}/tree/${safeBranchName}`;
+  return {
+    success: true,
+    branchName: safeBranchName,
+    commitSha: uploadRes.commitSha || refRes.sha || baseCommitSha,
+    viewUrl,
+  };
+}
