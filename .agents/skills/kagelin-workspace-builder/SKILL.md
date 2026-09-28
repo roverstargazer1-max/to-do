@@ -15,14 +15,9 @@ Engine or Visual Workspace Service through Domain Commands, and return
 operation receipts. Use the tools; do not write database rows or invent a
 second persistence path.
 
-Read the contract and domain references only when their detail is needed:
-
-- MCP inputs, receipts, errors, and compatibility aliases:
-  `mcp-server/instructions.md`
-- Workspace node semantics and persistence rules:
-  `docs/agents/workspace-node-specification.md`
-- Layer ownership and version compatibility:
-  `docs/agents/workspace-ai-contract.md`
+This Skill and the `kagelin-workspace-builder` MCP tool schemas are
+self-contained. Call the MCP tools directly without reading repository
+documentation or source files.
 
 ## Route the request
 
@@ -48,11 +43,13 @@ an explicit ID; do not guess from a similar name.
 
 1. Extract the requested name, visual structure, domain references, and any
    explicit node fields. Derive the relevant context query and entity kinds.
-2. Before building when reuse or domain references could matter, call
-   `inspect_app_context` with a bounded `query`, `entityKind`/`entityKinds`,
-   and `limit`. Match the returned live IDs to the user's intent. Prefer an
-   existing Task, Habit, or Project ID over creating a duplicate; never treat a
-   name match as permission to reuse an unrelated record.
+2. When the request references or could reuse existing Tasks, Habits, or
+   Projects, call `inspect_app_context` with a bounded `query`,
+   `entityKind`/`entityKinds`, and `limit`. Match the returned live IDs to the
+   user's intent. Prefer an existing Task, Habit, or Project ID over creating a
+   duplicate; never treat a name match as permission to reuse an unrelated
+   record. Skip `inspect_app_context` for purely conceptual or template
+   workflows that do not reference existing personal items.
 3. Choose the representation:
    - Use `mermaid` for a concise, topology-first graph or flowchart request.
    - Use canonical `{ blueprint }` for detailed fields, explicit entity IDs,
@@ -81,6 +78,109 @@ The normal creation sequence is:
 `inspect_app_context` (when relevant) → `build_workspace` → optional
 `get_workspace_blueprint`.
 
+### Canonical `build_workspace` payload & auto-layout rules
+
+`build_workspace` automatically compiles collision-free coordinates and card
+dimensions from `sections`, `items`, `branch`, and `flows`:
+
+- **Sections (`sections`)**: laid out left-to-right as columns/lanes. Set
+  `isGroup: true` to wrap the section's items in a visual Group frame.
+- **Items (`items`)**: stacked vertically inside their section. Set
+  `branch: true` on parallel/alternate-path items within a group section to
+  place them in a secondary parallel column.
+- **Flows (`flows`)**: same-column vertical edges automatically route
+  `out-bottom` → `in-top` when ports are omitted; cross-column edges route
+  `out` → `in`. Explicit `fromPort` (`"out" | "out-top" | "out-bottom"`) and
+  `toPort` (`"in" | "in-top" | "in-bottom"`) override the default.
+
+```json
+{
+  "requestId": "optional-idempotency-key",
+  "blueprint": {
+    "name": "Workspace Name",
+    "color": "indigo",
+    "sections": [
+      {
+        "id": "stage-1",
+        "title": "Stage 1",
+        "color": "blue",
+        "isGroup": true,
+        "items": [
+          {
+            "id": "doc-1",
+            "kind": "doc",
+            "title": "Overview",
+            "content": "Markdown text"
+          },
+          {
+            "id": "step-1",
+            "kind": "step",
+            "title": "Step name",
+            "description": "Optional details"
+          },
+          {
+            "id": "dec-1",
+            "kind": "decision",
+            "question": "Gate question?",
+            "description": "Optional criteria"
+          },
+          {
+            "id": "step-alt",
+            "kind": "step",
+            "title": "Fallback path",
+            "branch": true
+          },
+          {
+            "id": "task-1",
+            "kind": "task",
+            "content": "Actionable task",
+            "priority": 2,
+            "dueDate": "2026-10-01",
+            "projectName": "Optional",
+            "existingTaskId": "optional-id"
+          },
+          {
+            "id": "habit-1",
+            "kind": "habit",
+            "name": "Daily cadence",
+            "color": "emerald",
+            "existingHabitId": "optional-id"
+          },
+          {
+            "id": "proj-1",
+            "kind": "project",
+            "name": "Project overview",
+            "color": "violet",
+            "existingProjectId": "optional-id"
+          },
+          { "id": "focus-1", "kind": "focus" },
+          {
+            "id": "img-1",
+            "kind": "image",
+            "assetId": "existing-asset-id",
+            "title": "Optional",
+            "role": "reference",
+            "altText": "Optional"
+          }
+        ]
+      }
+    ],
+    "flows": [
+      { "fromItemId": "doc-1", "toItemId": "step-1" },
+      { "fromItemId": "step-1", "toItemId": "dec-1" },
+      { "fromItemId": "dec-1", "toItemId": "task-1", "label": "Pass" },
+      {
+        "fromItemId": "dec-1",
+        "toItemId": "step-alt",
+        "label": "Rework",
+        "fromPort": "out-bottom",
+        "toPort": "in-top"
+      }
+    ]
+  }
+}
+```
+
 ## Patch an existing Workspace
 
 1. Call `list_workspaces` to resolve the target. Use an explicit Workspace ID
@@ -106,6 +206,60 @@ The normal modification sequence is:
 
 `list_workspaces` → `get_workspace_blueprint` → `patch_workspace` → optional
 `get_workspace_blueprint`.
+
+```json
+{
+  "requestId": "optional-idempotency-key",
+  "patch": {
+    "workspaceId": "workspace-id",
+    "destructiveConfirmation": true,
+    "addItems": [
+      {
+        "targetGroupId": "group-node-id",
+        "item": { "id": "new-step", "kind": "step", "title": "Verify" }
+      }
+    ],
+    "updateDocs": [
+      {
+        "nodeId": "doc-node-id",
+        "title": "Optional",
+        "content": "Updated markdown"
+      }
+    ],
+    "updateSteps": [
+      {
+        "nodeId": "step-node-id",
+        "title": "Optional",
+        "description": "Updated"
+      }
+    ],
+    "updateDecisions": [
+      {
+        "nodeId": "dec-node-id",
+        "question": "Optional",
+        "description": "Updated"
+      }
+    ],
+    "updateImages": [
+      {
+        "nodeId": "img-node-id",
+        "title": "Optional",
+        "role": "reference",
+        "altText": "Updated"
+      }
+    ],
+    "addFlows": [
+      {
+        "fromItemId": "new-step",
+        "toItemId": "existing-node-id",
+        "label": "Next"
+      }
+    ],
+    "removeNodeIds": ["node-id-to-remove"],
+    "removeEdgeIds": ["edge-id-to-remove"]
+  }
+}
+```
 
 ## Use Visual assets deliberately
 
