@@ -1,11 +1,8 @@
 # Kagelin Workspace Builder MCP reference
 
-This is the MCP contract reference for generic clients. The Workspace domain
-semantics and persistence rules remain authoritative in
-[`docs/agents/workspace-node-specification.md`](../docs/agents/workspace-node-specification.md)
-and the Blueprint Engine sources. The Skill owns conversational workflow
-orchestration; this document owns tool-level inputs, outputs, safety, and retry
-behavior.
+This is the MCP contract reference for generic clients. The Skill owns
+conversational workflow orchestration; this document owns tool-level inputs,
+outputs, safety, and retry behavior.
 
 ## Contract boundary
 

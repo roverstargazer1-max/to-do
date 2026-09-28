@@ -424,6 +424,21 @@ type BlueprintItem =
       kind: "doc";
       title: string;
       content: string; // 支持完整 Markdown 格式
+      branch?: boolean;
+    }
+  | {
+      id: string;
+      kind: "step";
+      title: string;
+      description?: string;
+      branch?: boolean;
+    }
+  | {
+      id: string;
+      kind: "decision";
+      question: string;
+      description?: string;
+      branch?: boolean;
     }
   | {
       id: string;
@@ -433,6 +448,7 @@ type BlueprintItem =
       dueDate?: string; // 截止日期，如 "2026-09-20"
       projectName?: string; // 所属项目名称（自动关联或创建）
       existingTaskId?: string; // 复用已有任务 ID（强烈推荐优先复用）
+      branch?: boolean;
     }
   | {
       id: string;
@@ -442,6 +458,7 @@ type BlueprintItem =
       role?: string;
       altText?: string;
       versionId?: string;
+      branch?: boolean;
     }
   | {
       id: string;
@@ -449,6 +466,7 @@ type BlueprintItem =
       name: string;
       color?: string;
       existingHabitId?: string; // 复用已有习惯 ID
+      branch?: boolean;
     }
   | {
       id: string;
@@ -456,15 +474,20 @@ type BlueprintItem =
       name: string;
       color?: string;
       existingProjectId?: string; // 复用已有项目 ID
+      branch?: boolean;
     }
   | {
       id: string;
       kind: "focus";
+      branch?: boolean;
     };
 
 interface BlueprintFlow {
   fromItemId: string; // 源节点 item id
   toItemId: string; // 目标节点 item id
+  label?: string;
+  fromPort?: "out" | "out-top" | "out-bottom";
+  toPort?: "in" | "in-top" | "in-bottom";
 }
 ```
 
@@ -475,6 +498,7 @@ interface BlueprintFlow {
 ```typescript
 interface BlueprintPatch {
   workspaceId: string;
+  destructiveConfirmation?: boolean;
   // 1. 局部新增：向指定 section/group 中追加卡片
   addItems?: Array<{
     sectionId?: string;
@@ -483,11 +507,27 @@ interface BlueprintPatch {
   }>;
   // 2. 局部删除：仅移除指定 ID 的节点卡片
   removeNodeIds?: string[];
-  // 3. 文档热更新：就地修改文档节点的标题或正文
+  // 3. 节点内容热更新：就地修改文档/步骤/判断/图片节点
   updateDocs?: Array<{
     nodeId: string;
     title?: string;
     content?: string;
+  }>;
+  updateSteps?: Array<{
+    nodeId: string;
+    title?: string;
+    description?: string;
+  }>;
+  updateDecisions?: Array<{
+    nodeId: string;
+    question?: string;
+    description?: string;
+  }>;
+  updateImages?: Array<{
+    nodeId: string;
+    title?: string;
+    role?: string;
+    altText?: string;
   }>;
   // 4. 连线增删
   addFlows?: BlueprintFlow[];
