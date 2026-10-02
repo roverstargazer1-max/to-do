@@ -155,7 +155,7 @@
     "release-it": "^20.2.0",
     "tailwindcss": "^4.1.18",
     "tailwindcss-animate": "^1.0.7",
-    "typescript": "^6.0.3",
+    "typescript": "^7.0.2",
     "vitest": "^4.0.16"
   },
   "build": {
