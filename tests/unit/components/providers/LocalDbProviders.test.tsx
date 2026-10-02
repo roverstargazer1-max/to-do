@@ -176,6 +176,7 @@ describe("LegacyMigrationProvider", () => {
     ];
     expect(url).toBe("/api/db/migrate-legacy");
     expect(init.method).toBe("POST");
+    expect(JSON.parse(String(init.body))).toMatchObject({ onlyIfEmpty: true });
   });
 
   it("marks the database as migrated without posting when no legacy data exists", async () => {

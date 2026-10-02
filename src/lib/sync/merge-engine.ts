@@ -3,7 +3,11 @@ import type { Task, Project } from "@/lib/types/task";
 import type { Habit, HabitEntry } from "@/lib/types/habit";
 import type { FocusLog } from "@/lib/types/focus";
 import type { CalendarEvent } from "@/lib/types/calendar-event";
-import type { Workspace, WorkspaceNode } from "@/lib/types/workspace";
+import type {
+  Workspace,
+  WorkspaceEdge,
+  WorkspaceNode,
+} from "@/lib/types/workspace";
 
 export type MergeEntityType =
   | "task"
@@ -13,7 +17,8 @@ export type MergeEntityType =
   | "event"
   | "focus_log"
   | "workspace"
-  | "workspace_node";
+  | "workspace_node"
+  | "workspace_edge";
 
 export type ConflictType = "modify-modify" | "delete-modify" | "modify-delete";
 
@@ -127,9 +132,55 @@ function getEntityTitle(
       return String(item.name || "Untitled Workspace");
     case "workspace_node":
       return String(item.kind || "Workspace Node");
+    case "workspace_edge":
+      return `${String(item.source_node_id || "?")} → ${String(item.target_node_id || "?")}`;
     default:
       return String(item.id || "Item");
   }
+}
+
+function cleanWorkspaceEdges(
+  edges: WorkspaceEdge[] | undefined,
+  workspaces: Workspace[] | undefined,
+  nodes: WorkspaceNode[] | undefined,
+): { edges: WorkspaceEdge[] | undefined; dedupedCount: number } {
+  if (!edges) return { edges, dedupedCount: 0 };
+
+  const workspaceIds = workspaces
+    ? new Set(workspaces.map((workspace) => workspace.id))
+    : null;
+  const nodesById = nodes
+    ? new Map(nodes.map((node) => [node.id, node]))
+    : null;
+  const validEdges = edges.filter((edge) => {
+    if (workspaceIds && !workspaceIds.has(edge.workspace_id)) return false;
+    if (nodesById) {
+      const source = nodesById.get(edge.source_node_id);
+      const target = nodesById.get(edge.target_node_id);
+      return (
+        source?.workspace_id === edge.workspace_id &&
+        target?.workspace_id === edge.workspace_id
+      );
+    }
+    return true;
+  });
+
+  const seenEndpointPairs = new Set<string>();
+  const uniqueEdges = validEdges.filter((edge) => {
+    const pair = JSON.stringify([
+      edge.workspace_id,
+      edge.source_node_id,
+      edge.target_node_id,
+    ]);
+    if (seenEndpointPairs.has(pair)) return false;
+    seenEndpointPairs.add(pair);
+    return true;
+  });
+
+  return {
+    edges: uniqueEdges,
+    dedupedCount: validEdges.length - uniqueEdges.length,
+  };
 }
 
 function parseTimestamp(val: unknown): number {
@@ -796,6 +847,35 @@ export function mergeBackupData({
     mergedWorkspaceNodes = nodeRes.items;
   }
 
+  let mergedWorkspaceEdges: WorkspaceEdge[] | undefined;
+  if (
+    base?.workspace_edges !== undefined ||
+    local.workspace_edges !== undefined ||
+    remote.workspace_edges !== undefined
+  ) {
+    const baseEdges = base?.workspace_edges ?? null;
+    const edgeRes = mergeCollection<WorkspaceEdge>({
+      baseList: baseEdges,
+      // An omitted section in an older snapshot means "unknown", not empty.
+      // Falling back to the base preserves that section while explicit []
+      // continues to represent an intentional deletion.
+      localList: local.workspace_edges ?? base?.workspace_edges ?? [],
+      remoteList: remote.workspace_edges ?? base?.workspace_edges ?? [],
+      entityType: "workspace_edge",
+    });
+    const cleanedEdges = cleanWorkspaceEdges(
+      edgeRes.items,
+      mergedWorkspaces,
+      mergedWorkspaceNodes,
+    );
+    mergedWorkspaceEdges = cleanedEdges.edges;
+    stats.added += Math.max(0, edgeRes.added - cleanedEdges.dedupedCount);
+    stats.updated += edgeRes.updated;
+    stats.deleted += edgeRes.deleted;
+    stats.deduped += cleanedEdges.dedupedCount;
+    conflicts.push(...edgeRes.conflicts);
+  }
+
   // 8. Location history union
   const mergedLocations = Array.from(
     new Set([
@@ -831,6 +911,7 @@ export function mergeBackupData({
     location_history: mergedLocations.length > 0 ? mergedLocations : undefined,
     ...(mergedWorkspaces ? { workspaces: mergedWorkspaces } : {}),
     ...(mergedWorkspaceNodes ? { workspace_nodes: mergedWorkspaceNodes } : {}),
+    ...(mergedWorkspaceEdges ? { workspace_edges: mergedWorkspaceEdges } : {}),
     // Retain any optional visual sections from local/remote
     visual_assets: local.visual_assets || remote.visual_assets,
     visual_asset_versions:
@@ -1076,6 +1157,43 @@ export function resolveConflicts({
         }
         break;
       }
+      case "workspace_edge": {
+        if (data.workspace_edges) {
+          if (choice === "local") {
+            data.workspace_edges = replaceOrInsert(
+              data.workspace_edges,
+              conflict.local as unknown as WorkspaceEdge,
+            );
+          } else if (choice === "remote") {
+            data.workspace_edges = replaceOrInsert(
+              data.workspace_edges,
+              conflict.remote as unknown as WorkspaceEdge,
+            );
+          } else if (choice === "duplicate") {
+            const localEdge = conflict.local as WorkspaceEdge | null;
+            const remoteEdge = conflict.remote as WorkspaceEdge | null;
+            if (
+              localEdge &&
+              remoteEdge &&
+              localEdge.source_node_id === remoteEdge.source_node_id &&
+              localEdge.target_node_id === remoteEdge.target_node_id
+            ) {
+              // The schema permits only one edge per ordered endpoint pair.
+              data.workspace_edges = replaceOrInsert(
+                data.workspace_edges,
+                remoteEdge,
+              );
+            } else {
+              data.workspace_edges = duplicateItem(
+                data.workspace_edges,
+                localEdge,
+                remoteEdge,
+              );
+            }
+          }
+        }
+        break;
+      }
     }
   }
 
@@ -1087,6 +1205,12 @@ export function resolveConflicts({
     }
     return task;
   });
+
+  data.workspace_edges = cleanWorkspaceEdges(
+    data.workspace_edges,
+    data.workspaces,
+    data.workspace_nodes,
+  ).edges;
 
   return data;
 }

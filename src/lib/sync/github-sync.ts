@@ -625,6 +625,7 @@ export function countBackupEntries(data: BackupData): number {
     (data.events?.length ?? 0) +
     (data.workspaces?.length ?? 0) +
     (data.workspace_nodes?.length ?? 0) +
+    (data.workspace_edges?.length ?? 0) +
     (data.visual_assets?.length ?? 0) +
     (data.visual_asset_versions?.length ?? 0) +
     (data.visual_annotations?.length ?? 0) +

@@ -19,11 +19,14 @@ export function useTasks<TData = Task[]>(options: UseTasksOptions<TData> = {}) {
     staleTime: 60000,
     select,
     queryFn: async (): Promise<Task[]> => {
-      return tasksClient.list({
+      const tasks = await tasksClient.list({
         projectId,
         showCompleted,
         filter,
       });
+      // Steps are checklist rows, not independent tasks. Their summaries
+      // remain on the parent; useSubtasks reads the full API list separately.
+      return tasks.filter((task) => !task.parent_id);
     },
   });
 }

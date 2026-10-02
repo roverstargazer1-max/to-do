@@ -115,6 +115,9 @@ export const calendar = {
   "calendar.event.allDay": "All day",
   "calendar.event.pickDate": "Pick a date",
   "calendar.event.pickEndTime": "Pick an end time",
+  "calendar.event.invalidTimeRange": "End time must be after start time.",
+  "calendar.event.invalidAllDayRange":
+    "End date must be on or after start date.",
   "calendar.event.addLocation": "Add location",
   "calendar.event.clearLocation": "Clear location",
   "calendar.event.locationPlaceholder": "Search or enter location...",

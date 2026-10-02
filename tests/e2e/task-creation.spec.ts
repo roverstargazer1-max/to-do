@@ -14,6 +14,9 @@ async function openNewTaskViaShortcut(page: Page) {
 
 test.describe("Task Creation (Guest Mode)", () => {
   test.beforeEach(async ({ page }) => {
+    await page.addInitScript(() =>
+      localStorage.setItem("telemetry_consent", "denied"),
+    );
     await seedGuestMode(page, "http://localhost:3000/");
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
   });
@@ -73,7 +76,13 @@ test.describe("Task Creation (Guest Mode)", () => {
     await expect(taskRow).toBeVisible();
     await taskRow.click();
 
-    // Steps should be visible in edit sheet
+    // Steps belong to their parent and stay out of the top-level list.
+    await expect(
+      page
+        .getByTestId("task-list-container")
+        .getByText("Step One", { exact: true }),
+    ).toHaveCount(0);
+    await page.getByRole("button", { name: /(subtasks|steps)/i }).click();
     await expect(page.getByText("Step One")).toBeVisible();
     await expect(page.getByText("Step Two")).toBeVisible();
   });
@@ -99,6 +108,66 @@ test.describe("Task Creation (Guest Mode)", () => {
     await expect(taskRow).toBeVisible();
     await taskRow.click();
 
+    await page.getByRole("button", { name: /(subtasks|steps)/i }).click();
     await expect(page.getByText("Auto-flushed step")).toBeVisible();
+  });
+
+  test("persists a changed start date after reopening and reloading", async ({
+    page,
+    request,
+    isMobile,
+  }) => {
+    test.skip(isMobile, "desktop date picker verification");
+    const content = `Start date audit ${crypto.randomUUID()}`;
+    const today = await page.evaluate(() => {
+      const date = new Date();
+      date.setHours(12, 0, 0, 0);
+      return date.toISOString();
+    });
+    const response = await request.post("/api/db/tasks", {
+      data: { content, do_date: today },
+    });
+    expect(response.ok()).toBe(true);
+    const task = await response.json();
+    try {
+      await page.reload();
+      const row = page
+        .getByTestId("task-list-container")
+        .getByText(content, { exact: true });
+      await row.click();
+      await page.getByTitle("Set start date", { exact: true }).click();
+      await page.getByRole("button", { name: "Tomorrow", exact: true }).click();
+      await page
+        .getByRole("button", { name: "Done", exact: true })
+        .click({ timeout: 5000 });
+      await page
+        .getByRole("button", { name: "Save changes", exact: true })
+        .click();
+      const tomorrow = await page.evaluate(() => {
+        const date = new Date();
+        date.setDate(date.getDate() + 1);
+        date.setHours(12, 0, 0, 0);
+        return date.toISOString();
+      });
+      await expect
+        .poll(async () => {
+          const tasks = await (
+            await request.get("/api/db/tasks?showCompleted=true")
+          ).json();
+          return tasks.find((item: { id: string }) => item.id === task.id)
+            ?.do_date;
+        })
+        .toBe(tomorrow);
+      await page.reload();
+      await row.click();
+      await expect(
+        page.getByTitle("Set start date", { exact: true }),
+      ).toContainText(new Date(tomorrow).getDate().toString());
+    } finally {
+      // A timed-out browser fixture may already be disposed; retain the original failure.
+      await request
+        .delete(`/api/db/tasks?id=${task.id}`)
+        .catch(() => undefined);
+    }
   });
 });

@@ -2,7 +2,11 @@ import type { Task, Project } from "@/lib/types/task";
 import type { Habit, HabitEntry } from "@/lib/types/habit";
 import type { FocusLog } from "@/lib/types/focus";
 import type { CalendarEvent } from "@/lib/types/calendar-event";
-import type { Workspace, WorkspaceNode } from "@/lib/types/workspace";
+import type {
+  Workspace,
+  WorkspaceEdge,
+  WorkspaceNode,
+} from "@/lib/types/workspace";
 import type {
   VisualAnnotation,
   VisualAsset,
@@ -50,6 +54,8 @@ export interface BackupData {
    */
   workspaces?: Workspace[];
   workspace_nodes?: WorkspaceNode[];
+  /** Canvas connections; optional so pre-edge archives remain readable. */
+  workspace_edges?: WorkspaceEdge[];
   /** Visual metadata is JSON; bytes are stored as ZIP entries below. */
   visual_assets?: VisualAsset[];
   visual_asset_versions?: Array<Omit<VisualAssetVersion, "data">>;
@@ -60,7 +66,4 @@ export interface BackupData {
   visual_asset_manifest?: VisualAssetBackupManifestEntry[];
   /** Populated in memory by parseBackupZip; omitted from backup.json. */
   visual_asset_files?: Record<string, Uint8Array>;
-  // Canvas connections (ADR 0021) are deliberately NOT a section here: the
-  // guest WebDAV flow's two workspace sections are pinned by its own
-  // contract, and widening them is its own ticket. See ADR 0021.
 }

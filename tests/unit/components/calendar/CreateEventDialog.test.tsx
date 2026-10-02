@@ -50,6 +50,7 @@ import {
 } from "@testing-library/react";
 import { z } from "zod";
 import { CreateEventDialog } from "@/components/calendar/CreateEventDialog";
+const mutations = vi.hoisted(() => ({ update: vi.fn() }));
 
 // ── Mocks ──────────────────────────────────────────────────────────────────
 
@@ -71,7 +72,7 @@ vi.mock("@/lib/hooks/useCalendarEventMutations", () => ({
     isPending: false,
   }),
   useUpdateCalendarEvent: () => ({
-    mutate: vi.fn(),
+    mutate: mutations.update,
     isPending: false,
   }),
   useDeleteCalendarEvent: () => ({
@@ -314,6 +315,49 @@ describe("CreateEventDialog — button activation (edit mode)", () => {
     color: "#000",
     calendarId: "cal-1",
   };
+
+  it("blocks saving a reversed range and explains how to fix it", async () => {
+    render(
+      <CreateEventDialog
+        open={true}
+        onOpenChange={vi.fn()}
+        event={{ ...editEvent, start: new Date("2025-06-02T10:00:00") }}
+      />,
+    );
+    await flushResetTimer();
+    expect(
+      screen.getByRole("button", { name: /save changes/i }),
+    ).toBeDisabled();
+    expect(screen.getByRole("alert")).toHaveTextContent(/end.*after.*start/i);
+  });
+
+  it("saves a single-day all-day event without retaining hidden clock times", async () => {
+    mutations.update.mockClear();
+    render(
+      <CreateEventDialog
+        open={true}
+        onOpenChange={vi.fn()}
+        event={{
+          ...editEvent,
+          allDay: true,
+          end: new Date("2025-06-01T09:00:00"),
+        }}
+      />,
+    );
+    await flushResetTimer();
+    const save = screen.getByRole("button", { name: /save changes/i });
+    expect(save).toBeEnabled();
+    await act(async () => fireEvent.click(save));
+    await waitFor(() =>
+      expect(mutations.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          start_time: new Date("2025-06-01T00:00:00").toISOString(),
+          end_time: new Date("2025-06-01T00:00:00").toISOString(),
+          all_day: true,
+        }),
+      ),
+    );
+  });
 
   it("[P9] save button is enabled when editing event with existing title", async () => {
     // Given: dialog opens in edit mode with existing event data

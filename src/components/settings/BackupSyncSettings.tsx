@@ -54,7 +54,6 @@ import {
   collectLocalBackupData,
   restoreLocalBackupData,
 } from "@/lib/backup/local-backup";
-import { useLocationHistoryStore } from "@/lib/store/locationHistoryStore";
 import type { BackupData } from "@/lib/backup/types";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAccountData } from "@/lib/hooks/useAccountData";
@@ -610,10 +609,6 @@ export function BackupSyncSettings() {
 
     try {
       await restoreLocalBackupData(data);
-      useLocationHistoryStore.setState({
-        locations: data.location_history ?? [],
-      });
-
       await invalidateDataQueries();
 
       notify.success(tr("settings.backup.toast.restored"));

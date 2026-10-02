@@ -10,21 +10,22 @@ import type { BackupData } from "./types";
 export async function collectLocalBackupData(): Promise<BackupData> {
   const [tasks, projects, habits, focusData, events, workspaces] =
     await Promise.all([
-      tasksClient.list({ showCompleted: true }).catch(() => []),
-      projectsClient.list().catch(() => []),
-      habitsClient.list().catch(() => []),
-      focusClient.list().catch(() => ({ logs: [], totalSeconds: 0 })),
-      calendarClient.list().catch(() => []),
-      workspacesClient.list().catch(() => []),
+      tasksClient.list({ showCompleted: true }),
+      projectsClient.list(),
+      habitsClient.list(),
+      focusClient.list(),
+      calendarClient.list(),
+      workspacesClient.list(),
     ]);
 
   const habitEntries = habits.flatMap((h) => h.entries || []);
   const focusLogs = focusData.logs || [];
-  const workspaceNodes = (
-    await Promise.all(
-      workspaces.map((ws) => workspacesClient.listNodes(ws.id).catch(() => [])),
-    )
-  ).flat();
+  const [workspaceNodeLists, workspaceEdgeLists] = await Promise.all([
+    Promise.all(workspaces.map((ws) => workspacesClient.listNodes(ws.id))),
+    Promise.all(workspaces.map((ws) => workspacesClient.listEdges(ws.id))),
+  ]);
+  const workspaceNodes = workspaceNodeLists.flat();
+  const workspaceEdges = workspaceEdgeLists.flat();
 
   return {
     metadata: {
@@ -41,6 +42,7 @@ export async function collectLocalBackupData(): Promise<BackupData> {
     location_history: useLocationHistoryStore.getState().locations,
     workspaces,
     workspace_nodes: workspaceNodes,
+    workspace_edges: workspaceEdges,
   };
 }
 
@@ -68,6 +70,7 @@ export async function restoreLocalBackupData(
       workspaceData: {
         workspaces: data.workspaces,
         nodes: data.workspace_nodes,
+        edges: data.workspace_edges,
       },
     }),
   });
@@ -75,5 +78,9 @@ export async function restoreLocalBackupData(
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.error || "Failed to restore backup into SQLite");
+  }
+
+  if (data.location_history !== undefined) {
+    useLocationHistoryStore.setState({ locations: data.location_history });
   }
 }

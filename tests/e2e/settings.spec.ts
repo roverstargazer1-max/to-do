@@ -5,6 +5,9 @@ import { seedGuestMode, waitForBackAnchor } from "./support/guest-mode";
 
 test.describe("Focus Settings (Guest Mode)", () => {
   test.beforeEach(async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem("telemetry_consent", "denied");
+    });
     await seedGuestMode(page, "http://localhost:3000/focus");
     await expect(
       page.getByRole("button", { name: /adjust settings/i }),

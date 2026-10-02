@@ -51,6 +51,7 @@ export function LegacyMigrationProvider({
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
+              onlyIfEmpty: true,
               guestData,
               workspaceData,
             }),

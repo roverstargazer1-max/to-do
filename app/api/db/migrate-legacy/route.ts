@@ -4,6 +4,7 @@ import * as path from "node:path";
 import * as Sentry from "@sentry/nextjs";
 import { getDatabase } from "@/lib/db/index";
 import { getDatabasePath } from "@/lib/db/config";
+import { hasLocalDataForMigration } from "@/lib/db/legacy-migration";
 import { assetService } from "@/lib/assets/asset-service";
 import type { FocusLog } from "@/lib/db/repositories/focus-repository";
 import type { Task, Project } from "@/lib/types/task";
@@ -16,6 +17,7 @@ import type {
 } from "@/lib/types/workspace";
 
 interface LegacyMigrationPayload {
+  onlyIfEmpty?: boolean;
   replace?: boolean;
   createSnapshot?: boolean;
   guestData?: {
@@ -73,6 +75,11 @@ export async function POST(request: NextRequest) {
     }
 
     const insertAll = db.transaction(() => {
+      // Browser migration flags are isolated by origin, while SQLite is
+      // shared. A different port or profile must not replay stale records
+      // over current local edits. Check under the same write lock as import.
+      if (body.onlyIfEmpty && hasLocalDataForMigration(db)) return false;
+
       if (body.replace) {
         // Safe domain-by-domain clearing in FK dependency order before mirror insertion
         if (
@@ -389,13 +396,23 @@ export async function POST(request: NextRequest) {
           );
         }
       }
+      return true;
     });
 
     db.pragma("foreign_keys = OFF;");
+    let migrated: boolean;
     try {
-      insertAll();
+      migrated = insertAll.immediate();
     } finally {
       db.pragma("foreign_keys = ON;");
+    }
+
+    if (!migrated) {
+      return NextResponse.json({
+        success: true,
+        skipped: true,
+        message: "Local data already exists; automatic migration skipped",
+      });
     }
 
     // 10. Extract & Save Visual Assets to disk

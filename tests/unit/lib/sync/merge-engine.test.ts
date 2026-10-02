@@ -9,6 +9,11 @@ import type { Task, Project } from "@/lib/types/task";
 import type { CalendarEvent } from "@/lib/types/calendar-event";
 import type { Habit, HabitEntry } from "@/lib/types/habit";
 import type { FocusLog } from "@/lib/types/focus";
+import type {
+  Workspace,
+  WorkspaceEdge,
+  WorkspaceNode,
+} from "@/lib/types/workspace";
 
 function createEmptyBackup(): BackupData {
   return {
@@ -45,6 +50,54 @@ function createTask(overrides: Partial<Task> = {}): Task {
     recurring_series_id: null,
     google_event_id: null,
     google_etag: null,
+    created_at: "2026-09-20T00:00:00.000Z",
+    updated_at: "2026-09-20T00:00:00.000Z",
+    ...overrides,
+  };
+}
+
+function createWorkspaceEdge(
+  overrides: Partial<WorkspaceEdge> = {},
+): WorkspaceEdge {
+  return {
+    id: "edge-1",
+    workspace_id: "workspace-1",
+    user_id: "user-1",
+    source_node_id: "node-1",
+    target_node_id: "node-2",
+    created_at: "2026-09-20T00:00:00.000Z",
+    updated_at: "2026-09-20T00:00:00.000Z",
+    ...overrides,
+  };
+}
+
+function createWorkspace(overrides: Partial<Workspace> = {}): Workspace {
+  return {
+    id: "workspace-1",
+    user_id: "user-1",
+    name: "Planning",
+    created_at: "2026-09-20T00:00:00.000Z",
+    updated_at: "2026-09-20T00:00:00.000Z",
+    ...overrides,
+  };
+}
+
+function createWorkspaceNode(
+  id: string,
+  overrides: Partial<WorkspaceNode> = {},
+): WorkspaceNode {
+  return {
+    id,
+    workspace_id: "workspace-1",
+    user_id: "user-1",
+    kind: "task",
+    entity_type: "task",
+    entity_id: `task-${id}`,
+    position_x: 0,
+    position_y: 0,
+    width: null,
+    height: null,
+    display_config: null,
     created_at: "2026-09-20T00:00:00.000Z",
     updated_at: "2026-09-20T00:00:00.000Z",
     ...overrides,
@@ -545,9 +598,335 @@ describe("merge-engine", () => {
       expect(res.mergedData.tasks).toHaveLength(2);
       expect(res.stats.added).toBe(2);
     });
+
+    it("preserves edges when merging with an older backup that has no edge section", () => {
+      const localEdge = createWorkspaceEdge({ id: "local-edge" });
+      const local = {
+        ...createEmptyBackup(),
+        workspace_edges: [localEdge],
+      };
+      const remote = createEmptyBackup();
+
+      const res = mergeBackupData({ base: null, local, remote });
+
+      expect(res.clean).toBe(true);
+      expect(res.mergedData.workspace_edges).toEqual([localEdge]);
+    });
+  });
+
+  describe("Workspace edge merge compatibility", () => {
+    const ws = createWorkspace();
+    const nodes = [
+      createWorkspaceNode("node-1"),
+      createWorkspaceNode("node-2"),
+    ];
+    const edge = createWorkspaceEdge();
+
+    it("uses the base edge section when an older remote backup omits it", () => {
+      const base = {
+        ...createEmptyBackup(),
+        workspaces: [ws],
+        workspace_nodes: nodes,
+        workspace_edges: [edge],
+      };
+      const local = { ...base };
+      const remote = {
+        ...createEmptyBackup(),
+        workspaces: [ws],
+        workspace_nodes: nodes,
+      };
+
+      const result = mergeBackupData({ base, local, remote });
+
+      expect(result.clean).toBe(true);
+      expect(result.mergedData.workspace_edges).toEqual([edge]);
+    });
+
+    it("uses the base edge section when an older local backup omits it", () => {
+      const base = {
+        ...createEmptyBackup(),
+        workspaces: [ws],
+        workspace_nodes: nodes,
+        workspace_edges: [edge],
+      };
+      const local = {
+        ...createEmptyBackup(),
+        workspaces: [ws],
+        workspace_nodes: nodes,
+      };
+      const remote = { ...base };
+
+      const result = mergeBackupData({ base, local, remote });
+
+      expect(result.clean).toBe(true);
+      expect(result.mergedData.workspace_edges).toEqual([edge]);
+    });
+
+    it.each([
+      { side: "local", localEdges: [], remoteEdges: [edge] },
+      { side: "remote", localEdges: [edge], remoteEdges: [] },
+    ])(
+      "still honors an explicit empty edge section on the $side",
+      ({ localEdges, remoteEdges }) => {
+        const base = {
+          ...createEmptyBackup(),
+          workspaces: [ws],
+          workspace_nodes: nodes,
+          workspace_edges: [edge],
+        };
+        const local = {
+          ...createEmptyBackup(),
+          workspaces: [ws],
+          workspace_nodes: nodes,
+          workspace_edges: localEdges,
+        };
+        const remote = {
+          ...createEmptyBackup(),
+          workspaces: [ws],
+          workspace_nodes: nodes,
+          workspace_edges: remoteEdges,
+        };
+
+        const result = mergeBackupData({ base, local, remote });
+
+        expect(result.clean).toBe(true);
+        expect(result.mergedData.workspace_edges).toEqual([]);
+      },
+    );
+
+    it("drops merged edges whose workspace or endpoint node was deleted", () => {
+      const source = createWorkspaceNode("node-1");
+      const target = createWorkspaceNode("node-2");
+      const base = {
+        ...createEmptyBackup(),
+        workspaces: [ws],
+        workspace_nodes: [source, target],
+        workspace_edges: [],
+      };
+      const local = {
+        ...base,
+        workspace_edges: [edge],
+      };
+      const remote = {
+        ...createEmptyBackup(),
+        workspaces: [ws],
+        workspace_nodes: [source],
+        workspace_edges: [],
+      };
+
+      const result = mergeBackupData({ base, local, remote });
+
+      expect(result.mergedData.workspace_nodes?.map((node) => node.id)).toEqual(
+        ["node-1"],
+      );
+      expect(result.mergedData.workspace_edges).toEqual([]);
+    });
+
+    it("drops merged edges whose workspace was deleted", () => {
+      const base = {
+        ...createEmptyBackup(),
+        workspaces: [ws],
+        workspace_nodes: nodes,
+        workspace_edges: [],
+      };
+      const local = {
+        ...base,
+        workspace_edges: [edge],
+      };
+      const remote = {
+        ...createEmptyBackup(),
+        workspaces: [],
+        workspace_nodes: [],
+        workspace_edges: [],
+      };
+
+      const result = mergeBackupData({ base, local, remote });
+
+      expect(result.mergedData.workspaces).toEqual([]);
+      expect(result.mergedData.workspace_edges).toEqual([]);
+    });
+
+    it("deduplicates concurrent creations with different IDs for one ordered pair", () => {
+      const base = {
+        ...createEmptyBackup(),
+        workspaces: [ws],
+        workspace_nodes: nodes,
+        workspace_edges: [],
+      };
+      const localEdge = createWorkspaceEdge({ id: "local-edge" });
+      const remoteEdge = createWorkspaceEdge({ id: "remote-edge" });
+      const local = { ...base, workspace_edges: [localEdge] };
+      const remote = { ...base, workspace_edges: [remoteEdge] };
+
+      const result = mergeBackupData({ base, local, remote });
+
+      expect(result.clean).toBe(true);
+      expect(result.mergedData.workspace_edges).toEqual([localEdge]);
+      expect(result.stats.added).toBe(1);
+      expect(result.stats.deduped).toBe(1);
+    });
+
+    it("drops an edge selected against a node deleted by the final merge", () => {
+      const ws = createWorkspace();
+      const source = createWorkspaceNode("node-source");
+      const originalTarget = createWorkspaceNode("node-original");
+      const localTarget = createWorkspaceNode("node-local");
+      const remoteTarget = createWorkspaceNode("node-remote");
+      const baseEdge = createWorkspaceEdge({
+        target_node_id: originalTarget.id,
+      });
+      const localEdge = createWorkspaceEdge({
+        target_node_id: localTarget.id,
+        updated_at: "2026-09-21T00:00:00.000Z",
+      });
+      const remoteEdge = createWorkspaceEdge({
+        target_node_id: remoteTarget.id,
+        updated_at: "2026-09-22T00:00:00.000Z",
+      });
+      const base = {
+        ...createEmptyBackup(),
+        workspaces: [ws],
+        workspace_nodes: [source, originalTarget, localTarget, remoteTarget],
+        workspace_edges: [baseEdge],
+      };
+      const local = {
+        ...base,
+        workspace_edges: [localEdge],
+      };
+      const remote = {
+        ...createEmptyBackup(),
+        workspaces: [ws],
+        workspace_nodes: [source, originalTarget, remoteTarget],
+        workspace_edges: [remoteEdge],
+      };
+      const mergeResult = mergeBackupData({ base, local, remote });
+
+      const resolved = resolveConflicts({
+        mergeResult,
+        resolutions: { "edge-1": "local" },
+      });
+
+      expect(resolved.workspace_nodes?.map((node) => node.id)).not.toContain(
+        localTarget.id,
+      );
+      expect(resolved.workspace_edges).toEqual([]);
+    });
+
+    it("deduplicates endpoint pairs reintroduced by conflict resolution", () => {
+      const baseEdge = createWorkspaceEdge();
+      const localEdge = createWorkspaceEdge({
+        target_node_id: "local-target",
+        updated_at: "2026-09-21T00:00:00.000Z",
+      });
+      const remoteEdge = createWorkspaceEdge({
+        target_node_id: "remote-target",
+        updated_at: "2026-09-22T00:00:00.000Z",
+      });
+      const base = { ...createEmptyBackup(), workspace_edges: [baseEdge] };
+      const local = { ...createEmptyBackup(), workspace_edges: [localEdge] };
+      const remote = { ...createEmptyBackup(), workspace_edges: [remoteEdge] };
+      const mergeResult = mergeBackupData({ base, local, remote });
+      mergeResult.mergedData.workspace_edges?.push({
+        ...remoteEdge,
+        id: "independent-id",
+      });
+
+      const resolved = resolveConflicts({
+        mergeResult,
+        resolutions: { "edge-1": "remote" },
+      });
+
+      expect(resolved.workspace_edges).toEqual([remoteEdge]);
+    });
+
+    it("filters invalid workspace edges before deduplicating endpoint pairs", () => {
+      const ws = createWorkspace();
+      const source = createWorkspaceNode("node-source");
+      const target = createWorkspaceNode("node-target");
+      const validEdge = createWorkspaceEdge({
+        source_node_id: source.id,
+        target_node_id: target.id,
+      });
+      const invalidEdge = {
+        ...validEdge,
+        id: "invalid-edge",
+        workspace_id: "deleted-workspace",
+      };
+      const mergeResult = mergeBackupData({
+        base: null,
+        local: {
+          ...createEmptyBackup(),
+          workspaces: [ws],
+          workspace_nodes: [source, target],
+          workspace_edges: [invalidEdge, validEdge],
+        },
+        remote: createEmptyBackup(),
+      });
+      mergeResult.mergedData.workspace_edges = [invalidEdge, validEdge];
+
+      const resolved = resolveConflicts({
+        mergeResult,
+        resolutions: {},
+      });
+
+      expect(resolved.workspace_edges).toEqual([validEdge]);
+    });
   });
 
   describe("resolveConflicts helper", () => {
+    it("resolves an edge conflict with the chosen endpoint pair", () => {
+      const baseEdge = createWorkspaceEdge();
+      const localEdge = createWorkspaceEdge({
+        target_node_id: "local-target",
+        updated_at: "2026-09-21T00:00:00.000Z",
+      });
+      const remoteEdge = createWorkspaceEdge({
+        target_node_id: "remote-target",
+        updated_at: "2026-09-22T00:00:00.000Z",
+      });
+      const base = { ...createEmptyBackup(), workspace_edges: [baseEdge] };
+      const local = { ...createEmptyBackup(), workspace_edges: [localEdge] };
+      const remote = { ...createEmptyBackup(), workspace_edges: [remoteEdge] };
+
+      const mergeRes = mergeBackupData({ base, local, remote });
+      expect(mergeRes.clean).toBe(false);
+      expect(mergeRes.conflicts[0]?.entityType).toBe("workspace_edge");
+
+      const resolved = resolveConflicts({
+        mergeResult: mergeRes,
+        resolutions: { "edge-1": "remote" },
+      });
+
+      expect(resolved.workspace_edges).toEqual([remoteEdge]);
+    });
+
+    it("keeps both endpoint pairs when an edge conflict is duplicated", () => {
+      const baseEdge = createWorkspaceEdge();
+      const localEdge = createWorkspaceEdge({
+        target_node_id: "local-target",
+        updated_at: "2026-09-21T00:00:00.000Z",
+      });
+      const remoteEdge = createWorkspaceEdge({
+        target_node_id: "remote-target",
+        updated_at: "2026-09-22T00:00:00.000Z",
+      });
+      const base = { ...createEmptyBackup(), workspace_edges: [baseEdge] };
+      const local = { ...createEmptyBackup(), workspace_edges: [localEdge] };
+      const remote = { ...createEmptyBackup(), workspace_edges: [remoteEdge] };
+      const mergeRes = mergeBackupData({ base, local, remote });
+
+      const resolved = resolveConflicts({
+        mergeResult: mergeRes,
+        resolutions: { "edge-1": "duplicate" },
+      });
+
+      expect(resolved.workspace_edges).toHaveLength(2);
+      expect(
+        resolved.workspace_edges?.map((item) => item.target_node_id),
+      ).toEqual(["remote-target", "local-target"]);
+      expect(resolved.workspace_edges?.[1].id).not.toBe("edge-1");
+    });
+
     it("resolves conflicts with local choice", () => {
       const baseTask = createTask({ priority: 3 });
       const localTask = createTask({ priority: 1 });

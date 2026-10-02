@@ -91,6 +91,25 @@ describe("push-safety", () => {
         countBackupEntries(backupWith({ tasks: 3, habits: 2, workspaces: 4 })),
       ).toBe(9);
     });
+
+    it("counts Workspace connections", () => {
+      expect(
+        countBackupEntries({
+          ...emptyBackup,
+          workspace_edges: [
+            {
+              id: "edge-1",
+              workspace_id: "workspace-1",
+              user_id: "user-1",
+              source_node_id: "node-1",
+              target_node_id: "node-2",
+              created_at: "2026-09-22T00:00:00Z",
+              updated_at: "2026-09-22T00:00:00Z",
+            },
+          ],
+        }),
+      ).toBe(1);
+    });
   });
 
   describe("assessPushSafety (DLP guard)", () => {

@@ -16,6 +16,7 @@ import {
 import {
   GET as getCalendar,
   POST as postCalendar,
+  PATCH as patchCalendar,
 } from "@/../app/api/db/calendar-events/route";
 
 describe("API Routes: habits, habit-entries, focus, calendar", () => {
@@ -108,5 +109,73 @@ describe("API Routes: habits, habit-entries, focus, calendar", () => {
     const calGetRes = await getCalendar(calGet);
     const calList = await calGetRes.json();
     expect(calList.length).toBe(1);
+  });
+
+  it.each([
+    ["reversed", "2026-10-05T23:07:00Z", "2026-10-04T00:07:00Z"],
+    ["empty", "2026-10-05T23:07:00Z", "2026-10-05T23:07:00Z"],
+    ["invalid", "not-a-date", "2026-10-05T23:07:00Z"],
+  ])(
+    "rejects a %s timed event range without storing it",
+    async (_name, start, end) => {
+      const response = await postCalendar(
+        new NextRequest("http://localhost:3000/api/db/calendar-events", {
+          method: "POST",
+          body: JSON.stringify({
+            title: "Invalid range",
+            start_time: start,
+            end_time: end,
+          }),
+        }),
+      );
+      expect(response.status).toBe(400);
+      const list = await getCalendar(
+        new NextRequest("http://localhost:3000/api/db/calendar-events"),
+      );
+      expect(await list.json()).toEqual([]);
+    },
+  );
+
+  it("checks a one-sided date edit against the stored end time", async () => {
+    const created = await postCalendar(
+      new NextRequest("http://localhost:3000/api/db/calendar-events", {
+        method: "POST",
+        body: JSON.stringify({
+          title: "Meeting",
+          start_time: "2026-10-02T10:00:00Z",
+          end_time: "2026-10-02T11:00:00Z",
+        }),
+      }),
+    );
+    const event = await created.json();
+    const response = await patchCalendar(
+      new NextRequest("http://localhost:3000/api/db/calendar-events", {
+        method: "PATCH",
+        body: JSON.stringify({
+          id: event.id,
+          start_time: "2026-10-05T10:00:00Z",
+        }),
+      }),
+    );
+    expect(response.status).toBe(400);
+    const list = await getCalendar(
+      new NextRequest("http://localhost:3000/api/db/calendar-events"),
+    );
+    expect(await list.json()).toEqual([event]);
+  });
+
+  it("accepts a single-day all-day event", async () => {
+    const response = await postCalendar(
+      new NextRequest("http://localhost:3000/api/db/calendar-events", {
+        method: "POST",
+        body: JSON.stringify({
+          title: "Holiday",
+          start_time: "2026-10-02T00:00:00Z",
+          end_time: "2026-10-02T00:00:00Z",
+          all_day: true,
+        }),
+      }),
+    );
+    expect(response.status).toBe(201);
   });
 });

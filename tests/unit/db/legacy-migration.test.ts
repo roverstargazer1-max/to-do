@@ -203,6 +203,75 @@ describe("05: Silent Legacy Data Migration (IndexedDB/localStorage to SQLite)", 
     expect(taskCount).toBe(1);
   });
 
+  it("imports legacy data automatically into an empty database", async () => {
+    const res = await postMigrateLegacy(
+      new NextRequest("http://localhost:3000/api/db/migrate-legacy", {
+        method: "POST",
+        body: JSON.stringify({
+          onlyIfEmpty: true,
+          guestData: {
+            tasks: [{ id: "old-task", content: "My legacy task" }],
+          },
+        }),
+      }),
+    );
+
+    expect(res.status).toBe(200);
+    expect(
+      getDatabase(testDbPath)
+        .prepare("SELECT content FROM tasks WHERE id = ?")
+        .get("old-task"),
+    ).toEqual({ content: "My legacy task" });
+  });
+
+  it("does not overwrite current data or append old records during automatic migration", async () => {
+    const db = getDatabase(testDbPath);
+    db.prepare(
+      "INSERT INTO tasks (id, user_id, content, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+    ).run("task-1", "local_user", "Current edit", "2026-10-02", "2026-10-02");
+
+    const res = await postMigrateLegacy(
+      new NextRequest("http://localhost:3000/api/db/migrate-legacy", {
+        method: "POST",
+        body: JSON.stringify({
+          onlyIfEmpty: true,
+          guestData: {
+            tasks: [
+              { id: "task-1", content: "Stale browser copy" },
+              { id: "deleted-task", content: "Previously deleted task" },
+            ],
+          },
+        }),
+      }),
+    );
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ success: true, skipped: true });
+    expect(db.prepare("SELECT id, content FROM tasks").all()).toEqual([
+      { id: "task-1", content: "Current edit" },
+    ]);
+  });
+
+  it("does not treat a database with only a workspace as empty", async () => {
+    const db = getDatabase(testDbPath);
+    db.prepare(
+      "INSERT INTO workspaces (id, user_id, name, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+    ).run("canvas-1", "local_user", "My canvas", "2026-10-02", "2026-10-02");
+
+    const res = await postMigrateLegacy(
+      new NextRequest("http://localhost:3000/api/db/migrate-legacy", {
+        method: "POST",
+        body: JSON.stringify({
+          onlyIfEmpty: true,
+          guestData: { tasks: [{ id: "old-task", content: "Old task" }] },
+        }),
+      }),
+    );
+
+    expect(await res.json()).toMatchObject({ success: true, skipped: true });
+    expect(db.prepare("SELECT id FROM tasks").all()).toEqual([]);
+  });
+
   it("performs clean mirror restore when replace: true, removing stale records and preventing duplicates", async () => {
     const db = getDatabase(testDbPath);
 

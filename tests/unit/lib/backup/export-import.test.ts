@@ -59,9 +59,38 @@ describe("export-import", () => {
         throw err;
       }
     });
+
+    it("round-trips Workspace edges", async () => {
+      const edgeBackup: BackupData = {
+        ...mockBackupData,
+        workspace_edges: [
+          {
+            id: "edge-1",
+            workspace_id: "workspace-1",
+            user_id: "guest",
+            source_node_id: "node-1",
+            target_node_id: "node-2",
+            created_at: "2026-10-02T00:00:00.000Z",
+            updated_at: "2026-10-02T00:00:00.000Z",
+          },
+        ],
+      };
+
+      const parsed = await parseBackupZip(await createBackupZip(edgeBackup));
+
+      expect(parsed.workspace_edges).toEqual(edgeBackup.workspace_edges);
+    });
   });
 
   describe("parseBackupZip", () => {
+    it("accepts older backups with no Workspace edge section", async () => {
+      const parsed = await parseBackupZip(
+        await createBackupZip(mockBackupData),
+      );
+
+      expect(parsed.workspace_edges).toBeUndefined();
+    });
+
     it("throws on invalid ZIP content", async () => {
       const invalidBlob = new Blob(["not-a-zip"], { type: "application/zip" });
       await expect(parseBackupZip(invalidBlob)).rejects.toThrow();

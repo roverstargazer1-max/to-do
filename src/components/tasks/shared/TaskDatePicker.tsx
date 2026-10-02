@@ -226,7 +226,11 @@ export function TaskDatePicker({
         </Button>
       </PopoverTrigger>
       <PopoverContent
-        className="w-auto p-0 border-none shadow-xl"
+        className="w-auto p-0 border-none shadow-xl overflow-hidden"
+        style={{
+          maxHeight:
+            "min(380px, var(--radix-popover-content-available-height, 80dvh))",
+        }}
         align={align}
         side={side}
         sideOffset={sideOffset}
@@ -239,6 +243,7 @@ export function TaskDatePicker({
           showTime={showTime}
           allowPastDates={allowPastDates}
           onEveningSelect={onEveningSelect}
+          compact
         />
       </PopoverContent>
     </Popover>

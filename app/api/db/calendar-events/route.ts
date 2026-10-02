@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { calendarRepository } from "@/lib/db/repositories/calendar-repository";
+import { CalendarEventTimeRangeError } from "@/lib/calendar/event-time-range";
 
 export async function GET(request: NextRequest) {
   try {
@@ -33,7 +34,10 @@ export async function POST(request: NextRequest) {
       error instanceof Error
         ? error.message
         : "Failed to create calendar event";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json(
+      { error: message },
+      { status: error instanceof CalendarEventTimeRangeError ? 400 : 500 },
+    );
   }
 }
 
@@ -60,7 +64,10 @@ export async function PATCH(request: NextRequest) {
       error instanceof Error
         ? error.message
         : "Failed to update calendar event";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json(
+      { error: message },
+      { status: error instanceof CalendarEventTimeRangeError ? 400 : 500 },
+    );
   }
 }
 

@@ -110,6 +110,8 @@ export const calendar = {
   "calendar.event.allDay": "全天",
   "calendar.event.pickDate": "选择日期",
   "calendar.event.pickEndTime": "选择结束时间",
+  "calendar.event.invalidTimeRange": "结束时间必须晚于开始时间。",
+  "calendar.event.invalidAllDayRange": "结束日期不能早于开始日期。",
   "calendar.event.addLocation": "添加地点",
   "calendar.event.clearLocation": "清除地点",
   "calendar.event.locationPlaceholder": "搜索或输入地点…",

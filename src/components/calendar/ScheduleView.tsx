@@ -13,10 +13,17 @@ interface ScheduleViewProps {
   startDate: Date;
   daysToShow?: number; // How many days ahead to show
   className?: string;
+  onEventClick?: (event: CalendarEvent) => void;
 }
 
 const ScheduleView = memo(
-  ({ events, startDate, daysToShow = 30, className }: ScheduleViewProps) => {
+  ({
+    events,
+    startDate,
+    daysToShow = 30,
+    className,
+    onEventClick,
+  }: ScheduleViewProps) => {
     const { formatTime } = useTimeFormat();
     const { t } = useTranslation();
     const { formatDayOfMonth, formatWeekday, formatMonthYear } =
@@ -99,6 +106,18 @@ const ScheduleView = memo(
                     dayEvents.map((event) => (
                       <div
                         key={event.id}
+                        role={onEventClick ? "button" : undefined}
+                        tabIndex={onEventClick ? 0 : undefined}
+                        onClick={() => onEventClick?.(event)}
+                        onKeyDown={(e) => {
+                          if (
+                            onEventClick &&
+                            (e.key === "Enter" || e.key === " ")
+                          ) {
+                            e.preventDefault();
+                            onEventClick(event);
+                          }
+                        }}
                         className={cn(
                           "flex gap-4 p-4 rounded-xl hover:bg-accent/30 cursor-pointer transition-all active:scale-[0.99] mb-2",
                           "bg-(--event-color)/15 font-medium border-l-4 border-(--event-color)",

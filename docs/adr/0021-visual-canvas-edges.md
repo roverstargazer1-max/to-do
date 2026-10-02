@@ -93,24 +93,20 @@ test — which renders a node directly, with no canvas — structurally
 unchanged. It is also the correct behaviour: a node component outside a
 canvas has nothing to connect to.
 
-## The backup boundary — a recorded gap
+## Backup coverage update (2026-10)
 
-A connection is part of the canvas, and the guest backup carries the canvas —
-yet `BackupData` gains **no** `workspace_edges` section. That is a deliberate
-boundary, not an oversight: the WebDAV guest flow's workspace sections
-(`workspaces`, `workspace_nodes`) are pinned by its own contract, and widening
-them changes an export format, which is its own ticket with its own
-migration-of-the-archive thinking. Shipping the section half-wired would be
-precisely the "data model pretends, runtime doesn't" failure ADR 0018 was
-written about.
+`BackupData` now includes optional `workspace_edges` alongside workspaces and
+nodes. Local backup collection, ZIP export/import, GitHub snapshots and
+three-way merge carry the edge rows, and restore inserts them after the
+workspace nodes. The field remains optional so archives created before this
+extension still parse. Restoring an older archive cannot recover connections
+it never stored; replacement restore clears the canvas edges along with the
+other workspace rows.
 
-The consequence is recorded rather than softened: **a guest who restores a
-backup loses their connections.** `restoreBackup` keeps its two-argument
-signature and writes the `edges` section as empty — overwrite-on-backup means
-the canvas becomes what the archive carried, and the archive carried none.
-Row-level safety nets still hold (nothing dangles, nothing renders a line to
-a vanished node); what is lost is authored layout, visibly, the moment the
-canvas returns. Adding the section is a small, self-contained follow-up.
+This change covers the local Backup and GitHub snapshot paths. The separate
+cloud account export (`cloud-data.ts`) still omits canvas layout entirely.
+Edges remain visual-only data with no runtime semantics; this format
+extension does not add triggers, evaluation, or dispatch.
 
 ## Considered options
 
@@ -146,10 +142,10 @@ canvas returns. Adding the section is a small, self-contained follow-up.
   discovered later: the alternative widens the shared cleanup helper whose
   contract the existing suite pins, and the loss is visible at the moment the
   node returns — one drag to redraw, the same drag that made it.
-- **Connections are in no backup today** — see "The backup boundary" above.
-  The cloud account export (`cloud-data.ts`) omits canvas layout entirely and
-  stays as it is; the guest ZIP's workspace sections stay two-wide until their
-  own ticket widens them.
+- **Workspace backups carry connections** — see "Backup coverage update"
+  above. Older archives remain readable, but their missing edge section means
+  those archives cannot restore authored connections. The separate cloud
+  account export (`cloud-data.ts`) continues to omit canvas layout.
 - **Cross-device freshness matches the app baseline**: no realtime on
   `workspace_edges`, so a second device sees new connections on next fetch,
   exactly as it sees new nodes today.

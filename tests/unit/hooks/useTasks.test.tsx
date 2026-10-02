@@ -118,5 +118,8 @@ describe("useTasks hook (Task Continuity Data)", () => {
         { id: "sub-2", is_completed: false },
       ]),
     );
+    expect(result.current.data?.map((task) => task.id)).toEqual([
+      "parent-task",
+    ]);
   });
 });

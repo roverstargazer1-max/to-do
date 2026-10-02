@@ -26,7 +26,10 @@ test("a 404 route does not send the app into a navigation loop", async ({
     const u = new URL(req.url());
     if (u.origin === baseURL && u.pathname === NOT_FOUND_PATH) {
       total++;
-      if (!u.searchParams.has("_rsc")) docLoads++;
+      // RSC fetches need not carry _rsc; count actual document navigation.
+      if (req.isNavigationRequest() && req.resourceType() === "document") {
+        docLoads++;
+      }
     }
   });
 

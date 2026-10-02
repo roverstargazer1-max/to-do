@@ -146,6 +146,7 @@ export default function CalendarPage() {
             events={events}
             startDate={new Date()}
             daysToShow={30}
+            onEventClick={handleEventClick}
           />
         );
 

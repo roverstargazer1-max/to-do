@@ -1,5 +1,9 @@
 import type Database from "better-sqlite3";
 import { getDatabase } from "../index";
+import {
+  CalendarEventTimeRangeError,
+  isValidEventTimeRange,
+} from "@/lib/calendar/event-time-range";
 import type {
   CalendarEvent,
   CreateCalendarEventInput,
@@ -102,6 +106,15 @@ export class CalendarRepository {
   create(
     input: CreateCalendarEventInput & { id?: string; user_id?: string },
   ): CalendarEvent {
+    if (
+      !isValidEventTimeRange(
+        new Date(input.start_time),
+        new Date(input.end_time),
+        input.all_day,
+      )
+    ) {
+      throw new CalendarEventTimeRangeError();
+    }
     const id = input.id || crypto.randomUUID();
     const userId = input.user_id || "local_user";
     const now = new Date().toISOString();
@@ -145,6 +158,19 @@ export class CalendarRepository {
   ): CalendarEvent | null {
     const existing = this.getById(id);
     if (!existing) return null;
+
+    if (
+      (updates.start_time !== undefined ||
+        updates.end_time !== undefined ||
+        updates.all_day !== undefined) &&
+      !isValidEventTimeRange(
+        new Date(updates.start_time ?? existing.start_time),
+        new Date(updates.end_time ?? existing.end_time),
+        updates.all_day ?? existing.all_day,
+      )
+    ) {
+      throw new CalendarEventTimeRangeError();
+    }
 
     const sets: string[] = [];
     const values: unknown[] = [];

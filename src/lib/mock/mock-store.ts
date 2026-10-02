@@ -33,13 +33,18 @@ class MockStore {
   private data: GuestData;
 
   constructor() {
-    const stored = this.loadFromStorage();
-    if (stored) {
-      this.data = stored;
-    } else {
-      this.data = this.getInitialData();
-      this.saveToStorage();
-    }
+    // SQLite startup imports existing legacy data. Merely importing this
+    // module must not manufacture a new legacy dataset for that migration.
+    // Explicit Reset Demo still seeds data through reset().
+    this.data = this.loadFromStorage() ?? {
+      tasks: [],
+      projects: [],
+      habits: [],
+      habit_entries: [],
+      focus_logs: [],
+      events: [],
+      lastUpdated: new Date().toISOString(),
+    };
   }
 
   private getInitialData(): GuestData {

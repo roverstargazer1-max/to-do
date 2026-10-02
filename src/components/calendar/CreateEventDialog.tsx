@@ -61,6 +61,7 @@ import { useDateFormatter } from "@/lib/i18n/useDateFormatter";
 import { IconCell } from "@/components/ui/IconCell";
 import { useMediaQuery } from "@/lib/hooks/useMediaQuery";
 import { useCalendarStore } from "@/lib/calendar/store";
+import { isValidEventTimeRange } from "@/lib/calendar/event-time-range";
 import { useLocationHistoryStore } from "@/lib/store/locationHistoryStore";
 import { useScrollIsolation } from "@/lib/hooks/useScrollIsolation";
 import { useBackNavigation } from "@/lib/hooks/useBackNavigation";
@@ -103,6 +104,13 @@ function coerceValidDate(value: unknown): Date | undefined {
 
 function getDefaultEndDate(start: Date) {
   return new Date(start.getTime() + 3600000);
+}
+
+function normalizeEventDate(date: Date, allDay: boolean): Date {
+  if (!allDay) return date;
+  const day = new Date(date);
+  day.setHours(0, 0, 0, 0);
+  return day;
 }
 
 // Wraps a disabled button with a cursor-not-allowed span and a tooltip explaining
@@ -206,6 +214,14 @@ export function CreateEventDialog({
   // that React Compiler tracks correctly.
   const isFormValid =
     !!title && title.trim().length >= 1 && title.length <= 200;
+  const isTimeRangeValid =
+    !!safeStartDate &&
+    !!safeEndDate &&
+    isValidEventTimeRange(
+      normalizeEventDate(safeStartDate, allDay),
+      normalizeEventDate(safeEndDate, allDay),
+      allDay,
+    );
 
   const isRecurring = !!event?.metadata?.recurring_series_id;
 
@@ -279,6 +295,9 @@ export function CreateEventDialog({
 
   const onFormSubmit = (data: CreateEventFormData) => {
     if (!safeStartDate || !safeEndDate) return;
+    const start = normalizeEventDate(safeStartDate, data.all_day);
+    const end = normalizeEventDate(safeEndDate, data.all_day);
+    if (!isValidEventTimeRange(start, end, data.all_day)) return;
     trigger("thud");
     if (data.location) addLocation(data.location);
     if (event) {
@@ -287,8 +306,8 @@ export function CreateEventDialog({
         title: data.title,
         description: data.description || undefined,
         location: data.location || undefined,
-        start_time: safeStartDate.toISOString(),
-        end_time: safeEndDate.toISOString(),
+        start_time: start.toISOString(),
+        end_time: end.toISOString(),
         all_day: data.all_day,
       });
     } else {
@@ -296,8 +315,8 @@ export function CreateEventDialog({
         title: data.title,
         description: data.description || undefined,
         location: data.location || undefined,
-        start_time: safeStartDate.toISOString(),
-        end_time: safeEndDate.toISOString(),
+        start_time: start.toISOString(),
+        end_time: end.toISOString(),
         all_day: data.all_day,
       });
     }
@@ -481,6 +500,15 @@ export function CreateEventDialog({
                   />
                 </PopoverContent>
               </Popover>
+              {safeStartDate && safeEndDate && !isTimeRangeValid && (
+                <p role="alert" className="px-2 pb-2 text-xs text-destructive">
+                  {t(
+                    allDay
+                      ? "calendar.event.invalidAllDayRange"
+                      : "calendar.event.invalidTimeRange",
+                  )}
+                </p>
+              )}
             </div>
 
             <div className="h-1" />
@@ -684,8 +712,7 @@ export function CreateEventDialog({
                 disabled={
                   isRecurring ||
                   !isFormValid ||
-                  !safeStartDate ||
-                  !safeEndDate ||
+                  !isTimeRangeValid ||
                   createEvent.isPending ||
                   updateEvent.isPending
                 }
