@@ -1,5 +1,15 @@
 [
   {
+    "version": "1.6.1",
+    "date": "2026-10-02",
+    "channel": "stable",
+    "sections": {
+      "Fixed": [
+        "Handle occupied or excluded port fallback and show startup error dialog"
+      ]
+    }
+  },
+  {
     "version": "1.6.0",
     "date": "2026-10-02",
     "channel": "stable",
@@ -1064,19 +1074,6 @@
       "Fixed": [
         "Schedule timer_end notifications off the client's endsAt deadline, not a recomputed duration",
         "Tighten timer_end TTL to 60s and close poll-interval lateness"
-      ]
-    }
-  },
-  {
-    "version": "1.27.1",
-    "date": "2026-08-02",
-    "channel": "stable",
-    "sections": {
-      "Fixed": [
-        "Fixed push notifications sometimes failing to deliver at all",
-        "Fixed duplicate and missing focus-timer notifications",
-        "Fixed notifications on iOS stacking instead of replacing each other",
-        "Fixed a stray notification firing after skipping a session"
       ]
     }
   }
