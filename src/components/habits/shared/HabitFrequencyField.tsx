@@ -6,18 +6,19 @@ import { IconCell } from "@/components/ui/IconCell";
 import { useHaptic } from "@/lib/hooks/useHaptic";
 import { useTranslation } from "@/lib/i18n/useTranslation";
 import type { TranslationKey } from "@/lib/i18n/dictionaries/en";
+import { booleanFrequencyLimit } from "@/lib/habits/validation";
 
 export type FrequencyPeriod = "day" | "week" | "month";
 
 interface HabitFrequencyFieldProps {
   count: number;
+  habitType?: "boolean" | "measurable";
   period: FrequencyPeriod;
   onCountChange: (value: number) => void;
   onPeriodChange: (value: FrequencyPeriod) => void;
 }
 
 const MIN_COUNT = 1;
-const MAX_COUNT = 30;
 
 const PERIOD_LABEL_KEYS: Record<FrequencyPeriod, TranslationKey> = {
   day: "habits.frequency.day",
@@ -33,15 +34,18 @@ const PERIOD_LABEL_KEYS: Record<FrequencyPeriod, TranslationKey> = {
  */
 export function HabitFrequencyField({
   count,
+  habitType = "boolean",
   period,
   onCountChange,
   onPeriodChange,
 }: HabitFrequencyFieldProps) {
   const { trigger } = useHaptic();
   const { t } = useTranslation();
+  const maxCount = habitType === "boolean" ? booleanFrequencyLimit(period) : 30;
+  const unsupported = count > maxCount;
 
   const setCount = (next: number) => {
-    const clamped = Math.max(MIN_COUNT, Math.min(MAX_COUNT, next));
+    const clamped = Math.max(MIN_COUNT, Math.min(maxCount, next));
     if (clamped !== count) {
       trigger("tick");
       onCountChange(clamped);
@@ -66,55 +70,62 @@ export function HabitFrequencyField({
         <Repeat className="h-4 w-4 text-muted-foreground" strokeWidth={2.25} />
       </IconCell>
       {/* Single compact row — sized to fit narrow mobile drawers without wrapping */}
-      <div className="flex-1 min-w-0 flex items-center gap-2">
-        {/* Count stepper */}
-        <div className="inline-flex items-center h-8 rounded-lg border border-border/40 bg-secondary/10 shrink-0">
-          <button
-            type="button"
-            onClick={() => setCount(count - 1)}
-            disabled={count <= MIN_COUNT}
-            aria-label={t("habits.frequency.fewer")}
-            className="h-8 w-8 flex items-center justify-center rounded-l-lg text-muted-foreground transition-seijaku-fast hover:text-foreground hover:bg-secondary/40 disabled:opacity-40 disabled:pointer-events-none"
-          >
-            <Minus className="h-4 w-4" strokeWidth={2.25} />
-          </button>
-          <span className="w-6 text-center text-[13px] font-medium tabular-nums text-foreground">
-            {count}
-          </span>
-          <button
-            type="button"
-            onClick={() => setCount(count + 1)}
-            disabled={count >= MAX_COUNT}
-            aria-label={t("habits.frequency.more")}
-            className="h-8 w-8 flex items-center justify-center rounded-r-lg text-muted-foreground transition-seijaku-fast hover:text-foreground hover:bg-secondary/40 disabled:opacity-40 disabled:pointer-events-none"
-          >
-            <Plus className="h-4 w-4" strokeWidth={2.25} />
-          </button>
-        </div>
-
-        <span className="text-[13px] text-muted-foreground shrink-0">
-          {t("habits.frequency.timePer", { count })}
-        </span>
-
-        {/* Period segmented toggle — matches SheetTabToggle */}
-        <div className="inline-flex h-8 p-0.5 rounded-lg bg-secondary/10 border border-border/40 shrink-0">
-          {periods.map((p) => (
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          {/* Count stepper */}
+          <div className="inline-flex items-center h-8 rounded-lg border border-border/40 bg-secondary/10 shrink-0">
             <button
-              key={p}
               type="button"
-              onClick={() => setPeriod(p)}
-              aria-pressed={period === p}
-              className={cn(
-                "rounded-md px-2.5 h-7 text-[13px] font-medium tracking-tight border border-transparent transition-seijaku-fast",
-                period === p
-                  ? "bg-brand text-brand-foreground border-brand/20"
-                  : "text-muted-foreground hover:text-foreground hover:bg-secondary/40",
-              )}
+              onClick={() => setCount(count - 1)}
+              disabled={count <= MIN_COUNT}
+              aria-label={t("habits.frequency.fewer")}
+              className="h-8 w-8 flex items-center justify-center rounded-l-lg text-muted-foreground transition-seijaku-fast hover:text-foreground hover:bg-secondary/40 disabled:opacity-40 disabled:pointer-events-none"
             >
-              {t(PERIOD_LABEL_KEYS[p])}
+              <Minus className="h-4 w-4" strokeWidth={2.25} />
             </button>
-          ))}
+            <span className="w-6 text-center text-[13px] font-medium tabular-nums text-foreground">
+              {count}
+            </span>
+            <button
+              type="button"
+              onClick={() => setCount(count + 1)}
+              disabled={count >= maxCount}
+              aria-label={t("habits.frequency.more")}
+              className="h-8 w-8 flex items-center justify-center rounded-r-lg text-muted-foreground transition-seijaku-fast hover:text-foreground hover:bg-secondary/40 disabled:opacity-40 disabled:pointer-events-none"
+            >
+              <Plus className="h-4 w-4" strokeWidth={2.25} />
+            </button>
+          </div>
+
+          <span className="text-[13px] text-muted-foreground shrink-0">
+            {t("habits.frequency.timePer", { count })}
+          </span>
+
+          {/* Period segmented toggle — matches SheetTabToggle */}
+          <div className="inline-flex h-8 p-0.5 rounded-lg bg-secondary/10 border border-border/40 shrink-0">
+            {periods.map((p) => (
+              <button
+                key={p}
+                type="button"
+                onClick={() => setPeriod(p)}
+                aria-pressed={period === p}
+                className={cn(
+                  "rounded-md px-2.5 h-7 text-[13px] font-medium tracking-tight border border-transparent transition-seijaku-fast",
+                  period === p
+                    ? "bg-brand text-brand-foreground border-brand/20"
+                    : "text-muted-foreground hover:text-foreground hover:bg-secondary/40",
+                )}
+              >
+                {t(PERIOD_LABEL_KEYS[p])}
+              </button>
+            ))}
+          </div>
         </div>
+        {unsupported && (
+          <p role="alert" className="mt-2 text-xs text-destructive">
+            {t("habits.frequency.unsupported", { limit: maxCount })}
+          </p>
+        )}
       </div>
     </div>
   );

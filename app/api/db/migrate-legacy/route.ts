@@ -71,6 +71,9 @@ export async function POST(request: NextRequest) {
           e,
         );
         Sentry.captureException(e);
+        throw new Error("Recovery snapshot failed; restore canceled.", {
+          cause: e,
+        });
       }
     }
 

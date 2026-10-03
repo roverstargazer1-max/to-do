@@ -36,6 +36,7 @@ interface HabitViewBaseProps {
   startDate: Date | undefined;
   setStartDate: (value: Date | undefined) => void;
   frequencyCount: number;
+  habitType?: "boolean" | "measurable";
   setFrequencyCount: (value: number) => void;
   frequencyPeriod: FrequencyPeriod;
   setFrequencyPeriod: (value: FrequencyPeriod) => void;
@@ -70,6 +71,7 @@ export function HabitView(props: HabitViewProps) {
     startDate,
     setStartDate,
     frequencyCount,
+    habitType,
     setFrequencyCount,
     frequencyPeriod,
     setFrequencyPeriod,
@@ -145,6 +147,7 @@ export function HabitView(props: HabitViewProps) {
         {/* Frequency — "N times per Day/Week" */}
         <HabitFrequencyField
           count={frequencyCount}
+          habitType={habitType}
           period={frequencyPeriod}
           onCountChange={setFrequencyCount}
           onPeriodChange={setFrequencyPeriod}
@@ -187,7 +190,7 @@ export function HabitView(props: HabitViewProps) {
           variant="icon"
           icon={CalendarIcon}
           title={t("habits.form.startDate")}
-          showTime={true}
+          showTime={false}
           allowPastDates={true}
           side="top"
           align="start"

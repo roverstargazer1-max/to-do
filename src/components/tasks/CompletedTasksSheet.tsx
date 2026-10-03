@@ -2,6 +2,8 @@
 
 import React, { useState, useMemo } from "react";
 import { useTasks } from "@/lib/hooks/useTasks";
+import { useLocalDay } from "@/lib/hooks/useLocalDay";
+import { formatLocalDateKey } from "@/lib/utils/local-date";
 import { isToday, isYesterday, parseISO, startOfWeek, isAfter } from "date-fns";
 import { CheckCircle2, Clock, Trash2, Search, X } from "lucide-react";
 import { Virtuoso } from "react-virtuoso";
@@ -132,6 +134,7 @@ export function CompletedTasksSheet({
   onOpenChange,
 }: CompletedTasksSheetProps) {
   const { data: tasks = [], isLoading } = useTasks({ showCompleted: true });
+  const localDay = useLocalDay();
   const isDesktop = useMediaQuery("(min-width: 768px)");
   const clearMutation = useClearCompletedTasks();
   const [showClearDialog, setShowClearDialog] = useState(false);
@@ -147,9 +150,10 @@ export function CompletedTasksSheet({
         (task) =>
           task.is_completed &&
           task.completed_at &&
-          !isToday(parseISO(task.completed_at)),
+          localDay !== null &&
+          formatLocalDateKey(parseISO(task.completed_at)) !== localDay,
       ),
-    [tasks],
+    [tasks, localDay],
   );
 
   const filteredCompletedTasks = useMemo(

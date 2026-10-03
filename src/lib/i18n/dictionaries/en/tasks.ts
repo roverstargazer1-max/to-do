@@ -12,11 +12,12 @@ export const tasks = {
 
   // Logbook (CompletedTasksSheet)
   "tasks.logbook.title": "Logbook",
-  "tasks.logbook.description": "View and manage your completed task history.",
+  "tasks.logbook.description":
+    "View tasks completed before today. Today's completed tasks stay in the task list.",
   "tasks.logbook.markIncomplete": "Mark task incomplete",
-  "tasks.logbook.emptyTitle": "No Completed Tasks",
+  "tasks.logbook.emptyTitle": "No Earlier Completed Tasks",
   "tasks.logbook.emptyDescription":
-    "Tasks you complete will appear here. Start checking off items from your task list!",
+    "Tasks completed today stay in the task list. Tasks completed before today appear here.",
   "tasks.logbook.noResultsTitle": "No tasks found",
   "tasks.logbook.noResultsDescription": "Try searching for something else",
   "tasks.logbook.clearHistory": "Clear History",

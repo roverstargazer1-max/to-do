@@ -11,6 +11,8 @@ import { useTranslation } from "@/lib/i18n/useTranslation";
 import { useDateFormatter } from "@/lib/i18n/useDateFormatter";
 import { getHabitIcon } from "@/components/habits/shared/HabitIconPicker";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { useLocalDay } from "@/lib/hooks/useLocalDay";
+import { parseLocalDateKey } from "@/lib/utils/local-date";
 
 import { useHabitActions } from "@/components/habits/HabitActionsProvider";
 import { HabitsPageHeader } from "@/components/habits/HabitsPageHeader";
@@ -21,6 +23,7 @@ export default function HabitsPage() {
   const { trigger } = useHaptic();
   const { t } = useTranslation();
   const { formatLongWeekdayMonthDay } = useDateFormatter();
+  const localDay = useLocalDay();
   const habitViewMode = useUiStore((s) => s.habitViewMode);
   const setHabitViewMode = useUiStore((s) => s.setHabitViewMode);
 
@@ -83,7 +86,7 @@ export default function HabitsPage() {
     );
   }
 
-  const today = new Date();
+  const today = localDay ? parseLocalDateKey(localDay) : null;
   const hasHabits = !!habits && habits.length > 0;
 
   return (
@@ -91,7 +94,7 @@ export default function HabitsPage() {
       <div className="px-4 md:px-6 pt-4 pb-4 flex flex-col gap-3 md:flex-row md:items-start md:justify-between md:gap-4">
         <div>
           <p className="text-sm text-muted-foreground flex items-center gap-2">
-            {formatLongWeekdayMonthDay(today)}
+            {today ? formatLongWeekdayMonthDay(today) : "\u00a0"}
           </p>
           <h1 className="type-h1 mt-1 text-primary">
             {t("habits.page.title")}

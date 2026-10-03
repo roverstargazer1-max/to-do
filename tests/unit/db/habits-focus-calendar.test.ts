@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as os from "node:os";
@@ -17,10 +17,28 @@ describe("02: Habits, Focus Logs & Calendar Events Vertical Slice", () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     closeDatabase();
     try {
       fs.rmSync(tempDir, { recursive: true, force: true });
     } catch {}
+  });
+
+  it.each([
+    [0, 30],
+    [7, 59],
+    [8, 1],
+  ])("uses local today for start date and streak at %i:%i", (hour, minute) => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 9, 3, hour, minute));
+    const repo = new HabitRepository(getDatabase(testDbPath));
+    const habit = repo.create({ name: "Midnight habit" });
+    expect(habit.start_date).toBe("2026-10-03");
+    repo.recordEntry(habit.id, "2026-10-03", 1);
+    expect(repo.calculateStreak(habit.id)).toEqual({
+      currentStreak: 1,
+      longestStreak: 1,
+    });
   });
 
   it("handles habit check-ins with strict idempotency", () => {

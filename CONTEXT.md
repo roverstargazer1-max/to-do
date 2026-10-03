@@ -7,11 +7,28 @@ must be resolved before proceeding.
 
 ---
 
+## Local user and historical vocabulary
+
+**Local user**: The person using standalone Kagelin, with a local dataset and
+no remote Account or Tier. An optional backup destination does not create an Account.
+
+**Historical cloud vocabulary**: Accounts, Tiers, Guest showcase content,
+Founding cohort and Calendar connection below name concepts from the former
+hosted edition. Their capability descriptions are historical, not promises of
+the current standalone product. Historical calendar sync, content mirroring and
+Timer handoff are likewise distinct from current local storage and repository sync.
+
 ## Sync (disambiguated)
 
 "Sync" is overloaded and must always be qualified with one of the following.
-Three are distinct sync features with very different server-compute costs; the
-fourth entry is here because it is routinely mistaken for one.
+The WebDAV entry is here because it is routinely mistaken for sync. The hosted
+calendar, mirroring and handoff entries retain the historical vocabulary.
+
+### GitHub repository sync
+
+An opt-in exchange of the Local user's dataset with a repository they control,
+including reconciliation of divergent edits. Distinct from a manual Backup:
+sync compares versions and resolves conflicts; a Backup restores one saved dataset.
 
 ### On-demand calendar sync
 
@@ -62,9 +79,8 @@ with users. A **paid / premium** capability, deferred.
 ### WebDAV backup (deliberately _not_ "WebDAV sync")
 
 Manual **Back Up** / **Restore** of the user's whole dataset as a **Backup** on
-a WebDAV server they own (Nextcloud, Synology, …). Available at **every tier**:
-a Guest's Backup is built from their local data, a Registered user's from their
-cloud tables, and the resulting file is the same artifact either way.
+a WebDAV server they own (Nextcloud, Synology, …). In standalone Kagelin this
+is a Backup of the Local user's dataset, with no Account or Tier requirement.
 
 **Not** sync, and the UI must never call it sync. It has no conflict model at
 all: the file lives at one fixed path, every Back Up overwrites it wholesale,
@@ -333,6 +349,11 @@ A Habit also carries a **frequency** — how often it is meant to be done
 (e.g. daily, or three times a week). "Three times a week" _is_ expressible.
 _Avoid_: Goal, routine, task.
 
+### Habit start date
+
+The Local user's calendar day when tracking begins. It is a date without a time
+of day; a UTC offset does not move it to another calendar day.
+
 ### Entry
 
 The record of a Habit on a specific date. What counts as **done** depends on the
@@ -414,14 +435,19 @@ A Habit's `Frequency` rendered as week-to-date completion — "2 / 3 this week,"
 shown as a ring. It is **not a Goal**: a Habit has no Goal, only a Frequency, and
 this is just that Frequency drawn against the current period. _Avoid_: Goal.
 
-Every Habit is implicitly **daily** (`1 / day`) — there is no "unset" state. The
-progress ring is shown only when the target is **non-trivial** (more than once a
-day, or a week/month period); a plain daily habit's "1 / 1" ring is redundant
+Every Habit is implicitly **daily** (`1 / day`) — there is no "unset" state. A
+Boolean Habit's Frequency counts **completed days**, at most one per calendar
+date: `1 / day`, or `N completed days / week` with N at most seven. It does not
+count repetitions within one day; that would be a separate counting concept.
+Historical or imported frequencies keep their original meaning until explicitly adjusted.
+
+The progress ring is shown only when the target is **non-trivial** (a week/month
+period, or an unsupported historical daily value); a plain daily habit's "1 / 1" ring is redundant
 next to the done/not-done toggle and is suppressed. The Frequency ring is shown
 for **Boolean Habits only** (a Measurable `at_most` habit would read misleadingly
 against a raw count), matching the day-counting-metric gate.
 
-Frequency is authored as **times per day or week**; `month` is accepted in the
+Frequency is authored as **completed days per day or week**; `month` is accepted in the
 model for import fidelity but is not offered in the create/edit control (it stays
 editable only on a Habit that already carries it). Frequency is **not
 effective-dated**: it is a single current value, so editing it recomputes the

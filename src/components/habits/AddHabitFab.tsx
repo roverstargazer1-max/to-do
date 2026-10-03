@@ -5,6 +5,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { motion } from "framer-motion";
 import { useHaptic } from "@/lib/hooks/useHaptic";
 import { cn } from "@/lib/utils";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 
 interface AddHabitFabProps {
   onClick: () => void;
@@ -12,9 +13,11 @@ interface AddHabitFabProps {
 
 export default function AddHabitFab({ onClick }: AddHabitFabProps) {
   const { trigger, isPhone } = useHaptic();
+  const { t } = useTranslation();
 
   return (
     <motion.button
+      aria-label={t("habits.header.newHabit")}
       onTapStart={() => trigger("thud")}
       whileTap={isPhone ? { scale: 0.95 } : {}}
       onClick={onClick}

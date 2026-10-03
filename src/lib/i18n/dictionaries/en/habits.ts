@@ -55,10 +55,12 @@ export const habits = {
     `Are you sure you want to delete "${params.name}"? This will also delete all completion history.`,
 
   // Frequency field ("N times per Day/Week")
-  "habits.frequency.fewer": "Fewer times",
-  "habits.frequency.more": "More times",
+  "habits.frequency.fewer": "Fewer days",
+  "habits.frequency.more": "More days",
+  "habits.frequency.unsupported": (params: TranslationParams): string =>
+    `This habit records one completion per day. The frequency exceeds ${params.limit} available days in this period. Your saved value is unchanged; choose a supported frequency to save.`,
   "habits.frequency.timePer": (params: TranslationParams): string =>
-    params.count === 1 ? "time per" : "times per",
+    params.count === 1 ? "day per" : "days per",
   "habits.frequency.day": "Day",
   "habits.frequency.week": "Week",
   "habits.frequency.month": "Month",

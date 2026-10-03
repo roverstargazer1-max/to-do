@@ -24,28 +24,26 @@ npm run unused-deps          # depcheck
 
 Playwright automatically manages the dev server via the `webServer` block in `playwright.config.ts`.
 
-The service worker (Serwist) is **disabled** under `npm run dev` (Turbopack skips the Serwist wrapper entirely). To reproduce SW/offline/PWA behavior you must `npm run build && npm start`. See [`.claude/skills/verify/SKILL.md`](.claude/skills/verify/SKILL.md) for driving the app end-to-end, including how to seed guest mode for Playwright without racing the auth guard.
+The service worker (Serwist) is **disabled** under `npm run dev` (Turbopack skips the Serwist wrapper entirely). To reproduce SW/offline/PWA behavior you must `npm run build && npm start`. For browser checks, use [`tests/e2e/support/guest-mode.ts`](tests/e2e/support/guest-mode.ts): its navigation helpers wait for the back anchor to settle. The helper's legacy name does not imply a separate runtime tier.
+
+For destructive browser tests, start the app with independent `KAGELIN_DB_PATH` and `KAGELIN_ASSETS_PATH` directories. SQLite is shared by all browser contexts; clearing cookies or opening an isolated tab does not isolate stored data. Run replacement-restore tests separately from other writers.
 
 `npm run prepare` (runs on `npm install` via husky) also copies `sql-wasm.wasm` into `public/` — required for the uhabits `.db` import feature (parsed client-side via `sql.js`).
 
 ## Architecture
 
-Kagelin (codename Kanso) is a Next.js 16 App Router monolith backed by Supabase (Postgres + Auth + Realtime), designed local-first with cloud sync layered on top.
+Kagelin (codename Kanso) is a Next.js 16 App Router application with local SQLite storage, also packaged in Electron. ADR 0023 supersedes the former Supabase guest/cloud architecture; ADR 0024 describes the desktop MCP endpoint.
 
 **Two directories split routing from logic:**
 
 - `app/` — routes, layouts, API routes only. Should stay thin: compose components from `src/components/`, don't embed business logic.
 - `src/components/` — presentation, grouped by product domain (`habits/`, `tasks/`, `calendar/`, `stats/`, …), plus `ui/` (Shadcn/Radix primitives, kebab-case files) and `providers/` (app-wide context).
-- `src/lib/` — everything else: `hooks/` (React Query data-access hooks — components should not call `supabase.from(...)` directly), `mutations/` (optimistic-update mutation hooks), `store/` (Zustand — `timerStore.ts`, `uiStore.ts`), `sync/`, `caldav/`, `calendar-oauth/`, `webdav/`, `import/` (uhabits), `schemas/` (Zod), `types/`.
-- `supabase/schema.sql` is the source of truth for the DB. Every table enforces `user_id = auth.uid()` via RLS — access control is a Postgres concern, not a middleware one.
+- `src/lib/` — data-access hooks, Domain Commands and mutation services, local API clients, `db/` repositories and migrations, Zustand stores, backup/sync, import, schemas and types. Components read through hooks and write through the command/mutation layer.
+- `src/lib/db/migrations/` defines the current database schema. `supabase/` and cloud-auth modules are historical code, not the current storage or authorization model.
 
-**State is split by nature, not by feature**: server-owned data (tasks, habits, events) lives in TanStack Query with IndexedDB persistence; ephemeral/local UI and the focus timer live in Zustand. The timer specifically reconciles against server time (`serverClock.ts`) rather than trusting device clocks, so it survives tab suspension and cross-device handoff.
+**State is split by nature, not by feature**: durable content lives in SQLite and is read through local `/api/db/*` endpoints into TanStack Query. UI state and the focus timer live in Zustand. `useTimerSync` is a local-mode stub; older timer-handoff and entitlement descriptions do not describe a currently active cloud service.
 
-**Three user tiers gate what "sync" means** — this vocabulary is load-bearing, see [`CONTEXT.md`](CONTEXT.md) before touching anything sync-related:
-
-- **Guest**: local-only (`localStorage`/IndexedDB), no `auth.uid()`. CalDAV only (client-held credentials); no Google/Outlook OAuth (requires server-anchored identity).
-- **Registered (free)**: cloud-persisted, on-demand calendar sync (browser talks directly to Google/MS APIs using the user's own OAuth quota — keeps this tier free to run).
-- **Premium (paid)**: adds realtime cross-device mirroring over Supabase Realtime and background/scheduled server-side sync.
+`AuthProvider` currently supplies a local identity. Optional GitHub repository sync and manual WebDAV backup are separate from the withdrawn hosted account/tier model. Read [`CONTEXT.md`](CONTEXT.md) before changing sync or backup semantics; preserve legacy data during browser migration and backup restore.
 
 ## Where to look for more
 

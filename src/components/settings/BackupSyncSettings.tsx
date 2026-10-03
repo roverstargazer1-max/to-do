@@ -315,7 +315,7 @@ function BackupRemindersCard() {
 
 export function BackupSyncSettings() {
   const { trigger } = useHaptic();
-  const { exportData, importData } = useAccountData();
+  const { exportData, previewImport, importData } = useAccountData();
   const { formatMonthDayYear, formatClock } = useDateFormatter();
   const { t } = useTranslation();
   const queryClient = useQueryClient();
@@ -345,6 +345,7 @@ export function BackupSyncSettings() {
   >("idle");
   const [isSyncing, setIsSyncing] = useState(false);
   const [pendingRestore, setPendingRestore] = useState<BackupData | null>(null);
+  const [pendingImport, setPendingImport] = useState<BackupData | null>(null);
   const sqliteFileInputRef = useRef<HTMLInputElement>(null);
   const [isCreatingSnapshot, setIsCreatingSnapshot] = useState(false);
   const [isRestoringSqlite, setIsRestoringSqlite] = useState(false);
@@ -398,9 +399,7 @@ export function BackupSyncSettings() {
     setIsImporting(true);
     trigger("toggle");
     try {
-      await importData(file);
-      await invalidateDataQueries();
-      trigger("success");
+      setPendingImport(await previewImport(file));
     } catch (err) {
       console.error("Import failed:", err);
       trigger("thud");
@@ -409,6 +408,23 @@ export function BackupSyncSettings() {
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
       }
+    }
+  };
+
+  const runZipImport = async () => {
+    const data = pendingImport;
+    if (!data) return;
+    setPendingImport(null);
+    setIsImporting(true);
+    try {
+      await importData(data);
+      await invalidateDataQueries();
+      trigger("success");
+    } catch (error) {
+      console.error("Import failed:", error);
+      trigger("thud");
+    } finally {
+      setIsImporting(false);
     }
   };
 
@@ -813,6 +829,30 @@ export function BackupSyncSettings() {
       <ImportDialog
         open={showExternalImport}
         onOpenChange={setShowExternalImport}
+      />
+
+      <DeleteConfirmationDialog
+        isOpen={pendingImport !== null}
+        onClose={() => setPendingImport(null)}
+        onConfirm={runZipImport}
+        title={t("settings.backup.replace.title")}
+        description={
+          pendingImport
+            ? `${t("settings.backup.replace.descriptionWithDate", {
+                date: formatBackupDate(pendingImport.metadata.exportedAt),
+              })} ${t("settings.backup.replace.summary", {
+                tasks: pendingImport.tasks.filter((task) => !task.parent_id)
+                  .length,
+                steps: pendingImport.tasks.filter((task) => task.parent_id)
+                  .length,
+                projects: pendingImport.projects?.length ?? 0,
+                habits: pendingImport.habits?.length ?? 0,
+                events: pendingImport.events?.length ?? 0,
+                workspaces: pendingImport.workspaces?.length ?? 0,
+              })}`
+            : undefined
+        }
+        confirmLabel={t("settings.backup.replace.confirm")}
       />
 
       <DeleteConfirmationDialog

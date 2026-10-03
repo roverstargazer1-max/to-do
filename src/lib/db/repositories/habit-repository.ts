@@ -1,6 +1,11 @@
 import type Database from "better-sqlite3";
 import { getDatabase } from "../index";
 import type { Habit, HabitEntry, HabitWithEntries } from "@/lib/types/habit";
+import { formatLocalDateKey, parseLocalDateKey } from "@/lib/utils/local-date";
+import {
+  HabitValidationError,
+  validateHabitFrequency,
+} from "@/lib/habits/validation";
 
 interface DbHabitRow {
   id: string;
@@ -147,6 +152,15 @@ export class HabitRepository {
     source_uuid?: string | null;
     sort_order?: number;
   }): Habit {
+    validateHabitFrequency(
+      input.frequencyCount,
+      input.frequencyPeriod,
+      input.habitType ?? "boolean",
+      Boolean(input.source_uuid),
+    );
+    if (input.start_date != null && !parseLocalDateKey(input.start_date)) {
+      throw new HabitValidationError("Invalid habit start date");
+    }
     const id = input.id || crypto.randomUUID();
     const userId = input.user_id || "local_user";
     const now = new Date().toISOString();
@@ -185,7 +199,7 @@ export class HabitRepository {
         now,
         now,
         null,
-        input.start_date || now.split("T")[0],
+        input.start_date ?? formatLocalDateKey(new Date()),
         sortOrder,
         input.habitType || "boolean",
         input.frequencyCount ?? null,
@@ -202,6 +216,26 @@ export class HabitRepository {
   update(id: string, updates: Partial<Habit>): Habit | null {
     const existing = this.getById(id);
     if (!existing) return null;
+
+    if (updates.start_date != null && !parseLocalDateKey(updates.start_date)) {
+      throw new HabitValidationError("Invalid habit start date");
+    }
+    const count =
+      updates.frequency_count !== undefined
+        ? updates.frequency_count
+        : existing.frequency_count;
+    const period =
+      updates.frequency_period !== undefined
+        ? updates.frequency_period
+        : existing.frequency_period;
+    const kind = updates.habit_type ?? existing.habit_type;
+    if (
+      count !== existing.frequency_count ||
+      period !== existing.frequency_period ||
+      kind !== existing.habit_type
+    ) {
+      validateHabitFrequency(count, period, kind);
+    }
 
     const sets: string[] = [];
     const values: unknown[] = [];
@@ -320,9 +354,10 @@ export class HabitRepository {
 
     // Determine current active streak ending today or yesterday
     const today = new Date();
-    const todayStr = today.toISOString().split("T")[0];
-    const yesterday = new Date(today.getTime() - 86400000);
-    const yesterdayStr = yesterday.toISOString().split("T")[0];
+    const todayStr = formatLocalDateKey(today);
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayStr = formatLocalDateKey(yesterday);
 
     let currentStreak = 0;
     const checkDate = dateSet.has(todayStr)
@@ -332,12 +367,12 @@ export class HabitRepository {
         : null;
 
     if (checkDate) {
-      let d = new Date(checkDate);
+      const d = new Date(checkDate);
       while (true) {
-        const dStr = d.toISOString().split("T")[0];
+        const dStr = formatLocalDateKey(d);
         if (dateSet.has(dStr)) {
           currentStreak++;
-          d = new Date(d.getTime() - 86400000);
+          d.setDate(d.getDate() - 1);
         } else {
           break;
         }

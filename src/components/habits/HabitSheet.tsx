@@ -25,6 +25,7 @@ import { HabitInsightsPanel } from "./HabitInsightsPanel";
 import { SheetTabToggle, type SheetTab } from "@/components/ui/SheetTabToggle";
 import { cn } from "@/lib/utils";
 import { useTranslation } from "@/lib/i18n/useTranslation";
+import { formatLocalDateKey, parseLocalDateKey } from "@/lib/utils/local-date";
 
 interface HabitSheetProps {
   open: boolean;
@@ -81,6 +82,8 @@ export function HabitSheet({
       icon: "Flame",
       frequency_count: 1,
       frequency_period: "day",
+      habit_type: "boolean",
+      start_date: formatLocalDateKey(new Date()),
     },
   });
 
@@ -96,6 +99,7 @@ export function HabitSheet({
   const frequencyCount = useWatch({ control, name: "frequency_count" }) ?? 1;
   const frequencyPeriod =
     useWatch({ control, name: "frequency_period" }) ?? "day";
+  const habitType = useWatch({ control, name: "habit_type" }) ?? "boolean";
 
   const createMutation = useCreateHabit();
   const updateMutation = useUpdateHabit();
@@ -121,6 +125,7 @@ export function HabitSheet({
           start_date: initialHabit.start_date ?? undefined,
           frequency_count: initialHabit.frequency_count ?? 1,
           frequency_period: initialHabit.frequency_period ?? "day",
+          habit_type: initialHabit.habit_type ?? "boolean",
         });
         void triggerValidation();
       } else {
@@ -129,9 +134,10 @@ export function HabitSheet({
           description: "",
           color: "#4B6CB7",
           icon: "Flame",
-          start_date: undefined,
+          start_date: formatLocalDateKey(new Date()),
           frequency_count: 1,
           frequency_period: "day",
+          habit_type: "boolean",
         });
       }
     }
@@ -148,8 +154,9 @@ export function HabitSheet({
         icon: data.icon,
         start_date:
           data.start_date instanceof Date
-            ? data.start_date.toISOString().split("T")[0]
-            : data.start_date,
+            ? formatLocalDateKey(data.start_date)
+            : (data.start_date ??
+              (initialHabit ? null : formatLocalDateKey(new Date()))),
         // The mutation layer keys these camelCase; the form/schema is snake_case.
         frequencyCount: data.frequency_count,
         frequencyPeriod: data.frequency_period,
@@ -161,7 +168,11 @@ export function HabitSheet({
           id: initialHabit.id,
         });
       } else {
-        createMutation.mutate(formattedData);
+        createMutation.mutate({
+          ...formattedData,
+          start_date:
+            formattedData.start_date ?? formatLocalDateKey(new Date()),
+        });
       }
 
       onClose();
@@ -246,14 +257,23 @@ export function HabitSheet({
                 icon={icon}
                 setIcon={(v) => setValue("icon", v, { shouldValidate: true })}
                 startDate={
-                  startDate ? new Date(startDate as string) : undefined
+                  startDate instanceof Date
+                    ? startDate
+                    : startDate
+                      ? parseLocalDateKey(startDate)
+                      : undefined
                 }
                 setStartDate={(v) =>
-                  setValue("start_date", v?.toISOString().split("T")[0], {
-                    shouldValidate: true,
-                  })
+                  setValue(
+                    "start_date",
+                    v ? formatLocalDateKey(v) : undefined,
+                    {
+                      shouldValidate: true,
+                    },
+                  )
                 }
                 frequencyCount={frequencyCount}
+                habitType={habitType}
                 setFrequencyCount={(v) =>
                   setValue("frequency_count", v, { shouldValidate: true })
                 }
@@ -285,14 +305,23 @@ export function HabitSheet({
                 icon={icon}
                 setIcon={(v) => setValue("icon", v, { shouldValidate: true })}
                 startDate={
-                  startDate ? new Date(startDate as string) : undefined
+                  startDate instanceof Date
+                    ? startDate
+                    : startDate
+                      ? parseLocalDateKey(startDate)
+                      : undefined
                 }
                 setStartDate={(v) =>
-                  setValue("start_date", v?.toISOString().split("T")[0], {
-                    shouldValidate: true,
-                  })
+                  setValue(
+                    "start_date",
+                    v ? formatLocalDateKey(v) : undefined,
+                    {
+                      shouldValidate: true,
+                    },
+                  )
                 }
                 frequencyCount={frequencyCount}
+                habitType={habitType}
                 setFrequencyCount={(v) =>
                   setValue("frequency_count", v, { shouldValidate: true })
                 }

@@ -13,11 +13,12 @@ export const tasks = {
 
   // Logbook (CompletedTasksSheet)
   "tasks.logbook.title": "日志",
-  "tasks.logbook.description": "查看并管理你已完成的任务历史。",
+  "tasks.logbook.description":
+    "查看今天以前完成的任务。今日完成项仍保留在任务列表。",
   "tasks.logbook.markIncomplete": "将任务标记为未完成",
-  "tasks.logbook.emptyTitle": "暂无已完成任务",
+  "tasks.logbook.emptyTitle": "暂无今天以前的完成任务",
   "tasks.logbook.emptyDescription":
-    "完成的任务会显示在这里。去任务列表勾选条目吧！",
+    "今日完成的任务仍保留在任务列表，今天以前的完成任务会显示在这里。",
   "tasks.logbook.noResultsTitle": "未找到任务",
   "tasks.logbook.noResultsDescription": "换个关键词试试",
   "tasks.logbook.clearHistory": "清除历史",

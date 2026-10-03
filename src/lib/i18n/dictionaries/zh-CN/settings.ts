@@ -8,6 +8,13 @@ import type { DictionaryValue, TranslationParams } from "../../types";
  * Habit → 习惯, Focus → 专注, Stats → 统计, Calendar → 日历.
  */
 export const settings = {
+  "settings.account.local.title": "本地独立模式",
+  "settings.account.local.description":
+    "数据保存在本地 SQLite 数据库中，无需账号或登录。",
+  "settings.account.local.database": "本地 SQLite 数据库",
+  "settings.account.local.backupHint":
+    "导出备份，即可保留一份可携带的数据副本。",
+  "settings.account.local.status": "保存在此设备",
   // --- Page chrome ---
   "settings.title": "设置",
   "settings.subtitle": "管理你的账户和偏好设置",
@@ -252,7 +259,9 @@ export const settings = {
   "settings.backup.reminders.monthly": "每月",
   "settings.backup.replace.title": "要替换你的数据吗？",
   "settings.backup.replace.descriptionWithDate": (params: TranslationParams) =>
-    `此备份创建于 ${params.date}。恢复将用其覆盖账户中的所有内容——不在该备份中的数据都会丢失。此操作无法撤销。`,
+    `此备份创建于 ${params.date}。恢复将替换当前本地数据，不在备份中的内容会被移除。替换前会自动保存数据库快照。`,
+  "settings.backup.replace.summary": (params: TranslationParams) =>
+    `任务：${params.tasks}；步骤：${params.steps}；项目：${params.projects}；习惯：${params.habits}；事件：${params.events}；工作区：${params.workspaces}。`,
   "settings.backup.replace.description":
     "恢复将用服务器上的备份覆盖账户中的所有内容。不在该备份中的数据都会丢失。此操作无法撤销。",
   "settings.backup.sqlite.title": "SQLite 数据库 (.db)",

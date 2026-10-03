@@ -8,6 +8,13 @@ import type { DictionaryValue, TranslationParams } from "../../types";
  * import, delete, privacy and PWA.
  */
 export const settings = {
+  "settings.account.local.title": "Local standalone mode",
+  "settings.account.local.description":
+    "Your data is stored in a local SQLite database. No account or sign-in is needed.",
+  "settings.account.local.database": "Local SQLite database",
+  "settings.account.local.backupHint":
+    "Export a backup to keep a portable copy.",
+  "settings.account.local.status": "On this device",
   // --- Page chrome (SettingsClient.tsx) ---
   "settings.title": "Settings",
   "settings.subtitle": "Manage your account and preferences",
@@ -276,7 +283,9 @@ export const settings = {
   "settings.backup.reminders.monthly": "Monthly",
   "settings.backup.replace.title": "Replace your data?",
   "settings.backup.replace.descriptionWithDate": (params: TranslationParams) =>
-    `This backup was taken ${params.date}. Restoring overwrites everything in your account with it — anything not in that backup is lost. This cannot be undone.`,
+    `This backup was taken ${params.date}. Restoring replaces your current local data. Anything not in this backup will be removed. An automatic database snapshot is saved before replacement.`,
+  "settings.backup.replace.summary": (params: TranslationParams) =>
+    `Tasks: ${params.tasks}; Steps: ${params.steps}; Projects: ${params.projects}; Habits: ${params.habits}; Events: ${params.events}; Workspaces: ${params.workspaces}.`,
   "settings.backup.replace.description":
     "Restoring overwrites everything in your account with the backup on the server. Anything not in that backup is lost. This cannot be undone.",
   "settings.backup.sqlite.title": "SQLite Database (.db)",

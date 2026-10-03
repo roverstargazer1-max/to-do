@@ -53,9 +53,11 @@ export const habits = {
     `确定要删除「${params.name}」吗？这也会删除所有完成记录。`,
 
   // Frequency field ("N times per Day/Week")
-  "habits.frequency.fewer": "减少次数",
-  "habits.frequency.more": "增加次数",
-  "habits.frequency.timePer": (_params: TranslationParams): string => "次 /",
+  "habits.frequency.fewer": "减少天数",
+  "habits.frequency.more": "增加天数",
+  "habits.frequency.unsupported": (params: TranslationParams): string =>
+    `这个习惯每天记录一次完成。当前频率超过本周期可记录的 ${params.limit} 天。原值仍被保留，请明确调整为可达成的频率后保存。`,
+  "habits.frequency.timePer": (_params: TranslationParams): string => "天 /",
   "habits.frequency.day": "天",
   "habits.frequency.week": "周",
   "habits.frequency.month": "月",

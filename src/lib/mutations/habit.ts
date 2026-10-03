@@ -23,6 +23,7 @@ interface UpdateHabitInput {
   description?: string;
   color?: string;
   icon?: string;
+  start_date?: string | null;
   habitType?: "boolean" | "measurable";
   frequencyCount?: number;
   frequencyPeriod?: "day" | "week" | "month";
@@ -50,6 +51,8 @@ export const habitMutations = {
       mappedUpdates.description = updates.description;
     if (updates.color !== undefined) mappedUpdates.color = updates.color;
     if (updates.icon !== undefined) mappedUpdates.icon = updates.icon;
+    if (updates.start_date !== undefined)
+      mappedUpdates.start_date = updates.start_date;
     if (updates.habitType !== undefined)
       mappedUpdates.habit_type = updates.habitType;
     if (updates.frequencyCount !== undefined)

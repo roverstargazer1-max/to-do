@@ -7,6 +7,7 @@ import { closeDatabase } from "@/lib/db/index";
 import {
   GET as getHabits,
   POST as postHabits,
+  PATCH as patchHabits,
 } from "@/../app/api/db/habits/route";
 import { POST as postHabitEntries } from "@/../app/api/db/habit-entries/route";
 import {
@@ -69,6 +70,98 @@ describe("API Routes: habits, habit-entries, focus, calendar", () => {
     expect(list.length).toBe(1);
     expect(list[0].entries.length).toBe(1);
   });
+
+  it("rejects an unreachable daily frequency without creating a habit", async () => {
+    const response = await postHabits(
+      new NextRequest("http://localhost:3000/api/db/habits", {
+        method: "POST",
+        body: JSON.stringify({
+          name: "Twice daily",
+          frequencyCount: 2,
+          frequencyPeriod: "day",
+        }),
+      }),
+    );
+    expect(response.status).toBe(400);
+    const list = await getHabits(
+      new NextRequest("http://localhost:3000/api/db/habits"),
+    );
+    expect(await list.json()).toEqual([]);
+  });
+
+  it("rejects an unreachable weekly edit while preserving the saved frequency", async () => {
+    const created = await postHabits(
+      new NextRequest("http://localhost:3000/api/db/habits", {
+        method: "POST",
+        body: JSON.stringify({
+          name: "Weekly",
+          frequencyCount: 3,
+          frequencyPeriod: "week",
+        }),
+      }),
+    );
+    const habit = await created.json();
+    const response = await patchHabits(
+      new NextRequest("http://localhost:3000/api/db/habits", {
+        method: "PATCH",
+        body: JSON.stringify({ id: habit.id, frequency_count: 8 }),
+      }),
+    );
+    expect(response.status).toBe(400);
+    const list = await getHabits(
+      new NextRequest("http://localhost:3000/api/db/habits"),
+    );
+    expect(await list.json()).toMatchObject([
+      { frequency_count: 3, frequency_period: "week" },
+    ]);
+  });
+
+  it("preserves imported frequency and allows metadata edits without rewriting it", async () => {
+    const created = await postHabits(
+      new NextRequest("http://localhost:3000/api/db/habits", {
+        method: "POST",
+        body: JSON.stringify({
+          name: "Imported",
+          source_uuid: "legacy-source",
+          frequencyCount: 2,
+          frequencyPeriod: "day",
+        }),
+      }),
+    );
+    expect(created.status).toBe(201);
+    const habit = await created.json();
+    const response = await patchHabits(
+      new NextRequest("http://localhost:3000/api/db/habits", {
+        method: "PATCH",
+        body: JSON.stringify({ id: habit.id, name: "Renamed" }),
+      }),
+    );
+    expect(await response.json()).toMatchObject({
+      name: "Renamed",
+      frequency_count: 2,
+      frequency_period: "day",
+    });
+  });
+
+  it.each(["2026-02-30", "2026-13-01", "2026-2-3"])(
+    "rejects the invalid calendar date %s without creating a habit",
+    async (start_date) => {
+      const response = await postHabits(
+        new NextRequest("http://localhost:3000/api/db/habits", {
+          method: "POST",
+          body: JSON.stringify({ name: "Invalid date", start_date }),
+        }),
+      );
+      expect(response.status).toBe(400);
+      expect(
+        await (
+          await getHabits(
+            new NextRequest("http://localhost:3000/api/db/habits"),
+          )
+        ).json(),
+      ).toEqual([]);
+    },
+  );
 
   it("handles focus logs and calendar events via API routes", async () => {
     // Focus

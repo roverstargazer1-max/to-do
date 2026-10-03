@@ -12,6 +12,7 @@ import {
 } from "@/lib/backup/local-backup";
 import { notify } from "@/lib/notify";
 import { tr } from "@/lib/i18n/tr";
+import type { BackupData } from "@/lib/backup/types";
 
 export function useAccountData() {
   useAuth();
@@ -32,19 +33,25 @@ export function useAccountData() {
     });
   };
 
-  const importData = async (file: File) => {
-    const promise = async () => {
+  const previewImport = async (file: File): Promise<BackupData> => {
+    try {
       const data = await parseBackupZip(file);
-
-      if (!data.metadata || !data.tasks) {
+      if (
+        !Array.isArray(data.tasks) ||
+        data.tasks.some((task) => !task || typeof task !== "object") ||
+        !Number.isFinite(Date.parse(data.metadata?.exportedAt))
+      ) {
         throw new Error(tr("common.account.invalidBackup"));
       }
-
-      await restoreLocalBackupData(data);
       return data;
-    };
+    } catch (error) {
+      notify.error(tr("settings.backup.toast.importFailed"));
+      throw error;
+    }
+  };
 
-    return notify.promise(promise(), {
+  const importData = async (data: BackupData) => {
+    return notify.promise(restoreLocalBackupData(data), {
       loading: tr("common.account.importing"),
       success: tr("common.account.importSuccess"),
       error: (err) =>
@@ -59,6 +66,7 @@ export function useAccountData() {
 
   return {
     exportData,
+    previewImport,
     importData,
     clearCloudData,
   };
