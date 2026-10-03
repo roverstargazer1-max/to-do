@@ -62,4 +62,43 @@ describe("Electron server port persistence", () => {
     expect(port).toBe(42_222);
     expect(allocated).toBe(false);
   });
+
+  it("allocates a new port when the persisted port is blocked or in use", async () => {
+    const userDataPath = makeTempUserDataPath();
+    persistServerPort(userDataPath, 45_678);
+
+    let allocated = false;
+    const port = await resolveStableServerPort(
+      userDataPath,
+      async () => {
+        allocated = true;
+        return 45_679;
+      },
+      async (p) => p !== 45_678,
+    );
+
+    expect(port).toBe(45_679);
+    expect(allocated).toBe(true);
+  });
+
+  it("allocates a new port when the legacy port is blocked or in use", async () => {
+    const userDataPath = makeTempUserDataPath();
+    fs.writeFileSync(
+      path.join(userDataPath, "app.log"),
+      "[Electron] Starting Next.js standalone server on port 42222\n",
+    );
+
+    let allocated = false;
+    const port = await resolveStableServerPort(
+      userDataPath,
+      async () => {
+        allocated = true;
+        return 45_680;
+      },
+      async (p) => p !== 42_222,
+    );
+
+    expect(port).toBe(45_680);
+    expect(allocated).toBe(true);
+  });
 });

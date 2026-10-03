@@ -371,6 +371,12 @@ if (!gotTheLock) {
       await createWindow(currentTargetUrl);
     } catch (err) {
       log(`[Electron] Failed to start application: ${String(err)}`, true);
+      try {
+        dialog.showErrorBox(
+          "Kagelin 启动失败",
+          `应用程序启动时遇到错误，已记录到日志中：\n\n${err instanceof Error ? err.message : String(err)}\n\n日志路径: ${path.join(app.getPath("userData"), "app.log")}`,
+        );
+      } catch {}
       app.quit();
     }
 

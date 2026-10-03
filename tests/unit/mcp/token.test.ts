@@ -40,7 +40,9 @@ describe("MCP access store", () => {
 
     expect(store.readToken()).toBe(token);
     expect(fs.readFileSync(store.tokenPath, "utf8").trim()).toBe(token);
-    expect(fileMode(store.tokenPath)).toBe(0o600);
+    if (process.platform !== "win32") {
+      expect(fileMode(store.tokenPath)).toBe(0o600);
+    }
   });
 
   it("reuses the persisted token across store instances", () => {
@@ -60,7 +62,9 @@ describe("MCP access store", () => {
     expect(store.readToken()).toBe(after);
     expect(store.validate(before)).toBe(false);
     expect(store.validate(after)).toBe(true);
-    expect(fileMode(store.tokenPath)).toBe(0o600);
+    if (process.platform !== "win32") {
+      expect(fileMode(store.tokenPath)).toBe(0o600);
+    }
   });
 
   it("rejects missing, empty, and wrong tokens", () => {
@@ -85,7 +89,9 @@ describe("MCP access store", () => {
     expect(store.isEnabled()).toBe(true);
     expect(createMcpAccessStore(directory).isEnabled()).toBe(true);
     expect(store.enabledPath).toBe(path.join(directory, MCP_ENABLED_FILENAME));
-    expect(fileMode(store.enabledPath)).toBe(0o600);
+    if (process.platform !== "win32") {
+      expect(fileMode(store.enabledPath)).toBe(0o600);
+    }
 
     store.setEnabled(false);
 
