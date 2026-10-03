@@ -2,8 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import * as fs from "node:fs";
 import { getDatabase, closeDatabase } from "@/lib/db/index";
 import { getDatabasePath } from "@/lib/db/config";
+import { validateCsrfOrigin } from "@/lib/api/csrf-guard";
 
 export async function POST(request: NextRequest) {
+  const csrf = validateCsrfOrigin(request);
+  if (!csrf.ok) {
+    return NextResponse.json({ error: csrf.error }, { status: csrf.status });
+  }
+
   try {
     let buffer: Buffer | null = null;
     const contentType = request.headers.get("content-type") || "";

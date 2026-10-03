@@ -144,4 +144,13 @@ describe("WebDAV proxy route (C-3)", () => {
       expect.objectContaining({ method: "OPTIONS" }),
     );
   });
+
+  it("rejects path traversal attempts with 400", async () => {
+    const request = makeRequest("OPTIONS");
+    const response = await OPTIONS(request, {
+      params: Promise.resolve({ path: ["..", "admin"] }),
+    });
+    expect(response.status).toBe(400);
+    expect(mockSsrfSafeFetch).not.toHaveBeenCalled();
+  });
 });

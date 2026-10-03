@@ -245,7 +245,10 @@ async function createWindow(targetUrl: string) {
       preload: path.join(__dirname, "preload.js"),
       nodeIntegration: false,
       contextIsolation: true,
-      sandbox: false,
+      sandbox: true,
+      webSecurity: true,
+      allowRunningInsecureContent: false,
+      navigateOnDragDrop: false,
       spellcheck: false,
       backgroundThrottling: true,
     },
@@ -301,17 +304,42 @@ async function createWindow(targetUrl: string) {
     }
   });
 
-  // Open external links in user's default browser
-  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    if (
-      url.startsWith("http:") ||
-      url.startsWith("https:") ||
-      url.startsWith("mailto:")
-    ) {
-      shell.openExternal(url);
-      return { action: "deny" };
+  const ALLOWED_EXTERNAL_PROTOCOLS = new Set(["https:", "http:", "mailto:"]);
+  const safeOpenExternal = (rawUrl: string) => {
+    try {
+      const parsed = new URL(rawUrl);
+      if (ALLOWED_EXTERNAL_PROTOCOLS.has(parsed.protocol)) {
+        void shell.openExternal(rawUrl);
+      }
+    } catch {
+      // Malformed or invalid protocol ignored
     }
-    return { action: "allow" };
+  };
+
+  // Open external links in user's default browser (fail-closed default deny)
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    safeOpenExternal(url);
+    return { action: "deny" };
+  });
+
+  // Prevent in-window navigation to untrusted external origins; keep preload isolated
+  const handleNavigation = (event: Electron.Event, navigationUrl: string) => {
+    try {
+      const targetOrigin = new URL(targetUrl).origin;
+      const parsed = new URL(navigationUrl);
+      if (parsed.origin !== targetOrigin) {
+        event.preventDefault();
+        safeOpenExternal(navigationUrl);
+      }
+    } catch {
+      event.preventDefault();
+    }
+  };
+
+  mainWindow.webContents.on("will-navigate", handleNavigation);
+  mainWindow.webContents.on("will-redirect", handleNavigation);
+  mainWindow.webContents.on("will-attach-webview", (event) => {
+    event.preventDefault();
   });
 
   await mainWindow.loadURL(targetUrl);

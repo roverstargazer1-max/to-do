@@ -86,7 +86,24 @@ async function proxyWebDAV(
     );
   }
 
-  const path = params.path?.join("/") ?? "";
+  const rawSegments = params.path ?? [];
+  if (
+    rawSegments.some(
+      (seg) =>
+        seg === ".." ||
+        seg === "." ||
+        seg.includes("/") ||
+        seg.includes("\\") ||
+        seg.includes("\0"),
+    )
+  ) {
+    return NextResponse.json(
+      { error: "Invalid path segments in WebDAV request" },
+      { status: 400 },
+    );
+  }
+
+  const path = rawSegments.join("/");
   const targetUrl = `${webdavBaseUrl.replace(/\/$/, "")}/${path}`;
 
   const forwardHeaders = new Headers();

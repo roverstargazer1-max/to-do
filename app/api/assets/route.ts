@@ -1,7 +1,37 @@
 import { NextRequest, NextResponse } from "next/server";
 import { assetService } from "@/lib/assets/asset-service";
+import { validateCsrfOrigin } from "@/lib/api/csrf-guard";
+
+function checkSvgSafety(
+  buffer: Buffer,
+  mimeType: string,
+  fileName: string,
+): void {
+  const isSvg =
+    mimeType.toLowerCase().includes("svg") ||
+    fileName.toLowerCase().endsWith(".svg") ||
+    /^\s*(?:<\?xml[^>]*>\s*)?(?:<!--[^]*?-->\s*)*<svg\b/i.test(
+      buffer.subarray(0, 4096).toString("utf-8"),
+    );
+
+  if (isSvg) {
+    const text = buffer.toString("utf-8");
+    const dangerous =
+      /<\/?script\b|\bon[a-z][\w-]*\s*=|javascript\s*:|data\s*:\s*text\/html|<\/?(?:iframe|object|embed|foreignObject|link)\b|<!ENTITY|@import\b|(?:href|xlink:href|src)\s*=\s*["']\s*(?:https?:|file:|javascript:|data:)|url\s*\(\s*["']?(?:https?:|file:|data:)/i;
+    if (dangerous.test(text)) {
+      throw new Error(
+        "SVG content contains potentially unsafe script or external references",
+      );
+    }
+  }
+}
 
 export async function POST(request: NextRequest) {
+  const csrf = validateCsrfOrigin(request);
+  if (!csrf.ok) {
+    return NextResponse.json({ error: csrf.error }, { status: csrf.status });
+  }
+
   try {
     const contentType = request.headers.get("content-type") || "";
 
@@ -16,6 +46,7 @@ export async function POST(request: NextRequest) {
       }
       const arrayBuffer = await file.arrayBuffer();
       const buffer = Buffer.from(arrayBuffer);
+      checkSvgSafety(buffer, file.type || "", file.name);
       const asset = assetService.saveAsset(
         buffer,
         file.name,
@@ -37,6 +68,7 @@ export async function POST(request: NextRequest) {
     }
 
     const buffer = Buffer.from(base64, "base64");
+    checkSvgSafety(buffer, mimeType || "", fileName);
     const asset = assetService.saveAsset(
       buffer,
       fileName,

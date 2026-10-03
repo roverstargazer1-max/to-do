@@ -50,18 +50,50 @@ export function readMcpChannelStatus(
   };
 }
 
+export function isAuthorizedSender(
+  event: unknown,
+  expectedUrl: string,
+): boolean {
+  if (!event || typeof event !== "object") return true;
+  const invokeEvent = event as {
+    senderFrame?: { parent: unknown; url?: string };
+  };
+  if (!invokeEvent.senderFrame) return true;
+  // Disallow child frames/iframes
+  if (invokeEvent.senderFrame.parent !== null) return false;
+  if (!invokeEvent.senderFrame.url) return false;
+  try {
+    const senderOrigin = new URL(invokeEvent.senderFrame.url).origin;
+    const expectedOrigin = new URL(expectedUrl).origin;
+    return senderOrigin === expectedOrigin;
+  } catch {
+    return false;
+  }
+}
+
 export function registerMcpBridge(
   ipc: McpBridgeIpc,
   context: McpBridgeContext,
 ): void {
-  ipc.handle(MCP_STATUS_CHANNEL, () => readMcpChannelStatus(context));
+  ipc.handle(MCP_STATUS_CHANNEL, (event) => {
+    if (!isAuthorizedSender(event, context.resolveUrl())) {
+      throw new Error("Unauthorized IPC invocation");
+    }
+    return readMcpChannelStatus(context);
+  });
 
-  ipc.handle(MCP_SET_ENABLED_CHANNEL, (_event, payload) => {
+  ipc.handle(MCP_SET_ENABLED_CHANNEL, (event, payload) => {
+    if (!isAuthorizedSender(event, context.resolveUrl())) {
+      throw new Error("Unauthorized IPC invocation");
+    }
     context.store.setEnabled(payload === true);
     return readMcpChannelStatus(context);
   });
 
-  ipc.handle(MCP_RESET_TOKEN_CHANNEL, () => {
+  ipc.handle(MCP_RESET_TOKEN_CHANNEL, (event) => {
+    if (!isAuthorizedSender(event, context.resolveUrl())) {
+      throw new Error("Unauthorized IPC invocation");
+    }
     context.store.resetToken();
     return readMcpChannelStatus(context);
   });

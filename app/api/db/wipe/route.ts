@@ -1,13 +1,19 @@
-import { NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 import * as fs from "node:fs";
 import { getDatabase } from "@/lib/db/index";
 import { getAssetDirPath } from "@/lib/db/config";
+import { validateCsrfOrigin } from "@/lib/api/csrf-guard";
 
 /**
  * Clears every domain row in the local database (single transaction) and
  * removes the content-addressed asset files that no row can reference anymore.
  */
-export async function POST() {
+export async function POST(request: NextRequest) {
+  const csrf = validateCsrfOrigin(request);
+  if (!csrf.ok) {
+    return NextResponse.json({ error: csrf.error }, { status: csrf.status });
+  }
+
   try {
     const db = getDatabase();
 

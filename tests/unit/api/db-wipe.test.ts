@@ -68,7 +68,9 @@ describe("API route: wipe local data", () => {
     ).toBeGreaterThan(0);
     expect(fs.readdirSync(assetsDir).length).toBe(1);
 
-    const res = await postWipe();
+    const res = await postWipe(
+      new NextRequest("http://localhost:3000/api/db/wipe", { method: "POST" }),
+    );
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ success: true });
 
@@ -96,5 +98,20 @@ describe("API route: wipe local data", () => {
     }
 
     expect(fs.readdirSync(assetsDir)).toEqual([]);
+  });
+
+  it("blocks cross-origin wipe attempts with 403 Forbidden", async () => {
+    const maliciousReq = new NextRequest("http://localhost:3000/api/db/wipe", {
+      method: "POST",
+      headers: {
+        origin: "https://attacker.evil.com",
+        "sec-fetch-site": "cross-site",
+      },
+    });
+
+    const res = await postWipe(maliciousReq);
+    expect(res.status).toBe(403);
+    const body = await res.json();
+    expect(body.error).toContain("Cross-site requests are not allowed");
   });
 });

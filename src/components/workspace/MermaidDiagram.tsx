@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useState, useRef } from "react";
 import { useTheme } from "next-themes";
@@ -40,6 +40,16 @@ export function MermaidDiagram({ chart, className }: MermaidDiagramProps) {
         const mermaid = mermaidModule.default;
         const uniqueId = `mermaid-${Math.random().toString(36).substring(2, 9)}`;
 
+        function sanitizeRenderedSvg(rawSvg: string): string {
+          return rawSvg
+            .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
+            .replace(/\bon[a-z][\w-]*\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, "")
+            .replace(
+              /(?:href|xlink:href)\s*=\s*["']\s*javascript:[^"']*["']/gi,
+              "",
+            );
+        }
+
         mermaid.initialize({
           startOnLoad: false,
           theme: isDark ? "dark" : "neutral",
@@ -52,12 +62,12 @@ export function MermaidDiagram({ chart, className }: MermaidDiagramProps) {
             primaryTextColor: isDark ? "#fafafa" : "#09090b",
             lineColor: isDark ? "#71717a" : "#a1a1aa",
           },
-          securityLevel: "loose",
+          securityLevel: "strict",
         });
 
         const { svg: renderedSvg } = await mermaid.render(uniqueId, chart);
         if (!isCancelled) {
-          setSvg(renderedSvg);
+          setSvg(sanitizeRenderedSvg(renderedSvg));
           setError(null);
           setIsLoading(false);
         }

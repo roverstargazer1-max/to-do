@@ -137,7 +137,57 @@ describe("API Routes: Workspaces, Nodes, Edges, Assets", () => {
       params: Promise.resolve({ hash: assetData.hash }),
     });
     expect(streamRes.status).toBe(200);
+    expect(streamRes.headers.get("X-Content-Type-Options")).toBe("nosniff");
+    expect(streamRes.headers.get("Content-Security-Policy")).toContain(
+      "sandbox",
+    );
     const blob = await streamRes.arrayBuffer();
     expect(Buffer.from(blob).toString()).toBe("test-pixel-data");
+
+    // 7. Security: Invalid hash format must return 400
+    const invalidHashReq = new NextRequest(
+      "http://localhost:3000/api/assets/not-valid-hash",
+    );
+    const invalidHashRes = await getAssetByHash(invalidHashReq, {
+      params: Promise.resolve({ hash: "not-valid-hash" }),
+    });
+    expect(invalidHashRes.status).toBe(400);
+
+    // 8. Security: Cross-origin asset upload must be blocked
+    const crossOriginReq = new NextRequest("http://localhost:3000/api/assets", {
+      method: "POST",
+      headers: {
+        origin: "https://evil.com",
+        "sec-fetch-site": "cross-site",
+      },
+      body: JSON.stringify({
+        base64: sampleBase64,
+        fileName: "icon.png",
+        mimeType: "image/png",
+      }),
+    });
+    const crossOriginRes = await postAssets(crossOriginReq);
+    expect(crossOriginRes.status).toBe(403);
+
+    // 9. Security: Malicious SVG with embedded script must be rejected
+    const maliciousSvg =
+      '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>';
+    const maliciousSvgReq = new NextRequest(
+      "http://localhost:3000/api/assets",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          base64: Buffer.from(maliciousSvg).toString("base64"),
+          fileName: "evil.svg",
+          mimeType: "image/svg+xml",
+        }),
+      },
+    );
+    const maliciousSvgRes = await postAssets(maliciousSvgReq);
+    expect(maliciousSvgRes.status).toBe(500);
+    const errBody = await maliciousSvgRes.json();
+    expect(errBody.error).toContain(
+      "SVG content contains potentially unsafe script",
+    );
   });
 });

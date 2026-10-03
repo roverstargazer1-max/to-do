@@ -13,6 +13,11 @@ export async function parseUhabitsFile(file: File): Promise<{
   entries: HabitEntry[];
   source: UhabitsRawSource;
 }> {
+  const MAX_UHABITS_FILE_SIZE = 50 * 1024 * 1024; // 50 MB
+  if (file.size > MAX_UHABITS_FILE_SIZE) {
+    throw new Error("File size exceeds 50MB limit");
+  }
+
   // Use the locally served WASM binary so the import works in all environments
   // (including offline / PWA) without depending on an external CDN.
   // The file is copied to public/sql-wasm.wasm by `npm run copy-wasm` (prepare).
@@ -21,27 +26,42 @@ export async function parseUhabitsFile(file: File): Promise<{
   });
 
   const buffer = await file.arrayBuffer();
-  const db = new SQL.Database(new Uint8Array(buffer));
-
-  const habitsResult = db.exec("SELECT * FROM habits");
-  const repetitionsResult = db.exec("SELECT * FROM Repetitions");
-
-  if (!habitsResult.length) {
-    return { habits: [], entries: [], source: { habits: [], repetitions: [] } };
+  const uint8 = new Uint8Array(buffer);
+  if (uint8.length < 16) {
+    throw new Error("Invalid database file: file is too small");
   }
 
-  const habitsData = resultToObjects(habitsResult[0]);
-  const repetitionsData = repetitionsResult.length
-    ? resultToObjects(repetitionsResult[0])
-    : [];
+  const header = new TextDecoder().decode(uint8.subarray(0, 15));
+  if (header !== "SQLite format 3") {
+    throw new Error("Invalid file format: not a valid SQLite database");
+  }
 
-  db.close();
+  const db = new SQL.Database(uint8);
+  try {
+    const habitsResult = db.exec("SELECT * FROM habits");
+    const repetitionsResult = db.exec("SELECT * FROM Repetitions");
 
-  // Raw parse, kept verbatim for round-trip export (ADR 0006).
-  return {
-    ...mapUhabitsToKanso(habitsData, repetitionsData),
-    source: { habits: habitsData, repetitions: repetitionsData },
-  };
+    if (!habitsResult.length) {
+      return {
+        habits: [],
+        entries: [],
+        source: { habits: [], repetitions: [] },
+      };
+    }
+
+    const habitsData = resultToObjects(habitsResult[0]);
+    const repetitionsData = repetitionsResult.length
+      ? resultToObjects(repetitionsResult[0])
+      : [];
+
+    // Raw parse, kept verbatim for round-trip export (ADR 0006).
+    return {
+      ...mapUhabitsToKanso(habitsData, repetitionsData),
+      source: { habits: habitsData, repetitions: repetitionsData },
+    };
+  } finally {
+    db.close();
+  }
 }
 
 function resultToObjects(result: {
@@ -190,6 +210,19 @@ export function toCreateHabitInput(habit: Habit): CreateHabitInput {
   };
 }
 
+function safeFormatDate(rawTimestamp: unknown, fallback: string): string {
+  const num =
+    typeof rawTimestamp === "number" ? rawTimestamp : Number(rawTimestamp);
+  if (!Number.isFinite(num)) return fallback;
+  const d = new Date(num);
+  if (isNaN(d.getTime())) return fallback;
+  try {
+    return d.toISOString().split("T")[0];
+  } catch {
+    return fallback;
+  }
+}
+
 export function mapUhabitsToKanso(
   uhHabits: Record<string, unknown>[],
   uhRepetitions: Record<string, unknown>[],
@@ -201,7 +234,7 @@ export function mapUhabitsToKanso(
   uhRepetitions.forEach((ci) => {
     if ((ci.value as number) !== 2) return;
     const loopId = ci.habit as number;
-    const date = new Date(ci.timestamp as number).toISOString().split("T")[0];
+    const date = safeFormatDate(ci.timestamp, today);
     const prev = earliestDate.get(loopId);
     if (!prev || date < prev) earliestDate.set(loopId, date);
   });
@@ -255,7 +288,7 @@ export function mapUhabitsToKanso(
     rawEntries.push({
       id: crypto.randomUUID(),
       habit_id: habitId,
-      date: new Date(ci.timestamp as number).toISOString().split("T")[0],
+      date: safeFormatDate(ci.timestamp, today),
       value: 1,
       created_at: new Date().toISOString(),
     });

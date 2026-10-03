@@ -3596,28 +3596,31 @@ export function createKagelinMcpServer(
       sql: z
         .string()
         .min(1)
-        .describe("Read-only SQL query (SELECT, WITH, EXPLAIN, PRAGMA)."),
+        .describe("Read-only SQL query (SELECT, WITH, EXPLAIN)."),
     },
     async ({ sql }) => {
       try {
         const trimmed = sql.trim();
         const upper = trimmed.toUpperCase();
-        const isReadOnly =
-          (upper.startsWith("SELECT") ||
-            upper.startsWith("WITH") ||
-            upper.startsWith("EXPLAIN") ||
-            upper.startsWith("PRAGMA")) &&
-          !/\b(INSERT|UPDATE|DELETE|DROP|ALTER|CREATE|REPLACE|ATTACH|DETACH|VACUUM)\b/i.test(
-            trimmed,
-          );
+        const isAllowedStart =
+          upper.startsWith("SELECT") ||
+          upper.startsWith("WITH") ||
+          upper.startsWith("EXPLAIN");
 
-        if (!isReadOnly) {
+        if (!isAllowedStart) {
           throw new Error(
-            "Only read-only SQL queries (SELECT, WITH, EXPLAIN, PRAGMA) are allowed.",
+            "Only read-only SQL queries (SELECT, WITH, EXPLAIN) are allowed.",
           );
         }
 
-        const rows = sqliteDb.prepare(trimmed).all();
+        const stmt = sqliteDb.prepare(trimmed);
+        if (!stmt.reader) {
+          throw new Error(
+            "Only read-only queries that return rows are permitted.",
+          );
+        }
+
+        const rows = stmt.all();
         return operationResult({ rows, rowCount: rows.length });
       } catch (err) {
         return errorResult(err);

@@ -122,6 +122,12 @@ describe("06: MCP Server SQLite Native Direct-Connect", () => {
     expect(selectData.rowCount).toBe(1);
     expect(selectData.rows[0].total).toBe(1);
 
+    // Reading with keywords inside string literals must succeed
+    const literalRes = await tools.execute_sql.handler({
+      sql: "SELECT count(*) as total FROM tasks WHERE content LIKE '%update%'",
+    });
+    expect(literalRes.isError).toBeUndefined();
+
     // Mutating queries must be blocked
     const dropRes = await tools.execute_sql.handler({
       sql: "DROP TABLE tasks",
@@ -134,5 +140,11 @@ describe("06: MCP Server SQLite Native Direct-Connect", () => {
       sql: "DELETE FROM tasks",
     });
     expect(deleteRes.isError).toBe(true);
+
+    // PRAGMA statements must be blocked
+    const pragmaRes = await tools.execute_sql.handler({
+      sql: "PRAGMA locking_mode = EXCLUSIVE",
+    });
+    expect(pragmaRes.isError).toBe(true);
   });
 });

@@ -87,4 +87,22 @@ describe("Database Snapshot & Restore Endpoints", () => {
       .get("task-snap-1") as any;
     expect(row.content).toBe("Task before snapshot");
   });
+
+  it("blocks cross-origin restore attempts with 403 Forbidden", async () => {
+    const maliciousReq = new NextRequest(
+      "http://localhost:3000/api/db/restore",
+      {
+        method: "POST",
+        headers: {
+          origin: "https://malicious-website.org",
+          "sec-fetch-site": "cross-site",
+        },
+      },
+    );
+
+    const res = await postRestore(maliciousReq);
+    expect(res.status).toBe(403);
+    const body = await res.json();
+    expect(body.error).toContain("Cross-site requests are not allowed");
+  });
 });

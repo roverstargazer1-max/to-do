@@ -10,9 +10,9 @@ export async function GET() {
       database: "connected",
       storage: "sqlite",
     });
-  } catch (err: unknown) {
+  } catch {
     return NextResponse.json(
-      { status: "error", database: "unreachable", error: String(err) },
+      { status: "error", database: "unreachable" },
       { status: 503 },
     );
   }
